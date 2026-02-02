@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-02-02 — Phase 4.5 完成: 健壮性增强 + 数据契约升级
+
+完成 Phase 4.5 剩余三步（4.5.2–4.5.4），全面提升系统健壮性。
+
+**Step 4.5.2: sourcePrompt 一致性校验**
+- 更新 `agents/planner.py`: `generate_blueprint()` 强制覆写 sourcePrompt（不再判空），LLM 篡改时记录 warning
+- 更新 `api/conversation.py`: 新增 `_verify_source_prompt()` 防御性校验函数，在 build/refine/rebuild 共 5 处调用
+- 新增 3 项 sourcePrompt 测试（`test_planner.py`）
+
+**Step 4.5.3: Action 命名统一化**
+- 重构 `models/conversation.py`: ConversationResponse 从扁平 `action: str` 改为结构化 `mode + action + chat_kind` 三维字段
+- 新增 `@computed_field legacy_action` 向下兼容（`chat_smalltalk` / `chat_qa` / `build_workflow` 等旧值）
+- 更新 `api/conversation.py`: 13 处 ConversationResponse 构造器适配新字段
+- 更新 `tests/test_conversation_models.py`, `test_conversation_api.py`, `test_e2e_conversation.py` 适配新断言
+
+**Step 4.5.4: Executor 数据阶段错误拦截**
+- 新增 `errors/__init__.py` + `errors/exceptions.py`: ToolError → DataFetchError → EntityNotFoundError 异常体系
+- 更新 `agents/executor.py`: `_resolve_data_contract` 检查 error dict，required binding → DATA_ERROR + DataFetchError，non-required → warning + 跳过
+- 新增 DATA_ERROR SSE 事件类型 + error COMPLETE 含 `errorType: "data_error"`
+- 新增 3 项 DATA_ERROR 测试 + 1 项异常属性测试（`test_executor.py`）
+
+- 230 项测试全部通过（8 项新增 + 222 项已有）
+
+---
+
 ## 2026-02-02 — Phase 4.5.1: 实体解析层（Entity Resolver）
 
 实现确定性实体解析层，自动将自然语言班级引用解析为 classId，替代大部分手动点选场景。

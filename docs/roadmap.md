@@ -488,7 +488,7 @@
 
 ---
 
-## Phase 4.5: 健壮性增强 + 数据契约升级 🔄
+## Phase 4.5: 健壮性增强 + 数据契约升级 ✅ 已完成
 
 **目标**: 解决 Phase 4 闭环后暴露的稳定性与可控性问题——实体解析与校验、sourcePrompt 一致性、action 命名规范化、Executor 错误拦截。确保自然语言班级引用自动解析，LLM 不编造不存在的实体，错误不穿透到前端页面。
 
@@ -551,51 +551,51 @@
 
 > ✅ 验收: "分析 1A 班英语成绩" → 自动解析 class + build_workflow；"分析 1A 班学生 Wong Ka Ho 的成绩" → 解析 class + student；"分析学生 Wong Ka Ho"（无班级）→ missing_context + clarify；"对比 1A 和 1B" → 多班自动解析。
 
-### Step 4.5.2: sourcePrompt 一致性校验
+### Step 4.5.2: sourcePrompt 一致性校验 ✅ 已完成
 
 > 防止 LLM 改写用户原始请求。确保 Blueprint.sourcePrompt 始终等于原始 message。
 
-- [ ] **4.5.2.1** 在 `agents/planner.py` 的 `generate_blueprint()` 返回前增加强制覆写：
+- [x] **4.5.2.1** 在 `agents/planner.py` 的 `generate_blueprint()` 返回前增加强制覆写：
   - `blueprint.source_prompt = user_prompt`（不再判空，直接覆写）
   - 如果 LLM 生成的 `source_prompt` 与原文不一致，记录 warning 日志
-- [ ] **4.5.2.2** 在 `api/conversation.py` 的 build/refine/rebuild 三个分支各加断言：
-  - `assert blueprint.source_prompt == original_message` 或等价校验
-- [ ] **4.5.2.3** 编写测试：验证 sourcePrompt 始终等于原始输入
+- [x] **4.5.2.2** 在 `api/conversation.py` 的 build/refine/rebuild 三个分支各加断言：
+  - `_verify_source_prompt(blueprint, expected_prompt)` 防御性校验
+- [x] **4.5.2.3** 编写测试：验证 sourcePrompt 始终等于原始输入
 
 > ✅ 验收: 无论 LLM 输出什么 sourcePrompt，最终 Blueprint 的 sourcePrompt 必等于原始 message。
 
-### Step 4.5.3: Action 命名统一化
+### Step 4.5.3: Action 命名统一化 ✅ 已完成
 
 > 消除 action 枚举混用问题（chat_smalltalk/chat_qa vs chat），前端/日志/统计可统一解读。
 
-- [ ] **4.5.3.1** 在 `ConversationResponse` 中新增结构化字段：
+- [x] **4.5.3.1** 在 `ConversationResponse` 中新增结构化字段：
   ```python
   mode: Literal["entry", "followup"]
   action: Literal["chat", "build", "clarify", "refine", "rebuild"]
   chat_kind: Literal["smalltalk", "qa", "page"] | None = None
   ```
-- [ ] **4.5.3.2** 保留旧 `action` 字段作为 `@computed_field` 向下兼容：
+- [x] **4.5.3.2** 保留旧 `action` 字段作为 `@computed_field` 向下兼容：
   - `mode=entry, action=chat, chat_kind=smalltalk` → legacy `"chat_smalltalk"`
   - `mode=entry, action=chat, chat_kind=qa` → legacy `"chat_qa"`
   - `mode=followup, action=chat, chat_kind=page` → legacy `"chat"`
-- [ ] **4.5.3.3** 更新 Router / Conversation API 适配新字段结构
-- [ ] **4.5.3.4** 更新所有测试验证新字段
+- [x] **4.5.3.3** 更新 Router / Conversation API 适配新字段结构
+- [x] **4.5.3.4** 更新所有测试验证新字段
 
 > ✅ 验收: 前端可按 `action` + `chatKind` 二维判断渲染策略；旧 `action` 字段保持兼容。
 
-### Step 4.5.4: Executor 数据阶段错误拦截
+### Step 4.5.4: Executor 数据阶段错误拦截 ✅ 已完成
 
 > 防止 error dict 穿透到 Compose 阶段，产出空壳页面。
 
-- [ ] **4.5.4.1** Executor `_resolve_data_contract` 中检查 tool 返回值：
+- [x] **4.5.4.1** Executor `_resolve_data_contract` 中检查 tool 返回值：
   - 如果返回包含 `"error"` key 且 binding.required == True → 抛出 `DataFetchError`
   - 非 required binding 的错误 → warning 日志 + 跳过
-- [ ] **4.5.4.2** 新增 SSE 事件类型 `DATA_ERROR`：
+- [x] **4.5.4.2** 新增 SSE 事件类型 `DATA_ERROR`：
   ```json
   {"type": "DATA_ERROR", "entity": "class-2c", "message": "班级不存在", "suggestions": [...]}
   ```
-- [ ] **4.5.4.3** 前端收到 `DATA_ERROR` 时可展示友好提示而非空页面
-- [ ] **4.5.4.4** 编写测试：required binding 返回 error → 终止 + DATA_ERROR 事件
+- [x] **4.5.4.3** 前端收到 `DATA_ERROR` 时可展示友好提示而非空页面
+- [x] **4.5.4.4** 编写测试：required binding 返回 error → 终止 + DATA_ERROR 事件
 
 > ✅ 验收: Executor 遇到不存在的实体时，返回 DATA_ERROR 事件，不再产出空壳页面。
 
@@ -605,12 +605,12 @@
 - [x] `services/entity_resolver.py` — 通用实体解析: class/student/assignment 三类 + 依赖链 + 降级逻辑
 - [x] `models/conversation.py` — resolved_entities 字段适配新模型 (Phase 4.5.1)
 - [x] `api/conversation.py` — 通用实体解析集成 + missing_context 处理 + 多类型 context 注入 (Phase 4.5.1)
-- [ ] `errors/exceptions.py` — EntityNotFoundError + DataFetchError + ToolError
-- [ ] `agents/planner.py` — sourcePrompt 强制覆写
-- [ ] `models/conversation.py` — action 二维结构化 + 向下兼容
-- [ ] `agents/executor.py` — 数据阶段错误拦截 + DATA_ERROR 事件
-- [ ] `tools/data_tools.py` — not-found 改为 raise 异常
-- [ ] `pytest tests/ -v` 全部通过
+- [x] `errors/exceptions.py` — ToolError + DataFetchError + EntityNotFoundError 自定义异常体系
+- [x] `agents/planner.py` — sourcePrompt 强制覆写 + warning 日志
+- [x] `models/conversation.py` — mode/action/chatKind 三维结构化 + legacyAction computed_field 向下兼容
+- [x] `api/conversation.py` — _verify_source_prompt() 防御性校验 + 13 处 ConversationResponse 适配
+- [x] `agents/executor.py` — 数据阶段错误拦截 + DATA_ERROR 事件 + DataFetchError 处理
+- [x] `pytest tests/ -v` 全部通过（230 项测试）
 
 ---
 
@@ -784,7 +784,7 @@ tools/data_tools.py  →  adapters/class_adapter.py  →  services/java_client.p
 | **M2: 智能规划** | 2 ✅ | 用户 prompt → 结构化 Blueprint |
 | **M3: 页面构建** | 3 ✅ | Blueprint → SSE 流式页面 |
 | **M4: 会话网关** | 4 ✅ | 统一会话入口 + 意图路由 + 交互式反问，完整交互闭环 |
-| **M4.5: 健壮性增强** | 4.5 | 实体校验 + sourcePrompt 防篡改 + action 规范化 + 错误拦截 |
+| **M4.5: 健壮性增强** | 4.5 ✅ | 实体校验 + sourcePrompt 防篡改 + action 规范化 + 错误拦截 |
 | **M5: 真实数据** | 5 | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
 | **M6: 产品上线** | 6 | 前端集成 + Level 2 + SSE 升级 + Patch 机制 + 部署上线 |
 

@@ -78,19 +78,25 @@ data: {"type":"COMPLETE","message":"completed","progress":100,"result":{...}}
 - 前端 `handleSSEStream()` 只消费 `MESSAGE` 和 `COMPLETE`，忽略其他类型
 - `PHASE` 事件是可选的，前端忽略未知类型，向后兼容
 
-### 计划新增事件类型（Phase 4.5 + Phase 6）
+### DATA_ERROR 事件（Phase 4.5 ✅ 已实现）
+
+当 Executor 数据阶段发现 required binding 返回 error dict（如实体不存在）时，发送此事件替代空壳页面：
+
+```
+data: {"type":"DATA_ERROR","entity":"submissions","message":"Class class-2c not found","suggestions":["Form 1A","Form 1B"]}
+```
+
+紧接着发送 error COMPLETE 事件，含 `errorType: "data_error"`：
+
+```
+data: {"type":"COMPLETE","message":"error","progress":100,"result":{"response":"","chatResponse":"...","page":null,"errorType":"data_error","entity":"submissions","suggestions":[...]}}
+```
+
+前端收到 `DATA_ERROR` 时应展示友好提示和建议选项，而非继续等待页面渲染。非 required binding 的 error dict 不会触发 DATA_ERROR，仅记录 warning 日志并跳过。
+
+### 计划新增事件类型（Phase 6）
 
 以下事件类型计划在后续 Phase 中引入，现有前端可安全忽略：
-
-#### Phase 4.5: DATA_ERROR 事件
-
-当 Executor 数据阶段发现实体不存在时，发送此事件替代空壳页面：
-
-```
-data: {"type":"DATA_ERROR","entity":"class-2c","message":"班级不存在","suggestions":["Form 1A","Form 1B"]}
-```
-
-前端收到 `DATA_ERROR` 时应展示友好提示和建议选项，而非继续等待 COMPLETE。
 
 #### Phase 6.2: Block/Slot 粒度事件
 

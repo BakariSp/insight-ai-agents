@@ -4,7 +4,7 @@
 
 ---
 
-## 当前架构（Phase 4）
+## 当前架构（Phase 4.5）
 
 ```
 Client (HTTP / SSE)
@@ -61,7 +61,7 @@ Client (HTTP / SSE)
 
 | 模块 | 文件 | 功能 |
 |------|------|------|
-| Conversation Models | `models/conversation.py` | IntentType + RouterResult + ClarifyOptions + ConversationRequest/Response + resolved_entities |
+| Conversation Models | `models/conversation.py` | IntentType + RouterResult + ClarifyOptions + ConversationRequest/Response (mode/action/chatKind + legacyAction) + resolved_entities |
 | RouterAgent | `agents/router.py` | 双模式意图分类（初始 + 追问）+ 置信度路由 |
 | ChatAgent | `agents/chat.py` | 闲聊 + 知识问答 Agent（chat_smalltalk / chat_qa） |
 | PageChatAgent | `agents/page_chat.py` | 基于页面上下文回答追问 |
@@ -191,13 +191,13 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 计划新增模块（Phase 4.5 — 健壮性增强，部分完成）
+### 新增模块（Phase 4.5 — 健壮性增强）
 
 | 模块 | 文件 | 功能 | 状态 |
 |------|------|------|------|
 | Entity Resolver | `services/entity_resolver.py` | 自然语言班级名 → classId 自动解析 + 降级 clarify | ✅ 已完成 |
 | Entity Models | `models/entity.py` | ResolvedEntity + ResolveResult | ✅ 已完成 |
-| Custom Exceptions | `errors/exceptions.py` | EntityNotFoundError / DataFetchError / ToolError | 🔲 待实现 |
+| Custom Exceptions | `errors/exceptions.py` | ToolError → DataFetchError → EntityNotFoundError | ✅ 已完成 |
 
 ### 计划新增模块（Phase 5 — Adapter 层）
 
@@ -217,16 +217,18 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 
 ### 当前 → 目标的差距
 
-| 方面 | 当前 (Phase 4) | 目标 |
+| 方面 | 当前 (Phase 4.5) | 目标 |
 |------|------|------|
 | Web 框架 | ✅ FastAPI (异步) | FastAPI (异步) |
 | 工具框架 | ✅ FastMCP 6 工具 + TOOL_REGISTRY | FastMCP `@mcp.tool` + 自动 Schema |
-| 数据模型 | ✅ Blueprint + CamelModel + Conversation | Blueprint + Conversation + Patch + Internal Data |
+| 数据模型 | ✅ Blueprint + CamelModel + Conversation + Entity | Blueprint + Conversation + Patch + Internal Data |
 | 配置系统 | ✅ Pydantic Settings | Pydantic Settings |
 | LLM 接入 | ✅ PydanticAI + LiteLLM | PydanticAI + LiteLLM (streaming + tool_use) |
 | Agent 数量 | ✅ 5 个 Agent (Planner + Executor + Router + Chat + PageChat) | 5+ Agents |
-| 输出模式 | ✅ SSE 流式 (MESSAGE) | SSE 流式 (BLOCK_START / SLOT_DELTA / BLOCK_COMPLETE) |
-| 实体解析 | ✅ Entity Resolver 自动匹配班级名 → classId | Entity Resolver + Validator 完整校验 |
+| 输出模式 | ✅ SSE 流式 (MESSAGE + DATA_ERROR) | SSE 流式 (BLOCK_START / SLOT_DELTA / BLOCK_COMPLETE) |
+| 实体解析 | ✅ Entity Resolver 自动匹配班级/学生/作业 → ID | Entity Resolver 完整校验 |
+| 异常体系 | ✅ ToolError → DataFetchError → EntityNotFoundError | 完整异常体系 |
+| Action 命名 | ✅ mode/action/chatKind 三维结构 + legacyAction 兼容 | 结构化 Action |
 | 数据来源 | Mock 数据 | Java Backend via httpx + Adapter 层 |
 | 前端集成 | 无 | Next.js API Routes proxy |
 | Patch 机制 | 无 | refine 支持 PATCH_LAYOUT / PATCH_COMPOSE / FULL_REBUILD |
@@ -340,7 +342,7 @@ LiteLLM 的轻封装:
 
 ## 项目结构
 
-### 当前结构（Phase 4）
+### 当前结构（Phase 4.5）
 
 ```
 insight-ai-agent/
@@ -389,6 +391,10 @@ insight-ai-agent/
 │   ├── chat.py                # ChatAgent: 闲聊 + QA ← Phase 4 新增
 │   ├── page_chat.py           # PageChatAgent: 页面追问 ← Phase 4 新增
 │   └── chat_agent.py           # ChatAgent: 对话 + 工具循环 (旧)
+│
+├── errors/                    # ← Phase 4.5 新增
+│   ├── __init__.py             # 导出 ToolError / DataFetchError / EntityNotFoundError
+│   └── exceptions.py           # 自定义异常体系
 │
 ├── services/
 │   ├── llm_service.py          # LiteLLM 封装
