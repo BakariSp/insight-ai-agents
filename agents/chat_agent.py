@@ -1,5 +1,6 @@
+import json
 import uuid
-from services.anthropic_service import AnthropicService
+from services.llm_service import LLMService
 from skills import WebSearchSkill, MemorySkill
 from config import Config
 
@@ -9,10 +10,10 @@ Be concise and accurate. If you don't know something, say so."""
 
 
 class ChatAgent:
-    """Orchestrates conversations with Claude, routing tool calls to skills."""
+    """Orchestrates conversations with LLMs, routing tool calls to skills."""
 
     def __init__(self):
-        self.service = AnthropicService()
+        self.default_service = LLMService()
         self.skills = self._load_skills()
         self.conversations: dict[str, list] = {}
 
@@ -30,10 +31,23 @@ class ChatAgent:
             for s in self.skills.values()
         ]
 
-    def run(self, user_message: str, conversation_id: str | None = None) -> dict:
-        """Run a full agent turn: send message, handle tool calls, return final response."""
+    def run(
+        self,
+        user_message: str,
+        conversation_id: str | None = None,
+        model: str | None = None,
+    ) -> dict:
+        """Run a full agent turn: send message, handle tool calls, return final response.
+
+        Args:
+            user_message:     The user's input text.
+            conversation_id:  Optional ID to continue a conversation.
+            model:            Optional model override (e.g. "openai/gpt-4o").
+        """
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
+
+        service = LLMService(model=model) if model else self.default_service
 
         messages = self.conversations.get(conversation_id, [])
         messages.append({"role": "user", "content": user_message})
@@ -42,37 +56,37 @@ class ChatAgent:
 
         # Agent loop: keep going until we get a final text response
         while True:
-            response = self.service.chat(
+            response = service.chat(
                 messages=messages,
                 tools=tools,
                 system=SYSTEM_PROMPT,
             )
 
-            # Add assistant response to conversation
-            messages.append({"role": "assistant", "content": response["content"]})
+            # Build assistant message for conversation history
+            assistant_msg: dict = {"role": "assistant", "content": response["content"]}
+            if response["tool_calls"]:
+                assistant_msg["tool_calls"] = response["tool_calls"]
+            messages.append(assistant_msg)
 
-            # If the model wants to use a tool, execute it and continue
-            if response["stop_reason"] == "tool_use":
-                tool_results = []
-                for block in response["content"]:
-                    if block["type"] == "tool_use":
-                        result = self._execute_tool(block["name"], block["input"])
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block["id"],
-                            "content": result,
-                        })
-                messages.append({"role": "user", "content": tool_results})
+            # If the model wants to use tools, execute them and continue
+            if response["finish_reason"] == "tool_calls" and response["tool_calls"]:
+                for tc in response["tool_calls"]:
+                    args = json.loads(tc["function"]["arguments"])
+                    result = self._execute_tool(tc["function"]["name"], args)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result,
+                    })
             else:
-                # Final response — extract text
                 break
 
         self.conversations[conversation_id] = messages
 
-        text_parts = [b["text"] for b in response["content"] if b["type"] == "text"]
         return {
             "conversation_id": conversation_id,
-            "response": "\n".join(text_parts),
+            "response": response["content"] or "",
+            "model": service.model,
             "usage": response["usage"],
         }
 

@@ -20,7 +20,8 @@ def chat():
     Request body:
         {
             "message": "user message",
-            "conversation_id": "optional-conversation-id"
+            "conversation_id": "optional-conversation-id",
+            "model": "optional-model-override, e.g. openai/gpt-4o"
         }
     """
     data = request.get_json()
@@ -29,9 +30,29 @@ def chat():
 
     message = data["message"]
     conversation_id = data.get("conversation_id")
+    model = data.get("model")
 
-    result = chat_agent.run(message, conversation_id=conversation_id)
-    return jsonify(result)
+    try:
+        result = chat_agent.run(message, conversation_id=conversation_id, model=model)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/models", methods=["GET"])
+def list_models():
+    """List supported model examples and the current default."""
+    return jsonify({
+        "default": Config.LLM_MODEL,
+        "examples": [
+            "dashscope/qwen-max",
+            "dashscope/qwen-plus",
+            "dashscope/qwen-turbo",
+            "zai/glm-4.7",
+            "openai/gpt-4o",
+            "anthropic/claude-sonnet-4-20250514",
+        ],
+    })
 
 
 @app.route("/skills", methods=["GET"])

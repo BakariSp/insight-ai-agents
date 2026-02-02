@@ -28,9 +28,12 @@ class BaseSkill(ABC):
         """Execute the skill with the given parameters and return a result string."""
 
     def to_tool_definition(self) -> dict:
-        """Convert this skill to an Anthropic tool definition."""
+        """Convert this skill to an OpenAI function-calling tool definition."""
         return {
-            "name": self.name,
-            "description": self.description,
-            "input_schema": self.input_schema,
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.input_schema,
+            },
         }

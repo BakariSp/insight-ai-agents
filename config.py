@@ -11,9 +11,12 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
     DEBUG = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 
-    # Anthropic
-    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    # LLM - model name includes provider prefix, e.g.:
+    #   anthropic/claude-sonnet-4-20250514
+    #   openai/gpt-4o
+    #   dashscope/qwen-max
+    #   zai/glm-4
+    LLM_MODEL = os.getenv("LLM_MODEL", "dashscope/qwen-max")
     MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4096"))
 
     # MCP
