@@ -71,9 +71,15 @@ async def generate_blueprint(
     result = await _planner_agent.run(run_prompt, **kwargs)
     blueprint = result.output
 
-    # Fill in metadata that the LLM might omit
-    if not blueprint.source_prompt:
-        blueprint.source_prompt = user_prompt
+    # Force-overwrite sourcePrompt — never trust LLM to preserve the original.
+    if blueprint.source_prompt and blueprint.source_prompt != user_prompt:
+        logger.warning(
+            "LLM rewrote sourcePrompt: %r → forcing original: %r",
+            blueprint.source_prompt[:80],
+            user_prompt[:80],
+        )
+    blueprint.source_prompt = user_prompt
+
     if not blueprint.created_at:
         blueprint.created_at = datetime.now(timezone.utc).isoformat()
 

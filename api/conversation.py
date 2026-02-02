@@ -35,6 +35,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["conversation"])
 
 
+def _verify_source_prompt(blueprint, expected_prompt: str) -> None:
+    """Defence-in-depth check that sourcePrompt was not altered."""
+    if blueprint.source_prompt != expected_prompt:
+        logger.error(
+            "sourcePrompt mismatch — expected %r but got %r; forcing overwrite",
+            expected_prompt[:80],
+            blueprint.source_prompt[:80],
+        )
+        blueprint.source_prompt = expected_prompt
+
+
 @router.post("/conversation", response_model=ConversationResponse)
 async def conversation(req: ConversationRequest):
     """Unified conversation endpoint — single entry point for all interactions.
@@ -95,6 +106,7 @@ async def _handle_initial(
                 user_prompt=req.message,
                 language=req.language,
             )
+            _verify_source_prompt(blueprint, req.message)
             return ConversationResponse(
                 action="build_workflow",
                 blueprint=blueprint,
@@ -129,6 +141,7 @@ async def _handle_initial(
                 user_prompt=req.message,
                 language=req.language,
             )
+            _verify_source_prompt(blueprint, req.message)
             return ConversationResponse(
                 action="build_workflow",
                 blueprint=blueprint,
@@ -203,6 +216,7 @@ async def _handle_initial(
             user_prompt=enhanced_prompt,
             language=req.language,
         )
+        _verify_source_prompt(blueprint, enhanced_prompt)
         return ConversationResponse(
             action="build_workflow",
             blueprint=blueprint,
@@ -265,6 +279,7 @@ async def _handle_followup(
             user_prompt=refine_prompt,
             language=req.language,
         )
+        _verify_source_prompt(blueprint, refine_prompt)
         return ConversationResponse(
             action="refine",
             blueprint=blueprint,
@@ -282,6 +297,7 @@ async def _handle_followup(
             user_prompt=rebuild_prompt,
             language=req.language,
         )
+        _verify_source_prompt(blueprint, rebuild_prompt)
         return ConversationResponse(
             action="rebuild",
             blueprint=blueprint,

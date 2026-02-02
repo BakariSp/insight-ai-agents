@@ -1,5 +1,7 @@
 """Tests for PlannerAgent — Blueprint generation with mocked LLM."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from pydantic_ai.models.test import TestModel
 
@@ -183,3 +185,54 @@ async def test_generate_blueprint_with_language():
     assert "dataContract" in data
     assert "computeGraph" in data
     assert "uiComposition" in data
+
+
+# ── sourcePrompt consistency (Phase 4.5.2) ─────────────────
+
+
+def _mock_agent_run(bp_args: dict):
+    """Create a mock for _planner_agent.run that returns a Blueprint."""
+    mock_bp = Blueprint(**bp_args)
+    mock_result = MagicMock()
+    mock_result.output = mock_bp
+    return AsyncMock(return_value=mock_result)
+
+
+@pytest.mark.asyncio
+async def test_source_prompt_always_equals_user_prompt():
+    """sourcePrompt is force-overwritten to user_prompt regardless of LLM output."""
+    user_prompt = "Show me the math scores for 1B班"
+
+    with patch.object(_planner_agent, "run", _mock_agent_run(_sample_blueprint_args())):
+        bp, _ = await generate_blueprint(user_prompt)
+
+    assert bp.source_prompt == user_prompt
+
+
+@pytest.mark.asyncio
+async def test_source_prompt_overwrite_when_llm_rewrites():
+    """Even when LLM sets a different sourcePrompt, force-overwrite applies."""
+    args = _sample_blueprint_args()
+    args["source_prompt"] = "LLM rewritten prompt that differs"
+
+    user_prompt = "分析 1A 班英语成绩"
+
+    with patch.object(_planner_agent, "run", _mock_agent_run(args)):
+        bp, _ = await generate_blueprint(user_prompt)
+
+    assert bp.source_prompt == user_prompt
+    assert bp.source_prompt != "LLM rewritten prompt that differs"
+
+
+@pytest.mark.asyncio
+async def test_source_prompt_set_when_llm_omits():
+    """When LLM omits sourcePrompt, it is populated from user_prompt."""
+    args = _sample_blueprint_args()
+    args["source_prompt"] = ""
+
+    user_prompt = "Generate a report for Form 2A"
+
+    with patch.object(_planner_agent, "run", _mock_agent_run(args)):
+        bp, _ = await generate_blueprint(user_prompt)
+
+    assert bp.source_prompt == user_prompt
