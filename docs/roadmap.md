@@ -504,37 +504,52 @@
 用户: "对比 1A 和 1B 的成绩"
 新流程: EntityResolver 解析多班→classIds[]→注入 context→PlannerAgent
 
+用户: "分析学生 Wong Ka Ho 的成绩"（有班级上下文）
+新流程: EntityResolver 自动解析学生→studentId→注入 context→PlannerAgent
+
+用户: "分析学生 Wong Ka Ho 的成绩"（无班级上下文）
+新流程: EntityResolver 检测缺少 class 上下文→降级 clarify→展示班级选项
+
 用户: "分析 2C 班英语成绩"（2C 班不存在）
 新流程: EntityResolver 匹配失败→降级 clarify→展示实际班级选项
 ```
 
-### Step 4.5.1: 实体解析层（Entity Resolver）✅ 已完成
+### Step 4.5.1: 通用实体解析层（General Entity Resolver）✅ 已完成
 
-> 在 Router → Planner 之间加入确定性实体解析（无 LLM 调用），自动将自然语言班级引用转为 classId。仅在歧义时才要求用户点选确认。
+> 在 Router → Planner 之间加入确定性实体解析（无 LLM 调用），根据用户输入内容自动识别并解析实体引用（班级/学生/作业）。学生和作业解析依赖班级上下文，缺失时降级为 clarify。
 
 - [x] **4.5.1.1** 创建 `models/entity.py`：
-  - `ResolvedEntity(CamelModel)`: class_id, display_name, confidence, match_type
-  - `ResolveResult(CamelModel)`: matches, is_ambiguous, scope_mode (none/single/multi/grade)
+  - `EntityType` 枚举：`class` / `student` / `assignment`
+  - `ResolvedEntity(CamelModel)`: entity_type, entity_id, display_name, confidence, match_type
+  - `ResolveResult(CamelModel)`: entities, is_ambiguous, scope_mode, missing_context
 - [x] **4.5.1.2** 创建 `services/entity_resolver.py`：
-  - `resolve_classes(teacher_id, query_text) → ResolveResult`
-  - 四层匹配策略（优先级递减）：精确匹配 → 别名匹配 → 年级展开 → 模糊匹配
-  - 支持中英文混合引用（"1A班"、"Form 1A"、"F1A"、"Form 1 全年级"、"1A 和 1B"）
-  - 数据获取通过 `execute_mcp_tool("get_teacher_classes")`（复用已有工具注册机制）
-- [x] **4.5.1.3** 在 `api/conversation.py` 的 `build_workflow` 分支中集成解析：
-  - 高置信度单匹配 → 自动注入 classId 到 context
-  - 高置信度多匹配/年级展开 → 自动注入 classIds[] 到 context
+  - `resolve_entities(teacher_id, query_text, context?) → ResolveResult`（通用入口）
+  - `resolve_classes()` 保留为向下兼容 wrapper
+  - **班级解析**: regex 四层匹配（精确 → 别名 → 年级展开 → 模糊）
+  - **学生解析**: 关键词触发（"学生"/"student"/"同学"）+ 姓名匹配
+  - **作业解析**: 关键词触发（"作业"/"test"/"考试"/"quiz"/"essay"）+ 标题匹配
+  - 依赖链: 学生/作业解析依赖 class context（已解析的班级或 context.classId）
+  - 无 class context 时 → `missing_context=["class"]`
+  - 支持中英文混合引用
+  - 数据获取通过 `execute_mcp_tool`（`get_teacher_classes` + `get_class_detail`）
+- [x] **4.5.1.3** 在 `api/conversation.py` 的 `build_workflow` 分支中集成通用解析：
+  - `missing_context` → 降级为 clarify（"哪个班级？"）
+  - 高置信度匹配 → 按 entity_type 注入 classId/studentId/assignmentId 到 context
   - 歧义/低置信度 → 降级为 clarify，choices 从匹配结果生成
   - context 已有 classId 时 → 跳过解析（支持多轮 clarify 流转）
 - [x] **4.5.1.4** 更新 `models/conversation.py`：
-  - `ConversationResponse` 新增 `resolved_entities: list[ResolvedEntity] | None` 字段
-  - 前端可据此显示软确认（如 "将使用 Form 1A，如需更改请说'换成1B'"）
-- [x] **4.5.1.5** 编写测试（19 项新增）：
-  - 15 项实体解析器单元测试（精确/别名/多班/年级/模糊/边界/序列化）
-  - 4 项 API 集成测试（自动解析/歧义降级/无引用/跳过已有 classId）
-  - 2 项模型序列化测试（resolvedEntities camelCase）
-  - 全部 209 项测试通过，无回归
+  - `ConversationResponse` 的 `resolved_entities: list[ResolvedEntity] | None` 字段适配新模型
+  - 前端可据 `entityType` 显示对应提示
+- [x] **4.5.1.5** 编写测试（31 项新增）：
+  - 15 项班级解析单元测试（精确/别名/多班/年级/模糊/边界）
+  - 5 项学生解析测试（精确匹配/context classId/缺失 class/英文关键词）
+  - 4 项作业解析测试（精确匹配/context classId/缺失 class/关键词触发）
+  - 3 项混合实体测试（class+student/class+assignment/student+assignment 无 class）
+  - 1 项向下兼容测试（resolve_classes wrapper）
+  - 2 项序列化测试（entityType/entityId/missingContext camelCase）
+  - 1 项 API 集成测试更新
 
-> ✅ 验收: "分析 1A 班英语成绩" → 自动解析 + build_workflow（无需用户点选）；"对比 1A 和 1B" → 多班自动解析；"分析 2C 班"（不存在）→ 空匹配 + 正常流程。
+> ✅ 验收: "分析 1A 班英语成绩" → 自动解析 class + build_workflow；"分析 1A 班学生 Wong Ka Ho 的成绩" → 解析 class + student；"分析学生 Wong Ka Ho"（无班级）→ missing_context + clarify；"对比 1A 和 1B" → 多班自动解析。
 
 ### Step 4.5.2: sourcePrompt 一致性校验
 
@@ -586,10 +601,10 @@
 
 ### Phase 4.5 总验收
 
-- [x] `models/entity.py` — ResolvedEntity + ResolveResult 模型
-- [x] `services/entity_resolver.py` — 确定性实体解析 + 四层匹配 + 降级逻辑
-- [x] `models/conversation.py` — resolved_entities 字段 (Phase 4.5.1)
-- [x] `api/conversation.py` — 实体解析集成到 build_workflow 分支 (Phase 4.5.1)
+- [x] `models/entity.py` — EntityType 枚举 + ResolvedEntity (entity_type/entity_id) + ResolveResult (entities/missing_context)
+- [x] `services/entity_resolver.py` — 通用实体解析: class/student/assignment 三类 + 依赖链 + 降级逻辑
+- [x] `models/conversation.py` — resolved_entities 字段适配新模型 (Phase 4.5.1)
+- [x] `api/conversation.py` — 通用实体解析集成 + missing_context 处理 + 多类型 context 注入 (Phase 4.5.1)
 - [ ] `errors/exceptions.py` — EntityNotFoundError + DataFetchError + ToolError
 - [ ] `agents/planner.py` — sourcePrompt 强制覆写
 - [ ] `models/conversation.py` — action 二维结构化 + 向下兼容

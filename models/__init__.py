@@ -1,5 +1,5 @@
 from models.base import CamelModel
-from models.entity import ResolvedEntity, ResolveResult
+from models.entity import EntityType, ResolvedEntity, ResolveResult
 from models.blueprint import (
     Blueprint,
     CapabilityLevel,
@@ -34,6 +34,7 @@ from models.request import (
 
 __all__ = [
     "CamelModel",
+    "EntityType",
     "ResolvedEntity",
     "ResolveResult",
     "Blueprint",

@@ -1,10 +1,18 @@
-"""Entity resolver — deterministic matching of natural-language class references.
+"""General-purpose entity resolver — deterministic matching of natural-language references.
 
-Resolves class names like "1A班", "Form 1A", "1A and 1B", "Form 1 全年级"
-to concrete class IDs by matching against the teacher's actual class list.
+Resolves entity mentions in user input to concrete IDs by matching against
+the teacher's actual data.  Supports three entity types:
+
+- **Class**: "1A班", "Form 1A", "F1A", "Form 1 全年级", "1A and 1B"
+- **Student**: "学生 Wong Ka Ho", "student Li Mei"
+- **Assignment**: "Unit 5 Test", "作业 Essay Writing"
 
 All matching is deterministic (no LLM calls).  Data is fetched via the
-registered ``get_teacher_classes`` MCP tool, which handles mock/real switching.
+registered MCP tools, which handle mock/real switching.
+
+Student and assignment resolution depend on class context — if a class
+is not resolvable from the input or existing context, the resolver returns
+``missing_context=["class"]`` so the caller can trigger a clarify.
 """
 
 from __future__ import annotations
@@ -14,7 +22,7 @@ import re
 from typing import Any
 
 from agents.provider import execute_mcp_tool
-from models.entity import ResolvedEntity, ResolveResult
+from models.entity import EntityType, ResolvedEntity, ResolveResult
 
 logger = logging.getLogger(__name__)
 
@@ -32,55 +40,83 @@ _CN_DIGIT: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Regex pattern banks
+# Class-detection regex patterns (preserved from original implementation)
 # ---------------------------------------------------------------------------
 
-# Patterns that capture a single class code like "1A"
 _CLASS_PATTERNS: list[re.Pattern[str]] = [
-    # "Form 1A", "form 1a", "Form  1A"
     re.compile(r"[Ff](?:orm)?\s*(\d[A-Za-z])", re.UNICODE),
-    # "1A班", "1A 班"
     re.compile(r"(\d[A-Za-z])\s*班", re.UNICODE),
-    # "Class 1A", "class 1a"
     re.compile(r"[Cc]lass\s*(\d[A-Za-z])", re.UNICODE),
-    # Chinese: "中一A", "中二B"
     re.compile(r"中([一二三四五六][A-Za-z])", re.UNICODE),
-    # Bare "1A" / "1B" — broadest, used as fallback
     re.compile(r"\b(\d[A-Za-z])\b", re.UNICODE),
 ]
 
-# Grade-level patterns (capture the grade number/char)
 _GRADE_PATTERNS: list[re.Pattern[str]] = [
-    # "Form 1 全年级", "Form 1 all classes", "Form1 全部"
     re.compile(
         r"[Ff](?:orm)?\s*(\d)\s*(?:全年级|全部|all\s*classes?)",
         re.IGNORECASE | re.UNICODE,
     ),
-    # "中一全部", "中二全年级"
     re.compile(r"中([一二三四五六])\s*(?:全部|全年级)", re.UNICODE),
 ]
 
-# Delimiters used to split multi-class mentions
-_MULTI_DELIM = re.compile(r"[,，、]|\s+(?:和|与|and|&)\s+", re.IGNORECASE | re.UNICODE)
+_MULTI_DELIM = re.compile(
+    r"[,，、]|\s+(?:和|与|and|&)\s+", re.IGNORECASE | re.UNICODE
+)
+
+# ---------------------------------------------------------------------------
+# Student-detection patterns
+# ---------------------------------------------------------------------------
+
+_STUDENT_KEYWORDS: list[re.Pattern[str]] = [
+    re.compile(r"学生\s*(.+?)(?:\s*的|$)", re.UNICODE),
+    re.compile(r"[Ss]tudent\s+(.+?)(?:'s|\s+的|\s*$)", re.UNICODE),
+    re.compile(r"同学\s*(.+?)(?:\s*的|$)", re.UNICODE),
+]
+
+# ---------------------------------------------------------------------------
+# Assignment-detection patterns
+# ---------------------------------------------------------------------------
+
+_ASSIGNMENT_KEYWORDS: list[re.Pattern[str]] = [
+    re.compile(r"作业\s*(.+?)(?:\s*的|$)", re.UNICODE),
+    re.compile(r"[Aa]ssignment\s+(.+?)(?:'s|\s+的|\s*$)", re.UNICODE),
+    re.compile(r"考试\s*(.+?)(?:\s*的|$)", re.UNICODE),
+    re.compile(r"[Tt]est\s+(.+?)(?:'s|\s+的|\s*$)", re.UNICODE),
+    re.compile(r"[Qq]uiz\s+(.+?)(?:'s|\s+的|\s*$)", re.UNICODE),
+    re.compile(r"[Ee]ssay\s+(.+?)(?:'s|\s+的|\s*$)", re.UNICODE),
+]
+
+# Broad keyword triggers (no capture group) — used to detect whether
+# the user is *talking about* students/assignments even without a name.
+_STUDENT_TRIGGER = re.compile(
+    r"学生|[Ss]tudent|同学", re.UNICODE
+)
+_ASSIGNMENT_TRIGGER = re.compile(
+    r"作业|[Aa]ssignment|考试|[Tt]est|[Qq]uiz|[Ee]ssay|测验|试卷|练习",
+    re.UNICODE,
+)
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# Internal helpers — normalisation
 # ---------------------------------------------------------------------------
 
 
 def _normalize_mention(mention: str) -> str:
     """Normalize a raw mention to a canonical uppercase form like ``1A``."""
     s = mention.strip().upper()
-    # Strip common suffixes
     for suffix in ("班", "CLASS", "FORM"):
         s = s.replace(suffix, "")
     s = s.strip()
-    # Map Chinese numerals
     for cn, digit in _CN_DIGIT.items():
-        s = s.replace(cn.upper(), digit)  # upper() is no-op for CJK but harmless
+        s = s.replace(cn.upper(), digit)
         s = s.replace(cn, digit)
     return s.strip()
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers — class extraction (preserved)
+# ---------------------------------------------------------------------------
 
 
 def _extract_class_mentions(text: str) -> list[str]:
@@ -102,10 +138,7 @@ def _extract_class_mentions(text: str) -> list[str]:
 
 
 def _extract_grade_mentions(text: str) -> list[str]:
-    """Extract grade-level mentions that request all classes in a grade.
-
-    Returns normalized grade numbers like ``["1", "2"]``.
-    """
+    """Extract grade-level mentions that request all classes in a grade."""
     grades: list[str] = []
     for pat in _GRADE_PATTERNS:
         for m in pat.finditer(text):
@@ -116,15 +149,69 @@ def _extract_grade_mentions(text: str) -> list[str]:
     return grades
 
 
-def _build_alias_map(
+# ---------------------------------------------------------------------------
+# Internal helpers — student extraction
+# ---------------------------------------------------------------------------
+
+
+def _extract_student_mentions(text: str) -> list[str]:
+    """Extract student name mentions from *text* using keyword patterns.
+
+    Returns a list of candidate name strings (not yet matched against data).
+    """
+    names: list[str] = []
+    seen: set[str] = set()
+    for pat in _STUDENT_KEYWORDS:
+        for m in pat.finditer(text):
+            name = m.group(1).strip()
+            # Clean trailing punctuation / particles
+            name = re.sub(r"[,，。!！?？]+$", "", name).strip()
+            if name and name.lower() not in seen:
+                seen.add(name.lower())
+                names.append(name)
+    return names
+
+
+def _has_student_mentions(text: str) -> bool:
+    """Return True if text contains student-related keywords."""
+    return bool(_STUDENT_TRIGGER.search(text))
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers — assignment extraction
+# ---------------------------------------------------------------------------
+
+
+def _extract_assignment_mentions(text: str) -> list[str]:
+    """Extract assignment title mentions from *text* using keyword patterns."""
+    titles: list[str] = []
+    seen: set[str] = set()
+    for pat in _ASSIGNMENT_KEYWORDS:
+        for m in pat.finditer(text):
+            title = m.group(1).strip()
+            title = re.sub(r"[,，。!！?？]+$", "", title).strip()
+            if title and title.lower() not in seen:
+                seen.add(title.lower())
+                titles.append(title)
+    return titles
+
+
+def _has_assignment_mentions(text: str) -> bool:
+    """Return True if text contains assignment-related keywords."""
+    return bool(_ASSIGNMENT_TRIGGER.search(text))
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers — alias maps and matching
+# ---------------------------------------------------------------------------
+
+
+def _build_class_alias_map(
     classes: list[dict[str, Any]],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     """Build lookup structures from a teacher's class list.
 
-    Returns:
-        (alias_map, grade_index)
-        - alias_map: normalized alias string → class info dict
-        - grade_index: grade number string → list of class info dicts
+    Returns (alias_map, grade_index).
     """
     alias_map: dict[str, dict[str, Any]] = {}
     grade_index: dict[str, list[dict[str, Any]]] = {}
@@ -134,33 +221,25 @@ def _build_alias_map(
         class_id: str = cls.get("class_id", "")
         grade: str = cls.get("grade", "")
 
-        # Direct name aliases
         if name:
-            # "Form 1A" → "FORM 1A"
             alias_map[name.upper()] = cls
-            # Normalized code: "Form 1A" → "1A"
             code = _normalize_mention(name)
             if code:
                 alias_map[code] = cls
-            # Short form: "F1A"
             short = re.sub(r"\s+", "", name.upper())
             if short.startswith("FORM"):
                 short_alias = "F" + short[4:]
                 alias_map[short_alias] = cls
 
-        # ID as alias
         if class_id:
             alias_map[class_id.upper()] = cls
 
-        # Grade index
         grade_num = ""
         if grade:
-            # Extract digit from "Form 1", "Form 2", etc.
             gm = re.search(r"(\d)", grade)
             if gm:
                 grade_num = gm.group(1)
             else:
-                # Try Chinese: "中一" → "1"
                 for cn, digit in _CN_DIGIT.items():
                     if cn in grade:
                         grade_num = digit
@@ -201,13 +280,21 @@ def _fuzzy_score(mention: str, candidate: str) -> float:
     return max(0.0, 1.0 - distance / max_len)
 
 
-def _match_mentions(
+# ---------------------------------------------------------------------------
+# Class matching
+# ---------------------------------------------------------------------------
+
+
+def _match_class_mentions(
     mentions: list[str],
     grade_mentions: list[str],
     alias_map: dict[str, dict[str, Any]],
     grade_index: dict[str, list[dict[str, Any]]],
-) -> ResolveResult:
-    """Match extracted mentions against the alias map and grade index."""
+) -> list[ResolvedEntity]:
+    """Match class mentions against alias map/grade index.
+
+    Returns list of resolved class entities.
+    """
     matched: list[ResolvedEntity] = []
     matched_ids: set[str] = set()
 
@@ -219,7 +306,8 @@ def _match_mentions(
                 matched_ids.add(cid)
                 matched.append(
                     ResolvedEntity(
-                        class_id=cid,
+                        entity_type=EntityType.CLASS,
+                        entity_id=cid,
                         display_name=cls.get("name", cid),
                         confidence=0.9,
                         match_type="grade",
@@ -227,17 +315,10 @@ def _match_mentions(
                 )
 
     if grade_mentions and matched:
-        return ResolveResult(
-            matches=matched,
-            is_ambiguous=False,
-            scope_mode="grade",
-        )
+        return matched
 
     # 2) Per-mention matching
-    has_fuzzy = False
-
     for mention in mentions:
-        # Exact alias lookup
         cls = alias_map.get(mention)
         if cls:
             cid = cls.get("class_id", "")
@@ -245,7 +326,8 @@ def _match_mentions(
                 matched_ids.add(cid)
                 matched.append(
                     ResolvedEntity(
-                        class_id=cid,
+                        entity_type=EntityType.CLASS,
+                        entity_id=cid,
                         display_name=cls.get("name", cid),
                         confidence=1.0,
                         match_type="exact",
@@ -266,31 +348,161 @@ def _match_mentions(
             cid = best_cls.get("class_id", "")
             if cid and cid not in matched_ids:
                 matched_ids.add(cid)
-                has_fuzzy = True
                 matched.append(
                     ResolvedEntity(
-                        class_id=cid,
+                        entity_type=EntityType.CLASS,
+                        entity_id=cid,
                         display_name=best_cls.get("name", cid),
                         confidence=round(best_score, 2),
                         match_type="fuzzy",
                     )
                 )
 
-    # Determine scope and ambiguity
-    if not matched:
-        return ResolveResult(matches=[], is_ambiguous=False, scope_mode="none")
+    return matched
 
-    is_ambiguous = has_fuzzy
-    if len(matched) == 1:
-        scope_mode = "single"
-    else:
-        scope_mode = "multi"
 
-    return ResolveResult(
-        matches=matched,
-        is_ambiguous=is_ambiguous,
-        scope_mode=scope_mode,
-    )
+# ---------------------------------------------------------------------------
+# Student matching
+# ---------------------------------------------------------------------------
+
+
+def _match_student_mentions(
+    mentions: list[str],
+    students: list[dict[str, Any]],
+) -> list[ResolvedEntity]:
+    """Match student name mentions against a student roster.
+
+    Args:
+        mentions: Candidate name strings extracted from user input.
+        students: Student dicts from class detail (each has ``student_id``, ``name``).
+
+    Returns list of resolved student entities.
+    """
+    matched: list[ResolvedEntity] = []
+    matched_ids: set[str] = set()
+
+    for mention in mentions:
+        mention_lower = mention.lower()
+        best_score = 0.0
+        best_student: dict[str, Any] | None = None
+        exact = False
+
+        for student in students:
+            student_name = student.get("name", "")
+            if not student_name:
+                continue
+
+            # Exact match (case-insensitive)
+            if student_name.lower() == mention_lower:
+                best_student = student
+                best_score = 1.0
+                exact = True
+                break
+
+            # Partial match — mention is contained in student name or vice versa
+            if mention_lower in student_name.lower():
+                score = len(mention) / len(student_name)
+                if score > best_score:
+                    best_score = max(score, 0.8)
+                    best_student = student
+            elif student_name.lower() in mention_lower:
+                score = len(student_name) / len(mention)
+                if score > best_score:
+                    best_score = max(score, 0.7)
+                    best_student = student
+            else:
+                # Fuzzy fallback
+                score = _fuzzy_score(mention_lower, student_name.lower())
+                if score > best_score:
+                    best_score = score
+                    best_student = student
+
+        if best_student and best_score >= 0.6:
+            sid = best_student.get("student_id", "")
+            if sid and sid not in matched_ids:
+                matched_ids.add(sid)
+                matched.append(
+                    ResolvedEntity(
+                        entity_type=EntityType.STUDENT,
+                        entity_id=sid,
+                        display_name=best_student.get("name", sid),
+                        confidence=round(best_score, 2),
+                        match_type="exact" if exact else "fuzzy",
+                    )
+                )
+
+    return matched
+
+
+# ---------------------------------------------------------------------------
+# Assignment matching
+# ---------------------------------------------------------------------------
+
+
+def _match_assignment_mentions(
+    mentions: list[str],
+    assignments: list[dict[str, Any]],
+) -> list[ResolvedEntity]:
+    """Match assignment title mentions against an assignment list.
+
+    Args:
+        mentions: Candidate title strings extracted from user input.
+        assignments: Assignment dicts from class detail
+                     (each has ``assignment_id``, ``title``).
+
+    Returns list of resolved assignment entities.
+    """
+    matched: list[ResolvedEntity] = []
+    matched_ids: set[str] = set()
+
+    for mention in mentions:
+        mention_lower = mention.lower()
+        best_score = 0.0
+        best_assignment: dict[str, Any] | None = None
+        exact = False
+
+        for assignment in assignments:
+            title = assignment.get("title", "")
+            if not title:
+                continue
+
+            if title.lower() == mention_lower:
+                best_assignment = assignment
+                best_score = 1.0
+                exact = True
+                break
+
+            if mention_lower in title.lower():
+                score = len(mention) / len(title)
+                if score > best_score:
+                    best_score = max(score, 0.8)
+                    best_assignment = assignment
+            elif title.lower() in mention_lower:
+                score = len(title) / len(mention)
+                if score > best_score:
+                    best_score = max(score, 0.7)
+                    best_assignment = assignment
+            else:
+                score = _fuzzy_score(mention_lower, title.lower())
+                if score > best_score:
+                    best_score = score
+                    best_assignment = assignment
+
+        if best_assignment and best_score >= 0.6:
+            aid = best_assignment.get("assignment_id", "")
+            if aid and aid not in matched_ids:
+                matched_ids.add(aid)
+                matched.append(
+                    ResolvedEntity(
+                        entity_type=EntityType.ASSIGNMENT,
+                        entity_id=aid,
+                        display_name=best_assignment.get("title", aid),
+                        confidence=round(best_score, 2),
+                        match_type="exact" if exact else "fuzzy",
+                    )
+                )
+
+    return matched
 
 
 # ---------------------------------------------------------------------------
@@ -312,37 +524,155 @@ async def _fetch_teacher_classes(teacher_id: str) -> list[dict[str, Any]]:
         return []
 
 
+async def _fetch_class_detail(
+    teacher_id: str, class_id: str
+) -> dict[str, Any] | None:
+    """Fetch class detail (students + assignments) via MCP tool."""
+    try:
+        data = await execute_mcp_tool(
+            "get_class_detail",
+            {"teacher_id": teacher_id, "class_id": class_id},
+        )
+        if data.get("error"):
+            return None
+        return data
+    except Exception:
+        logger.exception("Failed to fetch class detail for entity resolution")
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+async def resolve_entities(
+    teacher_id: str,
+    query_text: str,
+    context: dict[str, Any] | None = None,
+) -> ResolveResult:
+    """Resolve all entity references in *query_text* to concrete IDs.
+
+    Detects what entity types are mentioned in the input and resolves each
+    against the appropriate data source.  Student and assignment resolution
+    depend on class context — if no class is determinable, ``missing_context``
+    will include ``"class"``.
+
+    Args:
+        teacher_id: Teacher identifier to scope the data lookup.
+        query_text: The user's natural-language message.
+        context: Optional existing context dict (may contain ``classId``).
+
+    Returns:
+        A :class:`ResolveResult` with all matched entities, ambiguity flag,
+        scope mode, and any missing context.
+    """
+    ctx = context or {}
+    all_entities: list[ResolvedEntity] = []
+    is_ambiguous = False
+    scope_mode = "none"
+    missing_context: list[str] = []
+
+    # ── 1. Class resolution (always attempted) ──
+
+    class_mentions = _extract_class_mentions(query_text)
+    grade_mentions = _extract_grade_mentions(query_text)
+
+    classes: list[dict[str, Any]] = []
+    class_entities: list[ResolvedEntity] = []
+
+    if class_mentions or grade_mentions:
+        classes = await _fetch_teacher_classes(teacher_id)
+        if classes:
+            alias_map, grade_idx = _build_class_alias_map(classes)
+            class_entities = _match_class_mentions(
+                class_mentions, grade_mentions, alias_map, grade_idx
+            )
+            all_entities.extend(class_entities)
+
+    # Determine class scope mode
+    has_fuzzy_class = any(
+        e.match_type == "fuzzy" for e in class_entities
+    )
+    if class_entities:
+        if grade_mentions and class_entities:
+            scope_mode = "grade"
+        elif len(class_entities) == 1:
+            scope_mode = "single"
+        else:
+            scope_mode = "multi"
+        if has_fuzzy_class:
+            is_ambiguous = True
+
+    # ── 2. Determine class context for dependent resolution ──
+    # Priority: explicit context > resolved single class
+    class_id_for_detail: str | None = ctx.get("classId")
+    if not class_id_for_detail and len(class_entities) == 1:
+        class_id_for_detail = class_entities[0].entity_id
+
+    # ── 3. Detect student / assignment mentions ──
+    student_mentions = _extract_student_mentions(query_text)
+    has_student_trigger = _has_student_mentions(query_text)
+    needs_student = bool(student_mentions or has_student_trigger)
+
+    assignment_mentions = _extract_assignment_mentions(query_text)
+    has_assignment_trigger = _has_assignment_mentions(query_text)
+    needs_assignment = bool(assignment_mentions or has_assignment_trigger)
+
+    # ── 4. Fetch class detail once (shared by student + assignment) ──
+    detail: dict[str, Any] | None = None
+    if (needs_student or needs_assignment) and class_id_for_detail:
+        detail = await _fetch_class_detail(teacher_id, class_id_for_detail)
+
+    # ── 5. Student resolution ──
+    if needs_student:
+        if class_id_for_detail:
+            students = detail.get("students", []) if detail else []
+            if student_mentions and students:
+                student_entities = _match_student_mentions(
+                    student_mentions, students
+                )
+                all_entities.extend(student_entities)
+                if any(e.match_type == "fuzzy" for e in student_entities):
+                    is_ambiguous = True
+        else:
+            if "class" not in missing_context:
+                missing_context.append("class")
+
+    # ── 6. Assignment resolution ──
+    if needs_assignment:
+        if class_id_for_detail:
+            assignments = detail.get("assignments", []) if detail else []
+            if assignment_mentions and assignments:
+                assignment_entities = _match_assignment_mentions(
+                    assignment_mentions, assignments
+                )
+                all_entities.extend(assignment_entities)
+                if any(e.match_type == "fuzzy" for e in assignment_entities):
+                    is_ambiguous = True
+        else:
+            if "class" not in missing_context:
+                missing_context.append("class")
+
+    # If nothing was detected at all
+    if not all_entities and not missing_context:
+        scope_mode = "none"
+
+    return ResolveResult(
+        entities=all_entities,
+        is_ambiguous=is_ambiguous,
+        scope_mode=scope_mode,
+        missing_context=missing_context,
+    )
 
 
 async def resolve_classes(
     teacher_id: str,
     query_text: str,
 ) -> ResolveResult:
-    """Resolve class references in *query_text* to concrete class IDs.
+    """Resolve class references only (backward-compatible wrapper).
 
-    Args:
-        teacher_id: Teacher identifier to scope the class lookup.
-        query_text: The user's natural-language message.
-
-    Returns:
-        A :class:`ResolveResult` with matched classes, ambiguity flag,
-        and scope mode.
+    .. deprecated::
+        Use :func:`resolve_entities` instead for general entity resolution.
     """
-    # Extract mentions
-    class_mentions = _extract_class_mentions(query_text)
-    grade_mentions = _extract_grade_mentions(query_text)
-
-    if not class_mentions and not grade_mentions:
-        return ResolveResult(matches=[], is_ambiguous=False, scope_mode="none")
-
-    # Fetch teacher's class list
-    classes = await _fetch_teacher_classes(teacher_id)
-    if not classes:
-        return ResolveResult(matches=[], is_ambiguous=False, scope_mode="none")
-
-    # Build lookup and match
-    alias_map, grade_idx = _build_alias_map(classes)
-    return _match_mentions(class_mentions, grade_mentions, alias_map, grade_idx)
+    return await resolve_entities(teacher_id, query_text)

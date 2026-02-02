@@ -8,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from main import app
 from models.blueprint import Blueprint
 from models.conversation import ClarifyChoice, ClarifyOptions, RouterResult
-from models.entity import ResolvedEntity, ResolveResult
+from models.entity import EntityType, ResolvedEntity, ResolveResult
 from tests.test_planner import _sample_blueprint_args
 
 
@@ -361,9 +361,10 @@ async def test_conversation_build_with_auto_resolve(client):
     )
     mock_bp = Blueprint(**_sample_blueprint_args())
     mock_resolve = ResolveResult(
-        matches=[
+        entities=[
             ResolvedEntity(
-                class_id="class-hk-f1a",
+                entity_type=EntityType.CLASS,
+                entity_id="class-hk-f1a",
                 display_name="Form 1A",
                 confidence=1.0,
                 match_type="exact",
@@ -380,7 +381,7 @@ async def test_conversation_build_with_auto_resolve(client):
             return_value=mock_router,
         ),
         patch(
-            "api.conversation.resolve_classes",
+            "api.conversation.resolve_entities",
             new_callable=AsyncMock,
             return_value=mock_resolve,
         ),
@@ -400,7 +401,8 @@ async def test_conversation_build_with_auto_resolve(client):
     assert data["action"] == "build_workflow"
     assert data["resolvedEntities"] is not None
     assert len(data["resolvedEntities"]) == 1
-    assert data["resolvedEntities"][0]["classId"] == "class-hk-f1a"
+    assert data["resolvedEntities"][0]["entityId"] == "class-hk-f1a"
+    assert data["resolvedEntities"][0]["entityType"] == "class"
 
 
 # ── Entity resolution: ambiguous → clarify ───────────────────
@@ -413,15 +415,17 @@ async def test_conversation_build_ambiguous_downgrade_to_clarify(client):
         intent="build_workflow", confidence=0.9, should_build=True,
     )
     mock_resolve = ResolveResult(
-        matches=[
+        entities=[
             ResolvedEntity(
-                class_id="class-hk-f1a",
+                entity_type=EntityType.CLASS,
+                entity_id="class-hk-f1a",
                 display_name="Form 1A",
                 confidence=0.6,
                 match_type="fuzzy",
             ),
             ResolvedEntity(
-                class_id="class-hk-f1b",
+                entity_type=EntityType.CLASS,
+                entity_id="class-hk-f1b",
                 display_name="Form 1B",
                 confidence=0.5,
                 match_type="fuzzy",
@@ -438,7 +442,7 @@ async def test_conversation_build_ambiguous_downgrade_to_clarify(client):
             return_value=mock_router,
         ),
         patch(
-            "api.conversation.resolve_classes",
+            "api.conversation.resolve_entities",
             new_callable=AsyncMock,
             return_value=mock_resolve,
         ),
@@ -465,7 +469,7 @@ async def test_conversation_build_no_class_mention(client):
         intent="build_workflow", confidence=0.9, should_build=True,
     )
     mock_bp = Blueprint(**_sample_blueprint_args())
-    mock_resolve = ResolveResult(matches=[], is_ambiguous=False, scope_mode="none")
+    mock_resolve = ResolveResult(entities=[], is_ambiguous=False, scope_mode="none")
 
     with (
         patch(
@@ -474,7 +478,7 @@ async def test_conversation_build_no_class_mention(client):
             return_value=mock_router,
         ),
         patch(
-            "api.conversation.resolve_classes",
+            "api.conversation.resolve_entities",
             new_callable=AsyncMock,
             return_value=mock_resolve,
         ),
@@ -518,7 +522,7 @@ async def test_conversation_build_skips_resolve_when_context_has_class(client):
             return_value=(mock_bp, "dashscope/qwen-max"),
         ),
         patch(
-            "api.conversation.resolve_classes",
+            "api.conversation.resolve_entities",
             new_callable=AsyncMock,
         ) as mock_resolve_fn,
     ):

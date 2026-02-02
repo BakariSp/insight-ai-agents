@@ -192,14 +192,15 @@ def test_conversation_response_all_actions():
 
 def test_conversation_response_with_resolved_entities():
     """Verify resolved_entities serializes to camelCase."""
-    from models.entity import ResolvedEntity
+    from models.entity import EntityType, ResolvedEntity
 
     resp = ConversationResponse(
         action="build_workflow",
         chat_response="Generated analysis",
         resolved_entities=[
             ResolvedEntity(
-                class_id="class-hk-f1a",
+                entity_type=EntityType.CLASS,
+                entity_id="class-hk-f1a",
                 display_name="Form 1A",
                 confidence=1.0,
                 match_type="exact",
@@ -209,7 +210,8 @@ def test_conversation_response_with_resolved_entities():
     data = resp.model_dump(by_alias=True)
     assert "resolvedEntities" in data
     assert len(data["resolvedEntities"]) == 1
-    assert data["resolvedEntities"][0]["classId"] == "class-hk-f1a"
+    assert data["resolvedEntities"][0]["entityId"] == "class-hk-f1a"
+    assert data["resolvedEntities"][0]["entityType"] == "class"
     assert data["resolvedEntities"][0]["matchType"] == "exact"
 
 

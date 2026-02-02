@@ -26,8 +26,9 @@ from models.conversation import (
     ConversationResponse,
     IntentType,
 )
+from models.entity import EntityType
 from services.clarify_builder import build_clarify_options
-from services.entity_resolver import resolve_classes
+from services.entity_resolver import resolve_entities
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ async def _handle_initial(
         )
 
     if intent == IntentType.BUILD_WORKFLOW.value:
-        # Skip entity resolution if class already provided in context
+        # Skip entity resolution if context already fully specified
         if req.context and req.context.get("classId"):
             blueprint, _model = await generate_blueprint(
                 user_prompt=req.message,
@@ -101,14 +102,29 @@ async def _handle_initial(
                 conversation_id=req.conversation_id,
             )
 
-        # ── Entity resolution (before Blueprint generation) ──
-        resolve_result = await resolve_classes(
+        # ── General entity resolution (before Blueprint generation) ──
+        resolve_result = await resolve_entities(
             teacher_id=req.teacher_id,
             query_text=req.message,
+            context=req.context,
         )
 
+        # Missing dependent context → clarify
+        if resolve_result.missing_context:
+            hint = "needClassId"
+            clarify_options = await build_clarify_options(
+                hint, teacher_id=req.teacher_id,
+            )
+            return ConversationResponse(
+                action="clarify",
+                chat_response="Which class would you like to look at?",
+                clarify_options=clarify_options,
+                resolved_entities=resolve_result.entities or None,
+                conversation_id=req.conversation_id,
+            )
+
         if resolve_result.scope_mode == "none":
-            # No class mentioned — proceed normally (backward compatible)
+            # No entities mentioned — proceed normally
             blueprint, _model = await generate_blueprint(
                 user_prompt=req.message,
                 language=req.language,
@@ -125,11 +141,11 @@ async def _handle_initial(
             clarify_choices = [
                 ClarifyChoice(
                     label=m.display_name,
-                    value=m.class_id,
+                    value=m.entity_id,
                     description=f"Matched via {m.match_type} "
                     f"(confidence: {m.confidence:.0%})",
                 )
-                for m in resolve_result.matches
+                for m in resolve_result.entities
             ]
             if not clarify_choices:
                 clarify_options = await build_clarify_options(
@@ -143,33 +159,45 @@ async def _handle_initial(
                 )
             return ConversationResponse(
                 action="clarify",
-                chat_response="Could you confirm which class you'd like to analyze?",
+                chat_response="Could you confirm which you'd like to analyze?",
                 clarify_options=clarify_options,
-                resolved_entities=resolve_result.matches or None,
+                resolved_entities=resolve_result.entities or None,
                 conversation_id=req.conversation_id,
             )
 
         # High-confidence match — auto-inject into context
-        resolved_entities = resolve_result.matches
+        resolved_entities = resolve_result.entities
         enriched_context = dict(req.context or {})
+        context_parts: list[str] = []
 
-        if resolve_result.scope_mode == "single":
-            enriched_context["classId"] = resolved_entities[0].class_id
-            enhanced_prompt = (
-                f"{req.message}\n\n"
-                f"[Resolved context: classId={enriched_context['classId']}]"
-            )
-        else:
-            # Multi or grade — inject classIds list
-            enriched_context["classIds"] = [
-                m.class_id for m in resolved_entities
-            ]
-            class_names = ", ".join(m.display_name for m in resolved_entities)
-            enhanced_prompt = (
-                f"{req.message}\n\n"
-                f"[Resolved context: classIds={enriched_context['classIds']}, "
-                f"classes: {class_names}]"
-            )
+        for entity in resolved_entities:
+            if entity.entity_type == EntityType.CLASS:
+                if "classIds" not in enriched_context:
+                    enriched_context.setdefault("classIds", [])
+                enriched_context["classIds"].append(entity.entity_id)
+                context_parts.append(f"classId={entity.entity_id}")
+            elif entity.entity_type == EntityType.STUDENT:
+                enriched_context["studentId"] = entity.entity_id
+                context_parts.append(
+                    f"studentId={entity.entity_id} ({entity.display_name})"
+                )
+            elif entity.entity_type == EntityType.ASSIGNMENT:
+                enriched_context["assignmentId"] = entity.entity_id
+                context_parts.append(
+                    f"assignmentId={entity.entity_id} ({entity.display_name})"
+                )
+
+        # Promote single classIds to classId for backward compat
+        class_ids = enriched_context.pop("classIds", [])
+        if len(class_ids) == 1:
+            enriched_context["classId"] = class_ids[0]
+        elif class_ids:
+            enriched_context["classIds"] = class_ids
+
+        enhanced_prompt = (
+            f"{req.message}\n\n"
+            f"[Resolved context: {', '.join(context_parts)}]"
+        )
 
         blueprint, _model = await generate_blueprint(
             user_prompt=enhanced_prompt,
