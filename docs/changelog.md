@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-02-02 — Phase 1: Foundation 完成
+
+- Flask → FastAPI 迁移: `main.py` 入口 + `api/` 路由模块 + CORS 中间件
+- Pydantic Settings 配置: `config/settings.py` 替代旧 `config.py`，支持类型校验和 `.env` 自动加载
+- Blueprint 三层数据模型: `models/blueprint.py` (DataContract, ComputeGraph, UIComposition) + CamelModel 基类
+- API 请求/响应模型: `models/request.py` (WorkflowGenerateRequest/Response 等)
+- 组件注册表: `config/component_registry.py` — 6 种 UI 组件定义 + `get_registry_description()`
+- FastMCP 工具注册: `tools/` — 4 个数据工具 + 2 个统计工具 (numpy)
+- Mock 数据: `services/mock_data.py` — 班级、学生、成绩样本数据
+- 依赖升级: 移除 Flask，新增 FastAPI/uvicorn/sse-starlette/pydantic-settings/fastmcp/numpy/httpx/pytest-asyncio
+- 删除旧文件: `app.py`, `config.py`, `tests/test_app.py`
+- 新增 `.env.example` 模板和 `pytest.ini` 配置
+- 22 项测试全部通过 (test_api + test_models + test_tools)
+
 ## 2026-02-02 — 文档重构
 
 - 将单一 `PROJECT.md` 拆分为多文件文档体系

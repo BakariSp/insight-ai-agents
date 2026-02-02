@@ -2,7 +2,7 @@ import json
 import uuid
 from services.llm_service import LLMService
 from skills import WebSearchSkill, MemorySkill
-from config import Config
+from config.settings import get_settings
 
 SYSTEM_PROMPT = """You are Insight AI, a helpful assistant with access to tools.
 Use the available tools when they would help answer the user's question.
@@ -19,8 +19,9 @@ class ChatAgent:
 
     def _load_skills(self) -> dict:
         """Initialize and register all available skills."""
+        settings = get_settings()
         skill_instances = [
-            WebSearchSkill(api_key=Config.__dict__.get("BRAVE_API_KEY", "")),
+            WebSearchSkill(api_key=settings.brave_api_key),
             MemorySkill(),
         ]
         return {s.name: s for s in skill_instances}

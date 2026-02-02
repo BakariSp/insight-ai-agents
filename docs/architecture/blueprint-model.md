@@ -1,6 +1,6 @@
 # Blueprint 数据模型
 
-> 可执行蓝图（Blueprint）是报告生成的核心数据结构，取代了原来的 WorkflowTemplate。
+> 可执行蓝图（Blueprint）是结构化页面构建的核心数据结构，取代了原来的 WorkflowTemplate。
 
 ---
 
@@ -24,7 +24,7 @@ Blueprint
 │   └── tabs: list[TabSpec]
 │       └── slots: list[ComponentSlot]    从组件注册表中选择
 │
-└── report_system_prompt: str       ← ExecutorAgent 上下文提示
+└── page_system_prompt: str         ← ExecutorAgent 上下文提示
 ```
 
 ### 三层职责
@@ -154,7 +154,7 @@ class CapabilityLevel(int, Enum):
 
 
 class Blueprint(CamelModel):
-    """可执行蓝图 — 报告的完整执行计划。"""
+    """可执行蓝图 — 页面的完整执行计划。"""
     # 元数据
     id: str                                     # f"bp-{timestamp}"
     name: str
@@ -172,7 +172,7 @@ class Blueprint(CamelModel):
     ui_composition: UIComposition
 
     # ExecutorAgent 上下文
-    report_system_prompt: str = ""
+    page_system_prompt: str = ""
 ```
 
 ---
@@ -221,7 +221,7 @@ COMPONENT_REGISTRY = {
 ```
 
 添加新组件时：
-1. 前端实现新组件 + 注册到 ReportRenderer
+1. 前端实现新组件 + 注册到 PageRenderer
 2. 后端在 `COMPONENT_REGISTRY` 中注册
 3. PlannerAgent system prompt 中添加描述
 
@@ -375,7 +375,7 @@ ComputeGraph 和 DataBinding 中使用简单路径引用来关联数据：
     ]
   },
 
-  "reportSystemPrompt": "You are an educational data analyst. Generate precise, data-driven analysis. Use tools for all numeric calculations. Never fabricate statistics."
+  "pageSystemPrompt": "You are an educational data analyst. Generate precise, data-driven analysis. Use tools for all numeric calculations. Never fabricate statistics."
 }
 ```
 

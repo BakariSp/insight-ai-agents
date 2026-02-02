@@ -4,14 +4,35 @@
 
 ---
 
-## 当前（Phase 0）
+## 当前（Phase 1）
 
 ```
-flask>=3.0              # Web 框架
+# Web framework
+fastapi>=0.115          # 异步 Web 框架
+uvicorn[standard]>=0.32 # ASGI 服务器
+sse-starlette>=2.0      # SSE 响应
+
+# LLM
 litellm>=1.0            # 多模型 LLM 抽象层
+
+# Data validation & settings
+pydantic>=2.0           # 数据验证
+pydantic-settings>=2.0  # 配置管理 (.env 自动加载)
+
+# HTTP client
+httpx>=0.27             # 异步 HTTP 客户端
+requests>=2.31          # HTTP 客户端 (Brave Search 技能)
+
+# Tools
+fastmcp>=2.0            # MCP 工具注册框架
+numpy>=1.26             # 统计计算
+
+# Config
 python-dotenv>=1.0      # 环境变量
-requests>=2.31          # HTTP 客户端 (Brave Search)
+
+# Testing
 pytest>=8.0             # 测试
+pytest-asyncio>=0.24    # 异步测试支持
 ```
 
 ---

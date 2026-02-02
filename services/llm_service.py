@@ -7,17 +7,17 @@ Supports any provider LiteLLM supports via model name prefix:
     - zai/glm-4.7
 """
 
-import json
 import litellm
-from config import Config
+from config.settings import get_settings
 
 
 class LLMService:
     """Thin wrapper around litellm.completion() for multi-provider LLM access."""
 
     def __init__(self, model: str | None = None):
-        self.model = model or Config.LLM_MODEL
-        self.max_tokens = Config.MAX_TOKENS
+        settings = get_settings()
+        self.model = model or settings.default_model
+        self.max_tokens = settings.max_tokens
 
     def chat(self, messages: list, tools: list | None = None, system: str = "") -> dict:
         """Send a conversation turn to the LLM via LiteLLM.

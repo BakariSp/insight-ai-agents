@@ -4,19 +4,29 @@
 
 ---
 
-## 当前架构（Phase 0）
+## 当前架构（Phase 1）
 
 ```
 Client (HTTP)
     │
     ▼
-┌──────────────────────────────┐
-│  Flask App (:5000)           │
-│  GET  /health                │
-│  POST /chat                  │
-│  GET  /models                │
-│  GET  /skills                │
-└──────────┬───────────────────┘
+┌──────────────────────────────────────────────┐
+│  FastAPI App (:5000)                          │
+│  GET  /api/health                             │
+│  POST /chat              (兼容路由)            │
+│  GET  /models                                 │
+│  GET  /skills                                 │
+│                                                │
+│  ┌────────────────────────────────────────┐   │
+│  │  FastMCP (in-process tool registry)    │   │
+│  │  Data:  get_teacher_classes()          │   │
+│  │         get_class_detail()             │   │
+│  │         get_assignment_submissions()   │   │
+│  │         get_student_grades()           │   │
+│  │  Stats: calculate_stats()             │   │
+│  │         compare_performance()          │   │
+│  └────────────────────────────────────────┘   │
+└──────────┬───────────────────────────────────┘
            │
            ▼
 ┌──────────────────────────────┐
@@ -40,6 +50,18 @@ Client (HTTP)
  ├ openai/gpt-*
  └ anthropic/claude-*
 ```
+
+### 新增模块（Phase 1）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Pydantic Settings | `config/settings.py` | 类型安全配置，`.env` 自动加载 |
+| Blueprint 模型 | `models/blueprint.py` | 三层可执行蓝图数据模型 |
+| CamelModel 基类 | `models/base.py` | API 输出 camelCase 序列化 |
+| API 请求模型 | `models/request.py` | Workflow / Page 请求响应 |
+| 组件注册表 | `config/component_registry.py` | 6 种 UI 组件定义 |
+| FastMCP 工具 | `tools/` | 4 个数据工具 + 2 个统计工具 |
+| Mock 数据 | `services/mock_data.py` | 班级、学生、成绩样本 |
 
 ### 当前支持的 LLM 模型
 
@@ -67,9 +89,9 @@ Client (HTTP)
 │  FastAPI Application (:8000)                        │
 │                                                      │
 │  POST /api/workflow/generate   → PlannerAgent       │
-│  POST /api/report/generate     → ExecutorAgent (SSE)│
+│  POST /api/page/generate       → ExecutorAgent (SSE)│
 │  POST /api/intent/classify     → RouterAgent        │
-│  POST /api/report/chat         → ChatAgent          │
+│  POST /api/page/chat           → ChatAgent          │
 │  GET  /api/health                                    │
 │                                                      │
 │  ┌──────────────────────────────────────────────┐   │
@@ -107,7 +129,7 @@ Client (HTTP)
 │  @mcp.tool + Pydantic 参数验证                                │
 ├─────────────────────────────────────────────────────────────┤
 │  PydanticAI                                                   │
-│  Agent 编排层：Blueprint 生成 + 执行 + 结构化输出              │
+│  Agent 编排层：Blueprint 生成 + 执行 + 结构化页面输出           │
 │  agent.run(result_type=Blueprint) / agent.iter() streaming   │
 ├─────────────────────────────────────────────────────────────┤
 │  LiteLLM                                                      │
@@ -118,14 +140,16 @@ Client (HTTP)
 
 ### 当前 → 目标的差距
 
-| 方面 | 当前 | 目标 |
+| 方面 | 当前 (Phase 1) | 目标 |
 |------|------|------|
-| Web 框架 | Flask (同步) | FastAPI (异步) |
-| 工具框架 | 手写 BaseSkill + JSON Schema | FastMCP `@mcp.tool` + 自动 Schema |
+| Web 框架 | ✅ FastAPI (异步) | FastAPI (异步) |
+| 工具框架 | ✅ FastMCP 6 工具已注册 | FastMCP `@mcp.tool` + 自动 Schema |
+| 数据模型 | ✅ Blueprint + CamelModel | Blueprint 三层结构 |
+| 配置系统 | ✅ Pydantic Settings | Pydantic Settings |
 | LLM 接入 | LiteLLM (通用) | PydanticAI + LiteLLM (streaming + tool_use) |
 | Agent 数量 | 1 个 ChatAgent | 4 个专职 Agent |
 | 输出模式 | JSON 响应 | SSE 流式 + JSON |
-| 数据来源 | 无 | Java Backend via httpx |
+| 数据来源 | Mock 数据 | Java Backend via httpx |
 | 前端集成 | 无 | Next.js API Routes proxy |
 
 ---
@@ -175,46 +199,54 @@ LiteLLM 的轻封装:
 
 ## 项目结构
 
-### 当前结构
+### 当前结构（Phase 1）
 
 ```
 insight-ai-agent/
-├── app.py                      # Flask 入口
-├── config.py                   # 配置 (dotenv)
+├── main.py                     # FastAPI 入口
 ├── requirements.txt            # 依赖
 ├── .env.example                # 环境变量模板
+├── pytest.ini                  # pytest 配置 (asyncio_mode=auto)
+│
+├── api/                        # API 路由
+│   ├── health.py               # GET /api/health
+│   ├── chat.py                 # POST /chat (兼容路由)
+│   └── models_routes.py        # GET /models, GET /skills
+│
+├── config/                     # 配置系统
+│   ├── settings.py             # Pydantic Settings + get_settings()
+│   └── component_registry.py   # 6 种 UI 组件定义
+│
+├── models/                     # Pydantic 数据模型
+│   ├── base.py                 # CamelModel 基类 (camelCase 输出)
+│   ├── blueprint.py            # Blueprint 三层模型
+│   └── request.py              # API 请求/响应模型
+│
+├── tools/                      # FastMCP 工具
+│   ├── __init__.py             # mcp = FastMCP(...) + 工具注册
+│   ├── data_tools.py           # 4 个数据工具 (mock)
+│   └── stats_tools.py          # 2 个统计工具 (numpy)
 │
 ├── agents/
-│   └── chat_agent.py           # 唯一 Agent: 对话 + 工具循环
+│   └── chat_agent.py           # ChatAgent: 对话 + 工具循环
 │
 ├── services/
-│   ├── __init__.py
-│   └── llm_service.py          # LiteLLM 封装
+│   ├── llm_service.py          # LiteLLM 封装
+│   └── mock_data.py            # 集中 mock 数据
 │
-├── skills/
-│   ├── __init__.py
+├── skills/                     # 旧技能系统 (Phase 0 遗留，ChatAgent 使用)
 │   ├── base.py                 # BaseSkill 抽象基类
 │   ├── web_search.py           # Brave Search 技能
 │   └── memory.py               # 持久化记忆技能
 │
 ├── tests/
-│   └── test_app.py             # 基础测试
+│   ├── test_api.py             # FastAPI 端点测试 (httpx.AsyncClient)
+│   ├── test_models.py          # Blueprint 模型测试
+│   └── test_tools.py           # FastMCP 工具测试
 │
 ├── docs/                       # ← 本文档
-│   ├── README.md               # 文档导航首页
-│   ├── architecture/           # 架构设计
-│   ├── api/                    # API 文档
-│   ├── guides/                 # 开发指南
-│   ├── integration/            # 集成规范
-│   ├── tech-stack.md
-│   ├── roadmap.md
-│   └── changelog.md
 │
-└── .claude/
-    ├── settings.local.json
-    ├── agents/
-    ├── skills/
-    └── commands/
+└── .claude/                    # Claude Code 配置
 ```
 
 ### 目标结构
@@ -238,7 +270,7 @@ insight-ai-agent/
 │   ├── base.py                 # CamelModel 基类
 │   ├── blueprint.py            # Blueprint, DataContract, ComputeGraph, UIComposition
 │   ├── components.py           # ComponentType, ComponentSlot, TabSpec
-│   ├── report.py               # ReportMeta, ReportTab, blocks (输出模型)
+│   ├── page.py                 # PageMeta, PageTab, blocks (输出模型)
 │   └── request.py              # API request/response models
 │
 ├── tools/                      # FastMCP tools
@@ -249,16 +281,16 @@ insight-ai-agent/
 ├── agents/
 │   ├── provider.py             # PydanticAI + LiteLLM provider + FastMCP bridge
 │   ├── planner.py              # PlannerAgent: user prompt → Blueprint
-│   ├── executor.py             # ExecutorAgent: Blueprint → Report (SSE)
+│   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE)
 │   ├── router.py               # RouterAgent: intent classification
-│   └── chat.py                 # ChatAgent: report follow-up
+│   └── chat.py                 # ChatAgent: page follow-up
 │
 ├── services/
 │   └── mock_data.py            # Mock data (dev)
 │
 ├── api/
 │   ├── workflow.py             # POST /api/workflow/generate
-│   ├── report.py               # POST /api/report/generate + chat
+│   ├── page.py                 # POST /api/page/generate + chat
 │   ├── intent.py               # POST /api/intent/classify
 │   └── health.py               # GET /api/health
 │

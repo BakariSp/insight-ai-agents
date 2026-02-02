@@ -1,6 +1,6 @@
-# 当前 API（Phase 0）
+# 当前 API（Phase 1）
 
-> Flask 服务的 4 个 HTTP 端点。
+> FastAPI 服务的 4 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
 
 ---
 
@@ -8,16 +8,18 @@
 
 | Method | Path | 功能 | 状态 |
 |--------|------|------|------|
-| `GET` | `/health` | 健康检查 | ✅ |
-| `POST` | `/chat` | 通用对话 (支持工具调用) | ✅ |
+| `GET` | `/api/health` | 健康检查 | ✅ |
+| `POST` | `/chat` | 通用对话 (兼容路由, 支持工具调用) | ✅ |
 | `GET` | `/models` | 列出支持的模型 | ✅ |
 | `GET` | `/skills` | 列出可用技能 | ✅ |
+
+> 自动生成的 API 文档: `http://localhost:5000/docs` (Swagger) / `http://localhost:5000/redoc`
 
 ---
 
 ## POST /chat
 
-核心端点，支持多模型切换和工具调用。
+核心端点（兼容路由），支持多模型切换和工具调用。将在 Phase 4 被 `/api/page/generate` + `/api/page/chat` 替代。
 
 **请求:**
 
@@ -59,12 +61,14 @@ curl -X POST http://localhost:5000/chat \
   -d '{"message": "继续", "conversation_id": "abc-123"}'
 ```
 
+**错误处理:** 缺少 `message` 字段返回 `422` (FastAPI Pydantic 校验)。
+
 ---
 
-## GET /health
+## GET /api/health
 
 ```bash
-curl http://localhost:5000/health
+curl http://localhost:5000/api/health
 # → {"status": "healthy"}
 ```
 
@@ -72,7 +76,7 @@ curl http://localhost:5000/health
 
 ```bash
 curl http://localhost:5000/models
-# → {"models": ["dashscope/qwen-max", ...]}
+# → {"default": "dashscope/qwen-max", "examples": ["dashscope/qwen-max", ...]}
 ```
 
 ## GET /skills

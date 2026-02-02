@@ -35,18 +35,13 @@ cp .env.example .env
 
 ## 启动服务
 
-### 当前 (Phase 0 — Flask)
-
 ```bash
-python app.py
+# 方式一：直接运行
+python main.py
 # 服务运行在 http://localhost:5000
-```
 
-### 目标 (Phase 1+ — FastAPI)
-
-```bash
-uvicorn main:app --reload --port 8000
-# 服务运行在 http://localhost:8000
+# 方式二：使用 uvicorn（支持热重载）
+uvicorn main:app --reload --port 5000
 ```
 
 ---
@@ -55,7 +50,7 @@ uvicorn main:app --reload --port 8000
 
 ```bash
 # 健康检查
-curl http://localhost:5000/health
+curl http://localhost:5000/api/health
 
 # 测试对话
 curl -X POST http://localhost:5000/chat \
@@ -67,6 +62,9 @@ curl http://localhost:5000/models
 
 # 查看可用技能
 curl http://localhost:5000/skills
+
+# 查看自动生成的 API 文档
+# 浏览器打开 http://localhost:5000/docs
 ```
 
 ---

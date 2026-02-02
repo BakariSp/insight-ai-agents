@@ -4,7 +4,75 @@
 
 ---
 
-## 方式一：BaseSkill（当前 Phase 0）
+## 方式一：FastMCP Tool（推荐）
+
+使用 FastMCP 注册工具，自动生成 JSON Schema，代码量少。
+
+### 步骤
+
+1. 在 `tools/data_tools.py` 或 `tools/stats_tools.py` 中添加函数（或新建文件）
+2. 在 `tools/__init__.py` 中导入并注册到 `mcp`
+
+### 示例：添加数据工具
+
+```python
+# tools/data_tools.py
+
+def get_student_attendance(teacher_id: str, student_id: str) -> dict:
+    """Get attendance record for a student.
+
+    Args:
+        teacher_id: The teacher's unique identifier.
+        student_id: The student's unique identifier.
+
+    Returns:
+        Dictionary with attendance data.
+    """
+    # Phase 1: mock 数据
+    return {"student_id": student_id, "attendance_rate": 0.95, "absences": 3}
+```
+
+```python
+# tools/__init__.py — 添加注册
+
+from tools.data_tools import get_student_attendance
+mcp.tool()(get_student_attendance)
+```
+
+### 示例：添加统计工具
+
+```python
+# tools/stats_tools.py
+
+def calculate_trend(data_points: list[float], window: int = 3) -> dict:
+    """Calculate trend from time-series data.
+
+    Args:
+        data_points: Ordered numeric values over time.
+        window: Moving average window size.
+
+    Returns:
+        Dictionary with trend direction and moving averages.
+    """
+    # ... 实现
+    return {"direction": "up", "moving_avg": [...]}
+```
+
+### 测试
+
+```bash
+# 单元测试 — 直接调用函数
+pytest tests/test_tools.py -v
+
+# FastMCP 交互式测试
+fastmcp dev tools/__init__.py
+```
+
+---
+
+## 方式二：BaseSkill（旧方式，ChatAgent 使用）
+
+> 旧方式仅供 Phase 0 的 ChatAgent 使用。新工具应优先使用 FastMCP。
 
 1. 在 `skills/` 下创建新文件
 2. 继承 `BaseSkill`
@@ -39,84 +107,32 @@ class MySkill(BaseSkill):
 
 ---
 
-## 方式二：FastMCP Tool（目标 Phase 1+）
+## 对比
 
-使用 `@mcp.tool` 装饰器，自动生成 JSON Schema，代码量大幅减少。
-
-1. 在 `tools/` 下的文件中添加函数
-2. 使用 `@mcp.tool` 装饰器
-3. 用 type hints + `Annotated[..., Field()]` 描述参数
-
-```python
-from typing import Annotated
-from pydantic import Field
-from tools import mcp
-
-
-@mcp.tool
-async def my_tool(
-    param1: Annotated[str, Field(description="参数说明")],
-    param2: Annotated[int, Field(description="另一个参数")] = 10,
-) -> dict:
-    """工具描述，会展示给 LLM。"""
-    return {"result": f"{param1}: {param2}"}
-```
-
-### 对比
-
-| | BaseSkill | FastMCP |
+| | BaseSkill (旧) | FastMCP (新) |
 |---|---|---|
 | 代码量 | ~40 行/tool | ~10 行/tool |
-| JSON Schema | 手写 | 自动生成 |
-| 参数验证 | 无 | Pydantic 自动验证 |
-| 测试 | 自己搭 | `fastmcp dev tools/__init__.py` |
-
-### 测试 FastMCP 工具
-
-```bash
-# 交互式测试
-fastmcp dev tools/__init__.py
-```
+| JSON Schema | 手写 | 自动生成 (type hints) |
+| 参数验证 | 无 | 自动验证 |
+| 测试 | 自己搭 | `fastmcp dev` 交互式 |
+| 适用场景 | ChatAgent 旧技能 | 新数据/统计工具 |
 
 ---
 
-## 添加数据工具
+## 当前已注册的工具
 
-数据工具放在 `tools/data_tools.py`，每个工具对应一个 Java API endpoint：
+### 数据工具 (`tools/data_tools.py`)
 
-```python
-@mcp.tool
-async def get_teacher_classes(
-    teacher_id: Annotated[str, Field(description="教师 ID")],
-) -> dict:
-    """获取教师的班级列表。"""
-    settings = get_settings()
-    if settings.use_mock_data:
-        from services.mock_data import mock_teacher_classes
-        return mock_teacher_classes(teacher_id)
+| 工具 | 功能 | 参数 |
+|------|------|------|
+| `get_teacher_classes` | 获取教师班级列表 | `teacher_id` |
+| `get_class_detail` | 获取班级详情（含学生和作业） | `teacher_id`, `class_id` |
+| `get_assignment_submissions` | 获取作业提交数据 | `teacher_id`, `assignment_id` |
+| `get_student_grades` | 获取学生成绩 | `teacher_id`, `student_id` |
 
-    async with httpx.AsyncClient(base_url=settings.java_backend_url) as client:
-        resp = await client.get(f"/dify/teacher/{teacher_id}/classes/me")
-        resp.raise_for_status()
-        return resp.json()
-```
+### 统计工具 (`tools/stats_tools.py`)
 
-## 添加统计工具
-
-统计工具放在 `tools/stats_tools.py`，确定性计算，不依赖 LLM：
-
-```python
-@mcp.tool
-async def calculate_stats(
-    data: Annotated[list[float], Field(description="数值数组")],
-    metrics: Annotated[list[str], Field(description="mean, median, stddev, min, max, percentiles, distribution")],
-) -> dict:
-    """统计计算。返回精确结果。"""
-    arr = np.array(data)
-    result = {"count": len(data)}
-    for m in metrics:
-        if m == "mean":      result["mean"] = round(float(np.mean(arr)), 2)
-        elif m == "median":  result["median"] = round(float(np.median(arr)), 2)
-        # ...
-    return result
-```
+| 工具 | 功能 | 参数 |
+|------|------|------|
+| `calculate_stats` | 描述性统计 (mean, median, stddev, distribution 等) | `data`, `metrics` |
+| `compare_performance` | 两组数据对比 | `group_a`, `group_b`, `metrics` |

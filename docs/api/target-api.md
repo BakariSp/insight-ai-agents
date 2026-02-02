@@ -9,8 +9,8 @@
 | Method | Path | 功能 | Agent | 状态 |
 |--------|------|------|-------|------|
 | `POST` | `/api/workflow/generate` | 生成 Blueprint | PlannerAgent | 🔲 |
-| `POST` | `/api/report/generate` | 执行 Blueprint (SSE) | ExecutorAgent | 🔲 |
-| `POST` | `/api/report/chat` | 报告对话 | ChatAgent | 🔲 |
+| `POST` | `/api/page/generate` | 执行 Blueprint (SSE) | ExecutorAgent | 🔲 |
+| `POST` | `/api/page/chat` | 页面对话 | ChatAgent | 🔲 |
 | `POST` | `/api/intent/classify` | 意图分类 | RouterAgent | 🔲 |
 | `GET` | `/api/health` | 健康检查 | - | 🔲 |
 
@@ -42,8 +42,8 @@ workflow-generate            generate
     name: "...",                data_contract: {...},
     dataContract: {...},        compute_graph: {...},
     computeGraph: {...},        ui_composition: {...},
-    uiComposition: {...},       report_system_prompt: "..."
-    reportSystemPrompt: "..."   }
+    uiComposition: {...},       page_system_prompt: "..."
+    pageSystemPrompt: "..."     }
   }                           }
 }
 ```
@@ -67,16 +67,16 @@ class WorkflowGenerateResponse(CamelModel):
 
 ---
 
-## 2. Report Generate (ExecutorAgent — SSE Streaming)
+## 2. Page Generate (ExecutorAgent — SSE Streaming)
 
-最关键的端点。Python 服务**执行 Blueprint**（三阶段），输出 SSE stream。
+最关键的端点。Python 服务**执行 Blueprint**（三阶段），输出 SSE stream，构建结构化页面。
 
 ```
 Frontend                  Next.js Proxy              Python Service
 ────────                  ─────────────              ──────────────
 
-POST /api/ai/             POST /api/report/
-report-generate           generate
+POST /api/ai/             POST /api/page/
+page-generate             generate
 
 {                  ──►    {                   ──►    ExecutorAgent
   blueprint: {...},         blueprint: {...},          (execute Blueprint)
@@ -92,7 +92,7 @@ report-generate           generate
 **Python Request:**
 
 ```python
-class ReportGenerateRequest(CamelModel):
+class PageGenerateRequest(CamelModel):
     blueprint: dict                              # 完整 Blueprint JSON
     data: dict                                   # 用户选择的数据
     context: dict | None = None                  # 运行时上下文（teacherId 等）
@@ -102,21 +102,21 @@ SSE 事件格式详见 [sse-protocol.md](./sse-protocol.md)。
 
 ---
 
-## 3. Report Chat (Follow-up Questions)
+## 3. Page Chat (Follow-up Questions)
 
-非流式端点，用于追问已有报告。
+非流式端点，用于追问已有页面内容。
 
 ```
 Frontend                  Next.js Proxy              Python Service
 ────────                  ─────────────              ──────────────
 
-POST /api/ai/             POST /api/report/
-report-chat               chat
+POST /api/ai/             POST /api/page/
+page-chat                 chat
 
 {                  ──►    {                   ──►    Chat Agent
   userMessage:              user_message:
   "哪些学生...",            "哪些学生...",
-  reportContext: {...},     report_context: {...},
+  pageContext: {...},       page_context: {...},
   data: {...}               data: {...}
 }                           }
 
@@ -129,16 +129,16 @@ report-chat               chat
 **Python Request:**
 
 ```python
-class ReportChatRequest(BaseModel):
+class PageChatRequest(BaseModel):
     user_message: str
-    report_context: dict | None = None    # { meta, data_summary }
+    page_context: dict | None = None      # { meta, data_summary }
     data: dict | None = None
 ```
 
 **Python Response:**
 
 ```python
-class ReportChatResponse(BaseModel):
+class PageChatResponse(BaseModel):
     success: bool
     chat_response: str                    # Markdown 格式
 ```
@@ -161,7 +161,7 @@ classify-intent           classify
   "增加语法...",            "增加语法...",
   workflowName:             workflow_name:
   "Performance...",         "Performance...",
-  reportSummary:            report_summary:
+  pageSummary:              page_summary:
   "Overall good..."        "Overall good..."
 }                           }
 
@@ -176,9 +176,9 @@ classify-intent           classify
 
 | Intent | 前端动作 | 调用的函数 |
 |--------|---------|-----------|
-| `workflow_rebuild` | 重新生成 Blueprint + report | `generateWorkflow()` → `generateReport()` |
-| `report_refine` | 仅重新生成 report | `generateReport()` (带修改指令) |
-| `data_chat` | 追问对话 | `chatWithReport()` |
+| `workflow_rebuild` | 重新生成 Blueprint + page | `generateWorkflow()` → `generatePage()` |
+| `page_refine` | 仅重新生成 page | `generatePage()` (带修改指令) |
+| `data_chat` | 追问对话 | `chatWithPage()` |
 
 ---
 
@@ -199,7 +199,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config.settings import get_settings
 
 from api.workflow import router as workflow_router
-from api.report import router as report_router
+from api.page import router as page_router
 from api.intent import router as intent_router
 from api.health import router as health_router
 
@@ -214,7 +214,7 @@ app.add_middleware(
 )
 
 app.include_router(workflow_router)
-app.include_router(report_router)
+app.include_router(page_router)
 app.include_router(intent_router)
 app.include_router(health_router)
 

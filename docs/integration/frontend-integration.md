@@ -1,388 +1,523 @@
 # 前端集成规范
 
-> Next.js Proxy 架构、字段映射、前端改动清单、Mock 策略、Proxy 路由代码、错误处理、测试检查清单。
+> Python 服务 API 契约：端点、请求/响应格式、SSE 协议、Blueprint 结构、Page 输出、错误码。
 
 ---
 
-## 三层架构
+## 服务概览
+
+Python 服务 (FastAPI) 通过 HTTP/SSE 为前端提供 AI 能力。
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  Layer 1: React Pages & Components (不改)                        │
-│                                                                    │
-│  build/[id]/page.tsx     apps/[id]/page.tsx                       │
-│       │                        │                                   │
-│       ▼                        ▼                                   │
-│  ┌──────────────────────────────────────────────┐                 │
-│  │  studio-agents.ts (客户端调用层)               │                 │
-│  │  generateWorkflow()   → fetch /api/ai/...    │                 │
-│  │  generateReport()     → fetch /api/ai/...    │                 │
-│  │  chatWithReport()     → fetch /api/ai/...    │                 │
-│  │  handleSSEStream()    → parse SSE events     │                 │
-│  └──────────────┬───────────────────────────────┘                 │
-│                 │  fetch('/api/ai/xxx')                            │
-│                 ▼                                                  │
-│  ┌──────────────────────────────────────────────┐                 │
-│  │  Layer 2: Next.js API Routes (改为 Proxy)     │ ← 唯一改动层    │
-│  │  /api/ai/workflow-generate  → proxy           │                 │
-│  │  /api/ai/report-generate    → proxy + SSE     │                 │
-│  │  /api/ai/report-chat        → proxy           │                 │
-│  │  /api/ai/classify-intent    → proxy (新增)    │                 │
-│  └──────────────┬───────────────────────────────┘                 │
-└─────────────────┼────────────────────────────────────────────────┘
-                  │  HTTP / SSE
-                  ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  Layer 3: Python Service (FastAPI + PydanticAI)                   │
-└──────────────────────────────────────────────────────────────────┘
+Frontend (Next.js)
+    │  HTTP POST / SSE
+    ▼
+Python Service (:8000)
+├── POST /api/workflow/generate     生成 Blueprint
+├── POST /api/page/generate         执行 Blueprint，SSE 流式构建页面
+├── POST /api/page/chat             页面追问对话
+├── POST /api/intent/classify       用户意图分类
+└── GET  /api/health                健康检查
 ```
 
-**核心原则：前端 React 层零改动。** 所有变化封装在 Next.js API Routes 这一层。
+**Base URL:** `http://localhost:8000` (开发环境)
+
+**通用约定:**
+- 所有请求 `Content-Type: application/json`
+- 所有 JSON 响应字段使用 **camelCase** (如 `chatResponse`, `dataContract`, `computeGraph`)
+- 非 SSE 端点返回标准 JSON；SSE 端点返回 `text/event-stream`
 
 ---
 
-## Blueprint 概念（面向前端开发者）
+## API 端点
 
-详细模型定义见 [Blueprint 数据模型](../architecture/blueprint-model.md)。
+### 1. 生成 Blueprint — `POST /api/workflow/generate`
 
-**前端只关心两部分：**
+根据用户自然语言描述，生成结构化的分析计划 (Blueprint)。
 
-1. **`blueprint.dataContract.inputs`** — 渲染数据选择 UI。格式与原来的 `dataInputs` 完全一致。
-2. **`blueprint` 整体** — 回传给 `/api/report/generate` 执行。前端不需要理解 `computeGraph` 或 `uiComposition`。
+**Request:**
 
-**报告输出格式完全不变。** `COMPLETE.result.report` 仍然是 `{ meta, layout, tabs: [{ id, label, blocks }] }`。
+```json
+{
+  "user_prompt": "Analyze Form 1A English performance"
+}
+```
 
----
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_prompt` | string | 是 | 用户的自然语言需求描述 |
 
-## 前端改动清单 (最小化)
+**Response (200):**
 
-### 必须改的文件 (4 个 API routes)
-
-| 文件 | 改动内容 | 行数 |
-|------|---------|------|
-| `src/app/api/ai/workflow-generate/route.ts` | Dify → Python proxy，response 用 `blueprint` | ~30 行 |
-| `src/app/api/ai/report-generate/route.ts` | Dify SSE → Python SSE 透传，request 含 `blueprint` | ~25 行 |
-| `src/app/api/ai/report-chat/route.ts` | Dify → Python proxy | ~20 行 |
-| `src/lib/env.ts` | 添加 `PYTHON_SERVICE_URL` | ~3 行 |
-
-### 新增的文件 (1 个)
-
-| 文件 | 内容 |
-|------|------|
-| `src/app/api/ai/classify-intent/route.ts` | 意图分类 proxy (新端点) |
-
-### 需要小改的文件 (1-2 个，可选)
-
-| 文件 | 改动内容 |
-|------|---------|
-| `src/lib/studio-agents.ts` | `generateWorkflow()` 返回值从 `result.workflow` 改为 `result.blueprint` |
-| `src/lib/studio-router.ts` | `getRouteType()` 改为 async，调用 `/api/ai/classify-intent` |
-
-### 完全不改的文件
-
-| 文件 | 原因 |
-|------|------|
-| `src/lib/studio-agents.ts` (handleSSEStream) | SSE 解析逻辑不变 |
-| `src/components/studio/*` | 所有 UI 组件不改 |
-| `src/components/studio/report-renderer/*` | 报告渲染组件不改 |
-| `src/app/teacher/studio/**` | 所有页面不改 |
-
----
-
-## Proxy Route 完整代码
-
-### `workflow-generate/route.ts` (重写)
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerConfig } from '@/lib/env';
-import { getDefaultWorkflowTemplate } from '@/config/studio-agent-prompts';
-
-export const runtime = 'nodejs';
-export const maxDuration = 30;
-
-export async function POST(request: NextRequest) {
-  try {
-    const { userPrompt } = await request.json();
-
-    if (!userPrompt || typeof userPrompt !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'userPrompt is required' },
-        { status: 400 }
-      );
-    }
-
-    const { PYTHON_SERVICE_URL } = getServerConfig();
-
-    if (!PYTHON_SERVICE_URL) {
-      const fallback = getDefaultWorkflowTemplate(userPrompt);
-      return NextResponse.json({
-        success: true,
-        chatResponse: `Creating "${fallback.name}" blueprint.`,
-        blueprint: {
-          ...fallback,
-          id: `bp-${Date.now()}`,
-          version: 1,
-          capabilityLevel: 1,
-          createdAt: new Date().toISOString(),
-          sourcePrompt: userPrompt,
-          dataContract: { inputs: fallback.dataInputs || [], bindings: [] },
-          computeGraph: { nodes: [] },
-          uiComposition: { layout: 'tabs', tabs: [] },
-        },
-      });
-    }
-
-    const upstream = await fetch(`${PYTHON_SERVICE_URL}/api/workflow/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_prompt: userPrompt }),
-    });
-
-    if (!upstream.ok) {
-      console.error('Python service error:', upstream.status);
-      // Fallback to local template
-      const fallback = getDefaultWorkflowTemplate(userPrompt);
-      return NextResponse.json({ success: true, chatResponse: '...', blueprint: { ...fallback } });
-    }
-
-    const result = await upstream.json();
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('Workflow generate route error:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+```json
+{
+  "success": true,
+  "chatResponse": "I've created an English performance analysis blueprint for Form 1A.",
+  "blueprint": {
+    "id": "bp-1706900000",
+    "name": "Class Performance Analysis",
+    "description": "Comprehensive analysis of class performance",
+    "icon": "chart",
+    "category": "analytics",
+    "version": 1,
+    "capabilityLevel": 1,
+    "sourcePrompt": "Analyze Form 1A English performance",
+    "createdAt": "2026-02-02T10:00:00Z",
+    "dataContract": { "inputs": [...], "bindings": [...] },
+    "computeGraph": { "nodes": [...] },
+    "uiComposition": { "layout": "tabs", "tabs": [...] },
+    "pageSystemPrompt": "..."
   }
 }
 ```
 
-### `report-generate/route.ts` (重写)
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | boolean | 是否成功 |
+| `chatResponse` | string | 面向用户的对话回复 (Markdown) |
+| `blueprint` | object | 完整 Blueprint 结构，见下文 [Blueprint 结构](#blueprint-结构) |
 
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerConfig } from '@/lib/env';
+---
 
-export const runtime = 'nodejs';
-export const maxDuration = 120;
+### 2. 构建页面 — `POST /api/page/generate` (SSE)
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
+执行 Blueprint，流式构建页面。响应为 SSE 事件流。
 
-    const { PYTHON_SERVICE_URL } = getServerConfig();
-    if (!PYTHON_SERVICE_URL) {
-      return createMockStreamResponse(body.data);
-    }
+**Request:**
 
-    const upstream = await fetch(`${PYTHON_SERVICE_URL}/api/report/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        blueprint: body.blueprint,
-        data: body.data,
-        context: body.context,
-      }),
-    });
+```json
+{
+  "blueprint": { ... },
+  "data": {
+    "classId": "class-hk-f1a",
+    "assignmentId": "assign-001",
+    "students": [...],
+    "submissions": [...]
+  },
+  "context": {
+    "teacherId": "t-001"
+  }
+}
+```
 
-    if (!upstream.ok) {
-      return createMockStreamResponse(body.data);
-    }
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `blueprint` | object | 是 | 从 `/api/workflow/generate` 获得的完整 Blueprint |
+| `data` | object | 是 | 用户选择的班级/作业对应的数据 |
+| `context` | object | 否 | 运行时上下文 (teacherId 等) |
 
-    // SSE 直接透传
-    return new NextResponse(upstream.body, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
+**Response:** SSE 事件流，详见 [SSE 协议](#sse-协议)。
+
+---
+
+### 3. 页面追问 — `POST /api/page/chat`
+
+对已生成的页面进行追问对话。
+
+**Request:**
+
+```json
+{
+  "user_message": "Which students improved the most?",
+  "page_context": {
+    "meta": { "pageTitle": "..." },
+    "dataSummary": "..."
+  },
+  "data": { ... }
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_message` | string | 是 | 用户追问内容 |
+| `page_context` | object | 否 | 当前页面的元信息和摘要 |
+| `data` | object | 否 | 当前页面使用的原始数据 |
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "chatResponse": "Based on the data, the students who improved the most are..."
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | boolean | 是否成功 |
+| `chatResponse` | string | Markdown 格式的回复 |
+
+---
+
+### 4. 意图分类 — `POST /api/intent/classify`
+
+对用户的追问消息进行意图分类，判断应该重建 Blueprint 还是直接对话。
+
+**Request:**
+
+```json
+{
+  "user_message": "Help me add a grammar breakdown section",
+  "workflow_name": "Class Performance Analysis",
+  "page_summary": "Analysis of Form 1A English with KPIs and charts"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_message` | string | 是 | 用户消息 |
+| `workflow_name` | string | 是 | 当前 Blueprint 名称 |
+| `page_summary` | string | 是 | 当前页面摘要 |
+
+**Response (200):**
+
+```json
+{
+  "intent": "workflow_rebuild",
+  "confidence": 0.92
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `intent` | string | `"workflow_rebuild"` \| `"page_refine"` \| `"data_chat"` |
+| `confidence` | float | 置信度 0.0 - 1.0 |
+
+**Intent 含义:**
+
+| Intent | 含义 | 前端处理建议 |
+|--------|------|-------------|
+| `workflow_rebuild` | 用户想修改分析维度/结构 | 重新调用 `/api/workflow/generate` |
+| `page_refine` | 用户想微调页面内容 | 重新调用 `/api/page/generate` |
+| `data_chat` | 用户在追问数据 | 调用 `/api/page/chat` |
+
+---
+
+### 5. 健康检查 — `GET /api/health`
+
+**Response (200):**
+
+```json
+{
+  "status": "ok",
+  "version": "0.1.0"
+}
+```
+
+---
+
+## SSE 协议
+
+`POST /api/page/generate` 返回 SSE 事件流。每个事件格式为:
+
+```
+data: {"type":"<EVENT_TYPE>", ...payload}
+```
+
+### 事件类型
+
+| type | 含义 | 前端需要处理 |
+|------|------|-------------|
+| `PHASE` | 执行阶段通知 | 可选 (显示进度提示) |
+| `TOOL_CALL` | 工具调用开始 | 可选 (显示"正在计算...") |
+| `TOOL_RESULT` | 工具调用结果 | 可选 |
+| `MESSAGE` | 流式文本片段 | **是** — 累积拼接为完整文本 |
+| `COMPLETE` | 流结束，包含完整结果 | **是** — 解析 `result` 获取页面 |
+| `ERROR` | 错误 | **是** — 显示错误信息 |
+
+### 事件详情
+
+**PHASE**
+
+```json
+{ "type": "PHASE", "phase": "data", "message": "Fetching data..." }
+```
+
+`phase` 取值: `"data"` → `"compute"` → `"compose"`
+
+**TOOL_CALL / TOOL_RESULT**
+
+```json
+{ "type": "TOOL_CALL", "tool": "calculate_stats", "args": { "metrics": ["mean", "median"] } }
+{ "type": "TOOL_RESULT", "tool": "calculate_stats", "status": "success" }
+```
+
+**MESSAGE** (流式文本)
+
+```json
+{ "type": "MESSAGE", "content": "Based on my " }
+{ "type": "MESSAGE", "content": "analysis of " }
+{ "type": "MESSAGE", "content": "Form 1A..." }
+```
+
+前端将 `content` 依次拼接，实现打字机效果。
+
+**COMPLETE** (最终结果)
+
+```json
+{
+  "type": "COMPLETE",
+  "message": "completed",
+  "progress": 100,
+  "result": {
+    "response": "...",
+    "chatResponse": "Here is the analysis for Form 1A English...",
+    "page": {
+      "meta": {
+        "pageTitle": "Form 1A English Performance Analysis",
+        "frameworkUsed": "Descriptive Statistics + Bloom's Taxonomy",
+        "summary": "Overall class average is 72.5%...",
+        "generatedAt": "2026-02-02T10:05:00Z",
+        "dataSource": "Form 1A - English - Unit 5 Test"
       },
-    });
-  } catch (error) {
-    console.error('Report generate route error:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+      "layout": "tabs",
+      "tabs": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "blocks": [ ... ]
+        }
+      ]
+    }
   }
 }
 ```
 
-### `report-chat/route.ts` (重写)
+**ERROR**
 
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerConfig } from '@/lib/env';
+```json
+{ "type": "ERROR", "message": "Blueprint execution failed: invalid data binding", "code": "EXECUTION_ERROR" }
+```
 
-export const runtime = 'nodejs';
-export const maxDuration = 30;
+---
 
-export async function POST(request: NextRequest) {
-  try {
-    const { userMessage, reportContext, data } = await request.json();
+## Page 输出结构
 
-    const { PYTHON_SERVICE_URL } = getServerConfig();
-    if (!PYTHON_SERVICE_URL) {
-      return NextResponse.json({ success: true, chatResponse: getMockChatResponse(userMessage) });
+`COMPLETE.result.page` 的完整结构:
+
+```
+page
+├── meta
+│   ├── pageTitle: string        页面标题
+│   ├── frameworkUsed: string    分析框架
+│   ├── summary: string          一句话摘要
+│   ├── generatedAt: string      生成时间 (ISO 8601)
+│   └── dataSource: string       数据来源描述
+├── layout: "tabs" | "single_page"
+└── tabs[]
+    ├── id: string
+    ├── label: string
+    └── blocks[]                 见下文 6 种 Block 类型
+```
+
+### 6 种 Block 类型
+
+#### 1. `kpi_grid` — 关键指标卡片
+
+```json
+{
+  "type": "kpi_grid",
+  "data": [
+    {
+      "label": "Class Average",
+      "value": "72.5",
+      "status": "up",
+      "subtext": "+5% from last test"
     }
+  ]
+}
+```
 
-    const upstream = await fetch(`${PYTHON_SERVICE_URL}/api/report/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_message: userMessage, report_context: reportContext, data }),
-    });
+`status`: `"up"` | `"down"` | `"neutral"`
 
-    if (!upstream.ok) {
-      return NextResponse.json({ success: true, chatResponse: getMockChatResponse(userMessage) });
+#### 2. `chart` — 图表
+
+```json
+{
+  "type": "chart",
+  "variant": "bar",
+  "title": "Score Distribution",
+  "xAxis": ["0-20", "21-40", "41-60", "61-80", "81-100"],
+  "series": [
+    {
+      "name": "Students",
+      "data": [1, 3, 8, 15, 8],
+      "color": "#4F46E5"
     }
+  ]
+}
+```
 
-    const result = await upstream.json();
-    return NextResponse.json({ success: result.success, chatResponse: result.chatResponse });
-  } catch (error) {
-    console.error('Report chat route error:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+`variant`: `"bar"` | `"line"` | `"radar"` | `"pie"` | `"gauge"` | `"distribution"`
+
+#### 3. `markdown` — 富文本
+
+```json
+{
+  "type": "markdown",
+  "content": "### Key Findings\n\n1. **Strong performance** in reading comprehension...",
+  "variant": "insight"
+}
+```
+
+`variant`: `"default"` | `"insight"` | `"warning"` | `"success"`
+
+#### 4. `table` — 数据表格
+
+```json
+{
+  "type": "table",
+  "title": "Students Needing Attention",
+  "headers": ["Student", "Score", "Issue", "Recommendation"],
+  "rows": [
+    { "cells": ["Wong Ka Ho", 58, "Weak grammar", "Targeted practice"], "status": "warning" },
+    { "cells": ["Li Mei", 85, "Strong overall", "Extension tasks"], "status": "success" }
+  ],
+  "highlightRules": [
+    { "column": 1, "condition": "below", "value": 60, "style": "warning" }
+  ]
+}
+```
+
+#### 5. `suggestion_list` — 建议列表
+
+```json
+{
+  "type": "suggestion_list",
+  "title": "Teaching Recommendations",
+  "items": [
+    {
+      "title": "Grammar Focused Training",
+      "description": "Design exercises targeting subject-verb agreement",
+      "priority": "high",
+      "category": "Teaching Strategy"
+    }
+  ]
+}
+```
+
+`priority`: `"high"` | `"medium"` | `"low"`
+
+#### 6. `question_generator` — 练习题生成
+
+```json
+{
+  "type": "question_generator",
+  "title": "Grammar Practice",
+  "description": "Based on common errors in Unit 5",
+  "knowledgePoint": "Present Simple Tense",
+  "questions": [
+    {
+      "id": "q1",
+      "order": 1,
+      "type": "multiple_choice",
+      "question": "She ___ to school every day.",
+      "options": ["go", "goes", "going", "went"],
+      "answer": "goes",
+      "explanation": "Third person singular requires 'goes'",
+      "difficulty": "easy"
+    }
+  ],
+  "context": {
+    "errorPatterns": ["Subject-verb agreement"],
+    "difficulty": "medium"
   }
 }
 ```
 
-### `classify-intent/route.ts` (新增)
+`type`: `"multiple_choice"` | `"fill_in_blank"` | `"short_answer"` | `"true_false"`
+`difficulty`: `"easy"` | `"medium"` | `"hard"`
 
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerConfig } from '@/lib/env';
+---
 
-export const runtime = 'nodejs';
-export const maxDuration = 10;
+## Blueprint 结构
 
-export async function POST(request: NextRequest) {
-  try {
-    const { userMessage, workflowName, reportSummary } = await request.json();
+前端从 `/api/workflow/generate` 获得 Blueprint，整体回传给 `/api/page/generate`。
 
-    const { PYTHON_SERVICE_URL } = getServerConfig();
-    if (!PYTHON_SERVICE_URL) {
-      const { shouldRegenerateWorkflow } = await import('@/lib/studio-router');
-      return NextResponse.json({
-        intent: shouldRegenerateWorkflow(userMessage) ? 'workflow_rebuild' : 'data_chat',
-        confidence: 0.5,
-      });
-    }
+**前端只需关心 `blueprint.dataContract.inputs`** — 用于渲染数据选择 UI (选班级、选作业)。其余字段 (`computeGraph`, `uiComposition`) 由 Python 服务内部使用，前端原样回传即可。
 
-    const upstream = await fetch(`${PYTHON_SERVICE_URL}/api/intent/classify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_message: userMessage, workflow_name: workflowName, report_summary: reportSummary }),
-    });
+### `dataContract.inputs` 结构
 
-    if (!upstream.ok) {
-      return NextResponse.json({ intent: 'data_chat', confidence: 0 });
-    }
-
-    return NextResponse.json(await upstream.json());
-  } catch (error) {
-    console.error('Classify intent error:', error);
-    return NextResponse.json({ intent: 'data_chat', confidence: 0 });
+```json
+{
+  "dataContract": {
+    "inputs": [
+      {
+        "id": "class",
+        "type": "class",
+        "label": "Select Class",
+        "required": true,
+        "dependsOn": null
+      },
+      {
+        "id": "assignment",
+        "type": "assignment",
+        "label": "Select Assignment",
+        "required": true,
+        "dependsOn": "class"
+      }
+    ]
   }
 }
 ```
 
----
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 输入项标识 |
+| `type` | string | `"class"` \| `"assignment"` \| `"student"` \| `"date_range"` |
+| `label` | string | 显示标签 |
+| `required` | boolean | 是否必填 |
+| `dependsOn` | string \| null | 依赖的其他输入项 id |
 
-## Mock 数据策略
-
-### Phase 1 (保持现状)
-
-Mock 数据仍在前端，前端组装好后通过 `data` 字段传给 Python。
-
-```
-前端选择 class + assignment → getMockDataForWorkflow() → data JSON → Python ExecutorAgent
-```
-
-### Phase 2 (数据迁移到 Python)
-
-Mock 数据移到 Python 服务的 `services/mock_data.py`。前端只传 ID，ExecutorAgent 通过 Blueprint 的 DataContract 获取数据。
-
-```
-前端选择 class + assignment → { context: { teacherId, classId, assignmentId } } → ExecutorAgent → DataContract → tools
-```
-
-**Phase 1 不需要改前端任何代码。**
+> 完整 Blueprint 模型定义见 [Blueprint 数据模型](../architecture/blueprint-model.md)。
 
 ---
 
-## 错误处理协议
+## 错误响应
 
-### Python 服务 HTTP 错误
+### HTTP 状态码
 
-| Status | 含义 | Proxy 处理 |
-|--------|------|-----------|
-| 200 | 成功 | 透传 |
-| 400 | 请求参数错误 | 透传错误信息 |
-| 422 | Pydantic 验证错误 | 透传或 fallback |
-| 500 | 服务内部错误 | Fallback to mock |
-| 503 | 服务不可用 | Fallback to mock |
-| Timeout | 超时 | Fallback to mock |
-| ECONNREFUSED | Python 服务未启动 | Fallback to mock |
+| Status | 含义 | Response Body |
+|--------|------|---------------|
+| 200 | 成功 | 正常响应体 |
+| 400 | 请求参数错误 | `{ "success": false, "error": "user_prompt is required" }` |
+| 422 | 数据验证错误 | `{ "detail": [{ "loc": [...], "msg": "...", "type": "..." }] }` |
+| 500 | 服务内部错误 | `{ "success": false, "error": "Internal server error" }` |
+| 503 | 服务不可用 | `{ "detail": "Service temporarily unavailable" }` |
 
-### Fallback 策略
+### SSE 流中的错误
 
-每个 Proxy route 都保留现有的 fallback:
-- `workflow-generate`: `getDefaultWorkflowTemplate()` → 转为 Blueprint 格式
-- `report-generate`: `createMockStreamResponse()`
-- `report-chat`: `getMockChatResponse()`
+当执行过程中发生错误时，服务会发送 `ERROR` 事件后关闭流:
+
+```
+data: {"type":"ERROR","message":"Failed to execute compute node: score_stats","code":"EXECUTION_ERROR"}
+```
 
 ---
 
-## 测试检查清单
-
-| 测试项 | 验证方法 |
-|--------|---------|
-| Python 服务健康 | `GET /api/health` 返回 200 |
-| Blueprint 生成 | 5 个场景各生成一次，检查三层结构完整 |
-| Blueprint 三层验证 | 检查 `dataContract.inputs`、`computeGraph.nodes`、`uiComposition.tabs` 非空 |
-| ComputeGraph 确定性 | TOOL 节点产出精确统计，AI 节点产出叙事 |
-| SSE 流格式 | `curl -N` 检查 PHASE → TOOL_CALL → MESSAGE → COMPLETE |
-| Report 渲染 | 6 种 block type 全部渲染正确 |
-| camelCase | 检查 report JSON 的 key 全是 camelCase |
-| 追问路由 | 测试 "增加一个维度" vs "平均分多少" |
-| Fallback | 停掉 Python 服务，验证 mock 正常工作 |
-| 流中断恢复 | 网络断开后，前端不崩溃 |
-| 大数据量 | 35 学生完整数据，token 不超限 |
-
-### 验证命令
+## 验证命令
 
 ```bash
+# 健康检查
+curl http://localhost:8000/api/health
+
 # Blueprint 生成
 curl -X POST http://localhost:8000/api/workflow/generate \
   -H "Content-Type: application/json" \
   -d '{"user_prompt":"Analyze Form 1A English performance"}'
 
-# SSE 流
-curl -N -X POST http://localhost:8000/api/report/generate \
+# 页面构建 (SSE 流)
+curl -N -X POST http://localhost:8000/api/page/generate \
   -H "Content-Type: application/json" \
   -d '{"blueprint":{...},"data":{},"context":{"teacherId":"t-001"}}'
+
+# 页面追问
+curl -X POST http://localhost:8000/api/page/chat \
+  -H "Content-Type: application/json" \
+  -d '{"user_message":"Which students need extra help?","page_context":{},"data":{}}'
+
+# 意图分类
+curl -X POST http://localhost:8000/api/intent/classify \
+  -H "Content-Type: application/json" \
+  -d '{"user_message":"Add a grammar analysis section","workflow_name":"Class Performance Analysis","page_summary":"..."}'
 ```
-
----
-
-## 开发流程
-
-### Step 1: Python 服务启动
-
-```bash
-cd insight-ai-agent
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn main:app --reload --port 8000
-```
-
-### Step 2: 前端配置
-
-```bash
-cd insight_ai_frontend
-echo "PYTHON_SERVICE_URL=http://localhost:8000" >> .env.local
-npm run dev
-```
-
-### Step 3: 端对端测试
-
-1. 打开 http://localhost:3000/teacher/studio
-2. 输入 "Analyze Form 1A English performance"
-3. 验证: PlannerAgent 返回 Blueprint
-4. 选择 Class + Assignment
-5. 验证: ExecutorAgent 流式执行 Blueprint
-6. 验证: 报告正确渲染

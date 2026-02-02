@@ -9,9 +9,9 @@
 | Agent | 职责 | 输入 | 输出 |
 |-------|------|------|------|
 | **PlannerAgent** | 理解用户需求，生成 Blueprint | 用户自然语言 | 结构化分析方案 JSON |
-| **ExecutorAgent** | 执行分析计划，调用工具，生成报告 | Blueprint + 数据 | SSE 流式报告 |
+| **ExecutorAgent** | 执行分析计划，调用工具，构建页面 | Blueprint + 数据 | SSE 流式页面 |
 | **RouterAgent** | 对追问进行意图分类和路由 | 用户追问 | 意图类型 + 路由目标 |
-| **ChatAgent** | 处理报告相关的对话式交互 | 用户消息 + 报告上下文 | 文本回复 |
+| **ChatAgent** | 处理页面相关的对话式交互 | 用户消息 + 页面上下文 | 文本回复 |
 
 ---
 
@@ -120,7 +120,7 @@ async def generate_blueprint(user_prompt: str, language: str = "en") -> Blueprin
 
 ## ExecutorAgent (`agents/executor.py`)
 
-执行 Blueprint 三阶段，输出 SSE stream → 前端 `handleSSEStream()` 直接消费。
+执行 Blueprint 三阶段，输出 SSE stream → 前端 `handleSSEStream()` 直接消费，构建结构化页面。
 
 ```python
 import json
@@ -162,10 +162,10 @@ class ExecutorAgent:
                 compute_results[node.output_key] = json.loads(result) if self._is_json(result) else result
 
         # ── Phase 3: AI Compose ──
-        yield {"type": "PHASE", "phase": "compose", "message": "Composing report..."}
+        yield {"type": "PHASE", "phase": "compose", "message": "Composing page..."}
 
         compose_prompt = self._build_compose_prompt(blueprint, data_context, compute_results)
-        agent = Agent(model=self.model, system_prompt=blueprint.report_system_prompt or "")
+        agent = Agent(model=self.model, system_prompt=blueprint.page_system_prompt or "")
 
         @agent.tool_plain
         async def call_tool(tool_name: str, arguments: str) -> str:
@@ -191,7 +191,7 @@ class ExecutorAgent:
 ```
 Phase 1: Data    → 解析 DataContract，调用 tools 获取数据
 Phase 2: Compute → 执行 ComputeGraph（先 TOOL 节点，后 AI 节点）
-Phase 3: Compose → 映射计算结果到 UIComposition，生成 report JSON
+Phase 3: Compose → 映射计算结果到 UIComposition，生成 page JSON (PageSpec)
 ```
 
 ---
@@ -202,23 +202,23 @@ Phase 3: Compose → 映射计算结果到 UIComposition，生成 report JSON
 
 | Intent | 含义 | 触发操作 |
 |--------|------|---------|
-| `workflow_rebuild` | 重新生成 Blueprint + report | `generateWorkflow()` → `generateReport()` |
-| `report_refine` | 仅重新生成 report | `generateReport()` (带修改指令) |
-| `data_chat` | 追问对话 | `chatWithReport()` |
+| `workflow_rebuild` | 重新生成 Blueprint + page | `generateWorkflow()` → `generatePage()` |
+| `page_refine` | 仅重新生成 page | `generatePage()` (带修改指令) |
+| `data_chat` | 追问对话 | `chatWithPage()` |
 
 ---
 
 ## ChatAgent
 
-处理报告相关的对话式交互。接收用户消息 + 报告上下文，返回文本回复。
+处理页面相关的对话式交互。接收用户消息 + 页面上下文，返回文本回复。
 
 ```python
-@router.post("/api/report/chat")
-async def report_chat(request: ReportChatRequest):
+@router.post("/api/page/chat")
+async def page_chat(request: PageChatRequest):
     model = create_model()
     agent = Agent(
         model=model,
-        system_prompt=f"你是报告分析助手。报告摘要：{request.report_context}",
+        system_prompt=f"你是页面数据分析助手。页面摘要：{request.page_context}",
     )
     result = await agent.run(request.user_message)
     return {"success": True, "chat_response": result.data}

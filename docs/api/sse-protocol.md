@@ -1,6 +1,6 @@
 # SSE 协议与 Block 格式
 
-> SSE 事件协议、6 种报告 Block 类型、CamelCase 字段映射。
+> SSE 事件协议、6 种页面 Block 类型、CamelCase 字段映射。
 
 ---
 
@@ -20,7 +20,7 @@ data: {"type":"PHASE","phase":"compute","message":"Computing analytics..."}
 data: {"type":"TOOL_CALL","tool":"calculate_stats","args":{...}}
 data: {"type":"TOOL_RESULT","tool":"calculate_stats","result":{...}}
 
-data: {"type":"PHASE","phase":"compose","message":"Composing report..."}
+data: {"type":"PHASE","phase":"compose","message":"Composing page..."}
 
 # 文本流事件 (多次)
 data: {"type":"MESSAGE","content":"Based on my "}
@@ -38,7 +38,7 @@ data: {"type":"COMPLETE","message":"completed","progress":100,"result":{...}}
 // 1. 逐行读取 SSE: "data: {...}\n\n"
 // 2. 解析 JSON
 // 3. type === 'MESSAGE' → accumulated += content; callbacks.onMessage(content)
-// 4. type === 'COMPLETE' → finalResult = { chatResponse, report }; callbacks.onComplete(finalResult)
+// 4. type === 'COMPLETE' → finalResult = { chatResponse, page }; callbacks.onComplete(finalResult)
 // 5. 忽略其他 type (PHASE, TOOL_CALL, TOOL_RESULT 等)
 ```
 
@@ -49,9 +49,9 @@ data: {"type":"COMPLETE","message":"completed","progress":100,"result":{...}}
   result: {
     response: string,        // 完整的原始 LLM 输出文本
     chatResponse: string,    // 提取出的对话回复 (Markdown)
-    report: {                // 提取出的报告结构 (JSON)
+    page: {                  // 提取出的页面结构 (JSON)
       meta: {
-        reportTitle: string,       // 必须! 前端渲染依赖
+        pageTitle: string,         // 必须! 前端渲染依赖
         frameworkUsed?: string,
         summary?: string,
         generatedAt: string,
@@ -74,7 +74,7 @@ data: {"type":"COMPLETE","message":"completed","progress":100,"result":{...}}
 
 ### 关键约束
 
-- `COMPLETE.result.report` 输出 **camelCase** keys（用 Pydantic `alias_generator=to_camel`）
+- `COMPLETE.result.page` 输出 **camelCase** keys（用 Pydantic `alias_generator=to_camel`）
 - 前端 `handleSSEStream()` 只消费 `MESSAGE` 和 `COMPLETE`，忽略其他类型
 - `PHASE` 事件是可选的，前端忽略未知类型，向后兼容
 
@@ -83,16 +83,16 @@ data: {"type":"COMPLETE","message":"completed","progress":100,"result":{...}}
 Python 服务在 SSE 流中遇到错误时，发送错误 COMPLETE 事件:
 
 ```
-data: {"type":"COMPLETE","message":"error","progress":100,"result":{"response":"","chatResponse":"Report generation failed. Please try again.","report":null}}
+data: {"type":"COMPLETE","message":"error","progress":100,"result":{"response":"","chatResponse":"Page generation failed. Please try again.","page":null}}
 ```
 
-前端 `handleSSEStream()` 已处理 `report: null` 的情况。
+前端 `handleSSEStream()` 已处理 `page: null` 的情况。
 
 ---
 
-## 6 种报告 Block 类型
+## 6 种页面 Block 类型
 
-Python 服务输出的 `report` JSON 必须严格匹配以下格式，否则 ReportRenderer 无法渲染。
+Python 服务输出的 `page` JSON 必须严格匹配以下格式，否则 PageRenderer 无法渲染。
 
 > **组件注册表约束：** AI 只能从注册表中选择这些组件类型，不能发明新类型。详见 [Blueprint 数据模型](../architecture/blueprint-model.md)。
 
@@ -244,11 +244,11 @@ class CamelModel(BaseModel):
 | Python (内部) | JSON Output (camelCase) |
 |---------------|------------------------|
 | `chat_response` | `chatResponse` |
-| `report_system_prompt` | `reportSystemPrompt` |
+| `page_system_prompt` | `pageSystemPrompt` |
 | `depends_on` | `dependsOn` |
 | `source_prompt` | `sourcePrompt` |
 | `created_at` | `createdAt` |
-| `report_title` | `reportTitle` |
+| `page_title` | `pageTitle` |
 | `framework_used` | `frameworkUsed` |
 | `generated_at` | `generatedAt` |
 | `data_source` | `dataSource` |

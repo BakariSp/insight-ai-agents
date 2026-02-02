@@ -1,8 +1,8 @@
 # Insight AI Agent — 文档中心
 
 > **最后更新**: 2026-02-02
-> **当前阶段**: Phase 0 → Phase 1 过渡（Foundation 搭建中）
-> **一句话概述**: 面向教育场景的 AI Agent 服务，为教师提供智能数据分析、报告生成和对话式交互。
+> **当前阶段**: Phase 1 完成 → Phase 2 待开始
+> **一句话概述**: 面向教育场景的 AI Agent 服务，教师用自然语言即可构建结构化的数据分析页面并进行对话式交互。
 
 ---
 
@@ -11,12 +11,15 @@
 构建一个 **AI 驱动的教育数据分析平台**，教师只需用自然语言描述需求（如"分析我班级的期中考试成绩"），系统自动：
 1. 理解意图并规划分析流程
 2. 从后端获取数据并执行统计计算
-3. 生成结构化的可视化报告
-4. 支持对报告的追问和深度对话
+3. 构建结构化的应用页面（PageSpec）
+4. 支持对页面的调整/追问和深度对话
+
+自然语言 → Blueprint（可复用、可替换数据） → 执行 → **PageSpec（可渲染页面）**
+数据分析报告、题目生成、互动练习都只是 PageSpec 里的不同 block/component
 
 ### 面向用户
 
-- **教师**: 通过对话生成班级分析报告
+- **教师**: 通过对话构建班级数据分析页面，互动页面，题目练习页面
 - **教务管理**: 跨班级/跨学科数据对比
 - **前端开发者**: 消费标准化 API 和 SSE 事件流
 
@@ -27,9 +30,9 @@
 | 多模型支持 | 通过 LiteLLM 支持 Anthropic/OpenAI/Qwen/GLM 等 | ✅ 已实现 |
 | Agent 工具循环 | LLM 可调用工具获取数据、执行计算 | ✅ 已实现 |
 | 可扩展技能框架 | BaseSkill 抽象基类，新增工具只需实现接口 | ✅ 已实现 |
-| SSE 流式报告 | 报告生成过程实时推送给前端 | 🔲 待实现 |
+| SSE 流式页面构建 | 页面构建过程实时推送给前端 | 🔲 待实现 |
 | 多 Agent 协作 | Planner → Executor → Router 分工协作 | 🔲 待实现 |
-| FastMCP 工具注册 | 用 FastMCP 替代手写 JSON Schema | 🔲 待实现 |
+| FastMCP 工具注册 | 用 FastMCP 替代手写 JSON Schema | ✅ 已实现 |
 | Java 后端对接 | 从 Java 后端获取教育真实数据 | 🔲 待实现 |
 | 前端集成 | Next.js 通过 API Routes 代理 | 🔲 待实现 |
 
@@ -49,9 +52,9 @@
 
 | 文档 | 内容 |
 |------|------|
-| [当前 API](api/current-api.md) | Phase 0 的 4 个 Flask 端点 |
+| [当前 API](api/current-api.md) | Phase 1 的 4 个 FastAPI 端点 |
 | [目标 API](api/target-api.md) | Phase 1+ 的 5 个 FastAPI 端点，详细请求/响应 Schema |
-| [SSE 协议与 Block 格式](api/sse-protocol.md) | SSE 事件协议、6 种报告 Block 类型、CamelCase 映射 |
+| [SSE 协议与 Block 格式](api/sse-protocol.md) | SSE 事件协议、6 种页面 Block 类型、CamelCase 映射 |
 
 ### 开发指南
 
