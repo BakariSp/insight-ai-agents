@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     brave_api_key: str = ""
     memory_dir: str = "data"
 
+    # ── Java Backend ──────────────────────────────────────────
+    spring_boot_base_url: str = "https://api.insightai.hk"
+    spring_boot_api_prefix: str = "/api"
+    spring_boot_access_token: str = ""
+    spring_boot_refresh_token: str = ""
+    spring_boot_timeout: int = 15  # seconds
+    use_mock_data: bool = False  # fallback to mock when True or backend unavailable
+
     # ── MCP ──────────────────────────────────────────────────
     mcp_server_name: str = "insight-ai-agent"
 

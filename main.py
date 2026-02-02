@@ -1,17 +1,31 @@
 """FastAPI entry point for Insight AI Agent service."""
 
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import get_settings
+from services.java_client import get_java_client
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifecycle — start/stop shared resources."""
+    client = get_java_client()
+    await client.start()
+    yield
+    await client.close()
+
 
 app = FastAPI(
     title="Insight AI Agent",
     description="Educational AI Agent service with multi-model LLM support",
-    version="0.2.0",
+    version="0.3.0",
+    lifespan=lifespan,
 )
 
 # CORS
