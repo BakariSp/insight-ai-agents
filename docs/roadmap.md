@@ -716,6 +716,8 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 
 **前置条件**: Phase 5 完成（真实数据链路打通）。
 
+**备注**：这个阶段代码尚未部署，不需要考虑前向兼容问题。
+
 **依赖关系**:
 - 6.1 (文档契约) → 独立
 - 6.2 (SSE 事件流) → 6.3 (Per-Block AI) → 6.5 (E2E 测试)
@@ -732,28 +734,28 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 
 > ✅ 验收: 测试通过，SSE 事件模型序列化正确，前端对接文档就绪。
 
-### Step 6.2: Executor Phase C 重构 — 逐 block 事件流 🔲
+### Step 6.2: Executor Phase C 重构 — 逐 block 事件流 ✅ 已完成
 
 > 将 Executor Phase C 从单次 AI 生成升级为逐 block 流式输出，发送 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 事件。
 
 - [x] **6.2.1** SSE 事件模型已在 Step 6.1 完成
-- [ ] **6.2.2** 重构 `agents/executor.py`：
+- [x] **6.2.2** 重构 `agents/executor.py`：
   - 新增 `_stream_ai_content()` 异步生成器：遍历 ai_content_slot，逐 block yield BLOCK_START → SLOT_DELTA → BLOCK_COMPLETE
   - 新增 `_generate_block_content()`：单 block AI 内容生成入口
-  - 新增 `_fill_single_block()` 静态方法：从 `_fill_ai_content()` 提取单 block 填充逻辑
+  - 新增 `_fill_single_block()` 模块级函数：从 `_fill_ai_content()` 提取单 block 填充逻辑
   - 新增 `_get_slot_key()` 辅助函数：component_type → slot key 映射
   - 重构 `execute_blueprint_stream()` Phase C：用 `_stream_ai_content()` 替代旧的 `_generate_ai_narrative()` + `_fill_ai_content()`
   - 移除旧 MESSAGE 事件，Phase C 统一使用 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE
-- [ ] **6.2.3** 编写 Executor 新测试（`tests/test_executor.py`）：
+- [x] **6.2.3** 编写 Executor 新测试（`tests/test_executor.py`）：
   - `test_stream_emits_block_start_for_ai_slots()` — 每个 ai_content_slot 产生 BLOCK_START
   - `test_stream_emits_slot_delta_with_content()` — SLOT_DELTA 含 blockId + slotKey + deltaText
   - `test_block_event_ordering()` — BLOCK_START → SLOT_DELTA → BLOCK_COMPLETE 顺序
   - `test_non_ai_slots_no_block_events()` — kpi_grid/chart/table 不产生 BLOCK 事件
-- [ ] **6.2.4** 更新 E2E 测试（`tests/test_e2e_page.py`）：
+- [x] **6.2.4** 更新 E2E 测试（`tests/test_e2e_page.py`）：
   - 更新 `test_e2e_sse_event_format()` — 增加 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 格式验证
   - 更新现有测试：mock 改为 `_generate_block_content` 而非 `_generate_ai_narrative`
 
-> ✅ 验收: 所有新旧测试通过，Phase C 统一使用 BLOCK 事件流。
+> ✅ 验收: 全部 251 项测试通过（243 existing + 8 new），Phase C 统一使用 BLOCK 事件流。
 
 ### Step 6.3: Per-Block AI 生成（Level 2）🔲
 

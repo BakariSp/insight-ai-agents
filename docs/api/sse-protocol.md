@@ -138,7 +138,7 @@ BLOCK_START(blockId, componentType)
 
 所有 block 事件完成后，发送向下兼容的 `MESSAGE` 事件（拼接所有 AI 文本）。
 
-**向下兼容**: `MESSAGE` 事件继续发送（包含所有 AI 文本的拼接），旧前端可忽略新事件类型继续工作。
+**注意**: Phase 6.2 后 Phase C 不再发送 `MESSAGE` 事件，AI 内容通过 `BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE` 逐 block 推送。`COMPLETE` 事件的 `chatResponse` 字段仍包含所有 AI 文本的拼接。
 
 ### SSE 流错误处理
 
