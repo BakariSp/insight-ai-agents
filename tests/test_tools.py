@@ -102,6 +102,117 @@ async def test_get_class_detail_fallback_on_error():
     assert result["class_id"] == "class-hk-f1a"
 
 
+@pytest.mark.asyncio
+async def test_get_assignment_submissions_fallback_on_error():
+    """When USE_MOCK_DATA=False and backend fails, should fallback to mock."""
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", side_effect=RuntimeError("no backend")):
+        result = await get_assignment_submissions("t-001", "a-001")
+    assert result["assignment_id"] == "a-001"
+    assert len(result["submissions"]) == 5  # mock data
+
+
+@pytest.mark.asyncio
+async def test_get_student_grades_fallback_on_error():
+    """When USE_MOCK_DATA=False and backend fails, should fallback to mock."""
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", side_effect=RuntimeError("no backend")):
+        result = await get_student_grades("t-001", "s-001")
+    assert result["student_id"] == "s-001"
+    assert result["name"] == "Wong Ka Ho"
+
+
+# ── Data Tools: Java backend via adapter (real path) ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_teacher_classes_calls_adapter_when_not_mock():
+    """When USE_MOCK_DATA=False and backend succeeds, should use adapter."""
+    from unittest.mock import AsyncMock, MagicMock
+    from models.data import ClassInfo
+
+    mock_client = MagicMock()
+    fake_classes = [ClassInfo(class_id="uuid-1", name="Class A")]
+
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", return_value=mock_client), \
+         patch("adapters.class_adapter.list_classes", new_callable=AsyncMock, return_value=fake_classes):
+        result = await get_teacher_classes("t-001")
+
+    assert result["teacher_id"] == "t-001"
+    assert len(result["classes"]) == 1
+    assert result["classes"][0]["class_id"] == "uuid-1"
+
+
+@pytest.mark.asyncio
+async def test_get_class_detail_calls_adapter_when_not_mock():
+    """When USE_MOCK_DATA=False and backend succeeds, should use adapter."""
+    from unittest.mock import AsyncMock, MagicMock
+    from models.data import ClassDetail, AssignmentInfo
+
+    mock_client = MagicMock()
+    fake_detail = ClassDetail(class_id="uuid-1", name="Class A")
+    fake_assignments = [AssignmentInfo(assignment_id="a-1", title="Test 1")]
+
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", return_value=mock_client), \
+         patch("adapters.class_adapter.get_detail", new_callable=AsyncMock, return_value=fake_detail), \
+         patch("adapters.class_adapter.list_assignments", new_callable=AsyncMock, return_value=fake_assignments):
+        result = await get_class_detail("t-001", "uuid-1")
+
+    assert result["class_id"] == "uuid-1"
+    assert result["name"] == "Class A"
+    assert len(result["assignments"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_assignment_submissions_calls_adapter_when_not_mock():
+    """When USE_MOCK_DATA=False and backend succeeds, should use adapter."""
+    from unittest.mock import AsyncMock, MagicMock
+    from models.data import SubmissionData, SubmissionRecord
+
+    mock_client = MagicMock()
+    fake_data = SubmissionData(
+        assignment_id="a-1",
+        title="Test 1",
+        submissions=[SubmissionRecord(student_id="s-1", name="Alice", score=90)],
+        scores=[90],
+    )
+
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", return_value=mock_client), \
+         patch("adapters.submission_adapter.get_submissions", new_callable=AsyncMock, return_value=fake_data):
+        result = await get_assignment_submissions("t-001", "a-1")
+
+    assert result["assignment_id"] == "a-1"
+    assert len(result["submissions"]) == 1
+    assert result["scores"] == [90]
+
+
+@pytest.mark.asyncio
+async def test_get_student_grades_calls_adapter_when_not_mock():
+    """When USE_MOCK_DATA=False and backend succeeds, should use adapter."""
+    from unittest.mock import AsyncMock, MagicMock
+    from models.data import GradeData, GradeRecord
+
+    mock_client = MagicMock()
+    fake_data = GradeData(
+        student_id="s-1",
+        name="Alice",
+        total_graded=1,
+        grades=[GradeRecord(assignment_id="a-1", title="Test 1", score=90)],
+    )
+
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", return_value=mock_client), \
+         patch("adapters.grade_adapter.get_student_submissions", new_callable=AsyncMock, return_value=fake_data):
+        result = await get_student_grades("t-001", "s-1")
+
+    assert result["student_id"] == "s-1"
+    assert result["name"] == "Alice"
+    assert len(result["grades"]) == 1
+
+
 # ── Stats Tools (sync, unchanged) ─────────────────────────────────────────
 
 

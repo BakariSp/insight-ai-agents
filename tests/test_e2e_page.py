@@ -4,10 +4,11 @@ These tests verify:
 1. Blueprint → ExecutorAgent → SSE events (using real mock tools, mocked LLM)
 2. SSE event format matches sse-protocol.md
 3. Page content correctness: KPIs from tool calcs, AI text from LLM
+4. Java backend degradation: 500/timeout → mock fallback → pipeline works
 """
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -303,3 +304,97 @@ async def test_e2e_http_sse_tool_failure(client):
     assert len(complete) == 1
     assert complete[0]["message"] == "error"
     assert complete[0]["result"]["page"] is None
+
+
+# ── E2E: Java backend degradation ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_e2e_java_backend_500_falls_back_to_mock():
+    """When Java backend returns 500, tools fallback to mock and pipeline completes."""
+
+    # Simulate USE_MOCK_DATA=False but backend raises (as it does with 500/timeout)
+    # The tools catch all exceptions and fallback to mock data transparently.
+    bp = Blueprint(**_sample_blueprint_args())
+    executor = ExecutorAgent()
+
+    ai_text = "Degradation test — data from mock."
+
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", side_effect=RuntimeError("Java 500")), \
+         patch.object(
+             ExecutorAgent,
+             "_generate_ai_narrative",
+             new_callable=AsyncMock,
+             return_value=ai_text,
+         ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp,
+            context={
+                "teacherId": "t-001",
+                "input": {"assignment": "a-001"},
+            },
+        ):
+            events.append(event)
+
+    types = [e["type"] for e in events]
+
+    # Pipeline must complete successfully despite backend failure
+    assert types[-1] == "COMPLETE"
+    complete = events[-1]
+    assert complete["message"] == "completed"
+    assert complete["progress"] == 100
+
+    # Page must contain valid data from mock fallback
+    page = complete["result"]["page"]
+    assert page is not None
+    kpi_block = page["tabs"][0]["blocks"][0]
+    assert kpi_block["type"] == "kpi_grid"
+    kpi_values = {item["label"]: item["value"] for item in kpi_block["data"]}
+    # Mock scores [58, 85, 72, 91, 65] → mean=74.2
+    assert kpi_values["Average"] == "74.2"
+
+
+@pytest.mark.asyncio
+async def test_e2e_java_timeout_falls_back_to_mock(client):
+    """HTTP SSE: Java timeout → tools fallback to mock → SSE stream completes."""
+
+    ai_text = "Timeout degradation."
+
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", side_effect=RuntimeError("connect timeout")), \
+         patch.object(
+             ExecutorAgent,
+             "_generate_ai_narrative",
+             new_callable=AsyncMock,
+             return_value=ai_text,
+         ):
+        bp_json = _sample_blueprint_args()
+        resp = await client.post(
+            "/api/page/generate",
+            json={
+                "blueprint": bp_json,
+                "teacherId": "t-001",
+                "context": {
+                    "teacherId": "t-001",
+                    "input": {"assignment": "a-001"},
+                },
+            },
+        )
+
+    assert resp.status_code == 200
+    events = _parse_sse_events(resp.text)
+
+    # Stream must include full event sequence
+    types = {e["type"] for e in events}
+    assert "PHASE" in types
+    assert "TOOL_CALL" in types
+    assert "TOOL_RESULT" in types
+    assert "COMPLETE" in types
+
+    # COMPLETE with valid page (not error)
+    complete_events = [e for e in events if e["type"] == "COMPLETE"]
+    assert len(complete_events) == 1
+    assert complete_events[0]["message"] == "completed"
+    assert complete_events[0]["result"]["page"] is not None
