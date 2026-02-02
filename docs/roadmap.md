@@ -710,95 +710,170 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 
 ---
 
-## Phase 6: 前端集成 + Level 2 + SSE 升级 🔲
+## Phase 6: 前端集成 + Level 2 + SSE 升级 + Patch 机制 🔄 进行中
 
-**目标**: 与 Next.js 前端对接，完成 Level 2 能力（AI 填充组件内容），升级 SSE 协议到 block/slot 粒度，引入 Patch 机制支持增量修改，进行端到端测试并上线。
+**目标**: 将 Executor Phase C 从单次 AI 生成升级为逐 block 流式生成，新增 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE SSE 事件，实现 Per-Block AI 内容生成（Level 2），引入 Patch 机制支持增量修改（避免每次微调都全页重建），编写完整 E2E 测试。
 
 **前置条件**: Phase 5 完成（真实数据链路打通）。
 
-### Step 6.1: Next.js Proxy 对接
+**依赖关系**:
+- 6.1 (文档契约) → 独立
+- 6.2 (SSE 事件流) → 6.3 (Per-Block AI) → 6.5 (E2E 测试)
+- 6.4 (Patch 机制) → 6.5 (E2E 测试)
 
-> 前端通过 API Routes 代理所有 AI 请求，避免跨域和密钥暴露。
+### Step 6.1: SSE 事件模型 + 前端 Proxy 文档契约 ✅ 已完成
 
-- [ ] **6.1.1** 协调前端创建 proxy routes（参见 [前端集成文档](integration/frontend-integration.md)）：
-  - `/api/ai/conversation` → `POST /api/conversation`（主入口）
-  - `/api/ai/page-generate` → `POST /api/page/generate` (SSE passthrough)
-  - `/api/ai/workflow-generate` → `POST /api/workflow/generate`（直调，可选）
-- [ ] **6.1.2** 确认字段映射：前端 camelCase ↔ Python snake_case（由 CamelModel 自动处理）
-- [ ] **6.1.3** 联调：前端 → Proxy → Python Service → 真实数据，全链路跑通
+> SSE block/slot 事件模型定义 + 前端 proxy 路由契约文档。
 
-> ✅ 验收: 前端页面可发起请求，SSE 流式显示页面构建过程。
+- [x] **6.1.1** 创建 `models/sse_events.py`：BlockStartEvent, SlotDeltaEvent, BlockCompleteEvent（继承 CamelModel）
+- [x] **6.1.2** 编写 `tests/test_sse_events.py`：camelCase 序列化测试（blockId, componentType, slotKey, deltaText）
+- [x] **6.1.3** 创建 `docs/integration/nextjs-proxy.md`：前端 proxy 路由契约文档
+- [x] **6.1.4** 更新 `docs/api/sse-protocol.md`：将 Phase 6 事件从 "planned" 改为 "implemented"
 
-### Step 6.2: SSE 协议升级（Block/Slot 粒度）
+> ✅ 验收: 测试通过，SSE 事件模型序列化正确，前端对接文档就绪。
 
-> 将 MESSAGE 事件升级为 block/slot 粒度，前端可精确知道 AI 内容填到哪个 block 的哪个 slot。
+### Step 6.2: Executor Phase C 重构 — 逐 block 事件流 🔲
 
-- [ ] **6.2.1** 新增 SSE 事件类型：
-  ```
-  BLOCK_START    {blockId, componentType}          # block 开始填充
-  SLOT_DELTA     {blockId, slotKey, deltaText}     # 增量文本推送到指定 slot
-  BLOCK_COMPLETE {blockId}                          # block 填充完成
-  ```
-- [ ] **6.2.2** 重构 Executor `_fill_ai_content` 为逐 block 流式输出：
-  - 每个 `ai_content_slot` 独立调用 AI → 逐 block 生成
-  - 生成过程中发送 `BLOCK_START → SLOT_DELTA(s) → BLOCK_COMPLETE`
-- [ ] **6.2.3** 保留 `MESSAGE` 事件作为 fallback（向下兼容旧前端）
-- [ ] **6.2.4** 更新 SSE 协议文档 (`docs/api/sse-protocol.md`)
-- [ ] **6.2.5** 编写测试：验证新事件类型格式 + 向下兼容
+> 将 Executor Phase C 从单次 AI 生成升级为逐 block 流式输出，发送 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 事件。
 
-> ✅ 验收: 前端可按 `blockId` 精确定位 AI 内容插入位置；旧前端仍可用 MESSAGE 兼容模式。
+- [x] **6.2.1** SSE 事件模型已在 Step 6.1 完成
+- [ ] **6.2.2** 重构 `agents/executor.py`：
+  - 新增 `_stream_ai_content()` 异步生成器：遍历 ai_content_slot，逐 block yield BLOCK_START → SLOT_DELTA → BLOCK_COMPLETE
+  - 新增 `_generate_block_content()`：单 block AI 内容生成入口
+  - 新增 `_fill_single_block()` 静态方法：从 `_fill_ai_content()` 提取单 block 填充逻辑
+  - 新增 `_get_slot_key()` 辅助函数：component_type → slot key 映射
+  - 重构 `execute_blueprint_stream()` Phase C：用 `_stream_ai_content()` 替代旧的 `_generate_ai_narrative()` + `_fill_ai_content()`
+  - 移除旧 MESSAGE 事件，Phase C 统一使用 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE
+- [ ] **6.2.3** 编写 Executor 新测试（`tests/test_executor.py`）：
+  - `test_stream_emits_block_start_for_ai_slots()` — 每个 ai_content_slot 产生 BLOCK_START
+  - `test_stream_emits_slot_delta_with_content()` — SLOT_DELTA 含 blockId + slotKey + deltaText
+  - `test_block_event_ordering()` — BLOCK_START → SLOT_DELTA → BLOCK_COMPLETE 顺序
+  - `test_non_ai_slots_no_block_events()` — kpi_grid/chart/table 不产生 BLOCK 事件
+- [ ] **6.2.4** 更新 E2E 测试（`tests/test_e2e_page.py`）：
+  - 更新 `test_e2e_sse_event_format()` — 增加 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 格式验证
+  - 更新现有测试：mock 改为 `_generate_block_content` 而非 `_generate_ai_narrative`
 
-### Step 6.3: Level 2 — AI 内容插槽
+> ✅ 验收: 所有新旧测试通过，Phase C 统一使用 BLOCK 事件流。
 
-> 让 AI 不仅选择和排列组件，还能填充组件内部内容。
+### Step 6.3: Per-Block AI 生成（Level 2）🔲
 
-- [ ] **6.3.1** 在 ExecutorAgent 的 Compose 阶段支持 `ai_content_slot=true` 的 ComponentSlot
-- [ ] **6.3.2** AI 生成内容类型：
-  - `markdown` blocks → AI 撰写叙事分析文本
-  - `suggestion_list` → AI 生成教学建议条目（结构化 JSON）
-  - `table` cells → AI 填写分析性文字列
-- [ ] **6.3.3** 使用 Step 6.2 的新 SSE 事件推送 AI 填充内容
-- [ ] **6.3.4** 前端适配：PageRenderer 处理 `aiContentSlot` 标记的组件
+> 让每个 ai_content_slot 独立 AI 生成，支持 markdown/suggestion_list/question_generator 等多种内容类型。
 
-> ✅ 验收: 页面中 markdown / suggestion_list 等组件内容由 AI 实时生成并流式推送。
+- [ ] **6.3.1** 创建 `config/prompts/block_compose.py`：
+  - `build_block_prompt(slot, blueprint, data_context, compute_results)` → `(prompt, output_format)`
+  - `_build_markdown_prompt()` — 分析叙事文本 prompt
+  - `_build_suggestion_prompt()` — JSON 结构化建议 prompt（返回 `[{title, description, priority, category}]`）
+  - `_build_question_prompt()` — JSON 题目生成 prompt
+  - `_build_data_summary()` — 注入 data_context + compute_results
+- [ ] **6.3.2** 编写 prompt 构建器测试（`tests/test_block_compose.py`）：
+  - `test_markdown_prompt_contains_data_summary()` — 验证数据注入
+  - `test_suggestion_prompt_requests_json_format()` — output_format == "json"
+  - `test_question_prompt_includes_slot_props()` — 使用 slot.props
+- [ ] **6.3.3** 升级 `agents/executor.py`：
+  - 升级 `_generate_block_content()`：使用 `build_block_prompt()` 生成 per-block prompt
+  - 对 JSON output_format：解析 LLM JSON 返回值，失败降级为单项包装
+  - 升级 `_fill_single_block()`：处理 list/dict 返回值（suggestion_list items, question_generator questions）
+  - 删除旧的 `_generate_ai_narrative()` + `_fill_ai_content()`（未部署，直接移除）
+- [ ] **6.3.4** 编写 Executor 升级测试（`tests/test_executor.py`）：
+  - `test_generate_block_content_markdown()` — mock LLM 返回文本，block content 正确
+  - `test_generate_block_content_suggestion_list()` — mock LLM 返回 JSON 数组
+  - `test_generate_block_content_json_fallback()` — LLM 返回无效 JSON 时降级
+  - `test_each_ai_slot_separate_llm_call()` — 每个 ai_content_slot 独立 LLM 调用
 
-### Step 6.4: Refine Patch 机制
+> ✅ 验收: per-block AI 生成工作，各 component_type 正确填充。
 
-> 追问模式的 refine/rebuild 引入 patch 指令，避免每次微调都整页重跑。
+### Step 6.4: Patch 机制 🔲
 
-- [ ] **6.4.1** 定义 `PatchInstruction` 模型（`models/patch.py`）：
-  ```python
-  class PatchInstruction(CamelModel):
-      type: Literal["update_props", "reorder", "add_block", "remove_block", "recompose"]
-      target_block_id: str | None = None
-      changes: dict = {}
-  ```
-- [ ] **6.4.2** Router followup 模式新增 `refine_scope` 判断：
-  - UI 层修改（颜色/顺序/标题）→ `PATCH_LAYOUT`：只改 props，不重拉数据
-  - 内容层修改（缩短文字/换措辞）→ `PATCH_COMPOSE`：只重跑 AI 叙事
-  - 结构层修改（增删模块）→ `FULL_REBUILD`：整页重建
-- [ ] **6.4.3** Executor 新增 `execute_patch(old_page, instructions) → patched_page`
-- [ ] **6.4.4** Conversation API 的 refine 分支根据 scope 选择 patch 或 rebuild
-- [ ] **6.4.5** 编写测试：3 种 scope 对应的执行路径
+> 追问模式的 refine 引入 Patch 指令，按 scope 分流避免每次微调都整页重建。
 
-> ✅ 验收: "把图表颜色换成蓝色" → PATCH_LAYOUT，不重拉数据不重跑 AI；"加一个语法分析板块" → FULL_REBUILD。
+#### 6.4.1: Patch 数据模型 + Router 扩展
 
-### Step 6.5: E2E 测试与上线
+- [ ] **6.4.1.1** 创建 `models/patch.py`：
+  - `PatchType` 枚举：update_props, reorder, add_block, remove_block, recompose
+  - `RefineScope` 枚举：patch_layout, patch_compose, full_rebuild
+  - `PatchInstruction(CamelModel)`：type, target_block_id, changes
+  - `PatchPlan(CamelModel)`：scope, instructions, affected_block_ids
+- [ ] **6.4.1.2** 编写 `tests/test_patch_models.py`：camelCase 序列化测试 + 枚举值测试
+- [ ] **6.4.1.3** 修改 `models/conversation.py`：
+  - `RouterResult` 新增 `refine_scope: str | None = None`
+  - `ConversationResponse` 新增 `patch_plan: PatchPlan | None = None`
+- [ ] **6.4.1.4** 修改 `config/prompts/router.py`：
+  - `ROUTER_FOLLOWUP_PROMPT` 新增 refine_scope 输出指导：
+    - `patch_layout`：UI 修改（颜色/顺序/标题）
+    - `patch_compose`：内容修改（缩写/换措辞）
+    - `full_rebuild`：结构修改（增删模块）
+- [ ] **6.4.1.5** 编写 `tests/test_router.py` 新增测试：
+  - `test_followup_refine_scope_in_output()` — RouterResult 含 refine_scope
 
-> 全链路质量保障。
+> ✅ 验收: Patch 模型序列化正确，Router 输出含 refine_scope。
 
-- [ ] **6.5.1** 编写 E2E 测试用例：
-  - 正常流程：输入 prompt → 生成 Blueprint → 构建页面 → 追问 → 对话
-  - 异常流程：Java 超时降级、LLM 不可用、无效 prompt、不存在的实体
-- [ ] **6.5.2** 性能基线：记录 Blueprint 生成耗时、页面构建耗时、SSE 首字节时间
-- [ ] **6.5.3** 部署配置：Docker / 环境变量 / 健康检查
-- [ ] **6.5.4** 上线 checklist：
-  - [ ] 所有测试通过
-  - [ ] API 文档（FastAPI Swagger）可访问
-  - [ ] 日志和监控就绪
-  - [ ] Java 后端连接配置正确
+#### 6.4.2: PatchAgent + Executor execute_patch()
 
-> ✅ 验收: 生产环境部署成功，教师可通过前端完成完整的"提问 → 页面 → 追问"流程。
+- [ ] **6.4.2.1** 创建 `agents/patch_agent.py`：
+  - `PatchAgent.analyze_refine(message, blueprint, page, refine_scope)` → `PatchPlan`
+  - `PATCH_LAYOUT`：确定性 prop 修改（无 LLM）
+  - `PATCH_COMPOSE`：识别 ai_content_slot blocks，生成 RECOMPOSE 指令
+  - `FULL_REBUILD`：返回空 PatchPlan（调用方走完整 rebuild 路径）
+- [ ] **6.4.2.2** 修改 `agents/executor.py`：
+  - 新增 `execute_patch(old_page, blueprint, patch_plan, data_context, compute_results)` 异步生成器
+  - `PATCH_LAYOUT`：修改 block props，yield COMPLETE（无 LLM）
+  - `PATCH_COMPOSE`：只对 affected blocks 重新 AI 生成，yield BLOCK 事件
+  - 辅助函数：`_deep_copy_page()`, `_apply_prop_patch()`, `_find_slot()`, `_find_block()`
+- [ ] **6.4.2.3** 创建 `tests/test_patch.py`：
+  - `test_patch_layout_skips_ai()` — PATCH_LAYOUT 不调用 LLM
+  - `test_patch_compose_regenerates_ai_only()` — 只重新生成 ai_content_slot
+  - `test_patch_compose_preserves_data_blocks()` — kpi/chart/table 不变
+  - `test_execute_patch_emits_block_events()` — SSE 事件正确
+
+> ✅ 验收: Patch 执行正确，PATCH_LAYOUT 无 LLM 调用，PATCH_COMPOSE 只重生成 AI 块。
+
+#### 6.4.3: Conversation API Patch 集成 + Page Patch 端点
+
+- [ ] **6.4.3.1** 修改 `api/conversation.py`：
+  - refine 分支：检查 `router_result.refine_scope`
+  - `patch_layout` / `patch_compose` → `PatchAgent.analyze_refine()` → 返回 ConversationResponse 含 patch_plan
+  - `full_rebuild` / None → 保持现有行为（PlannerAgent 生成新 Blueprint）
+- [ ] **6.4.3.2** 修改 `models/request.py`：
+  - 新增 `PagePatchRequest(CamelModel)`：blueprint, page, patch_plan, context, data_context, compute_results
+- [ ] **6.4.3.3** 修改 `api/page.py`：
+  - 新增 `POST /api/page/patch` 端点：接收 PagePatchRequest → execute_patch() → SSE 流
+- [ ] **6.4.3.4** 编写 `tests/test_conversation_api.py` 新增测试：
+  - `test_refine_patch_layout_returns_patch_plan()` — refine_scope=patch_layout 返回 patch_plan
+  - `test_refine_full_rebuild_generates_new_blueprint()` — 无 refine_scope 走旧路径
+
+> ✅ 验收: refine 分支按 scope 分流，`/api/page/patch` 端点可用。
+
+### Step 6.5: E2E 测试 🔲
+
+> 全链路质量保障，覆盖正常流程、Patch 流程、降级流程。
+
+- [ ] **6.5.1** 创建 `tests/test_e2e_phase6.py`：
+  - `test_e2e_full_lifecycle_with_block_events()` — prompt → Blueprint → page SSE → 验证 BLOCK 事件
+  - `test_e2e_refine_patch_layout()` — 生成 → refine "改颜色" → patch_plan 不含新 blueprint
+  - `test_e2e_refine_patch_compose()` — 生成 → refine "缩短分析" → 只重生成 AI blocks
+  - `test_e2e_refine_full_rebuild()` — 生成 → rebuild "加板块" → 新 blueprint
+  - `test_e2e_java_timeout_with_block_events()` — Java 超时降级 + BLOCK 事件仍正常
+  - `test_e2e_llm_failure_error_complete()` — LLM 失败 → error COMPLETE
+  - `test_e2e_nonexistent_entity_data_error()` — 实体不存在 → DATA_ERROR
+- [ ] **6.5.2** 全量测试验证：`pytest tests/ -v` 全部通过
+
+> ✅ 验收: 全部 E2E 测试通过，Phase 6 功能完整可用。
+
+### Phase 6 关键文件清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `models/sse_events.py` | 新建 ✅ | SSE block/slot 事件模型 |
+| `models/patch.py` | 新建 | PatchInstruction, PatchPlan, RefineScope |
+| `config/prompts/block_compose.py` | 新建 | Per-block AI prompt 构建器 |
+| `agents/patch_agent.py` | 新建 | Patch 分析 agent |
+| `docs/integration/nextjs-proxy.md` | 新建 ✅ | 前端 proxy 契约 |
+| `agents/executor.py` | 重构 | Phase C 逐 block 流 + execute_patch() |
+| `api/conversation.py` | 修改 | refine 分支 scope 分流 |
+| `api/page.py` | 修改 | 新增 /api/page/patch 端点 |
+| `models/conversation.py` | 修改 | RouterResult.refine_scope + ConversationResponse.patch_plan |
+| `models/request.py` | 修改 | PagePatchRequest |
+| `config/prompts/router.py` | 修改 | followup prompt 加 refine_scope |
 
 ---
 
@@ -813,7 +888,7 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | **M4: 会话网关** | 4 ✅ | 统一会话入口 + 意图路由 + 交互式反问，完整交互闭环 |
 | **M4.5: 健壮性增强** | 4.5 ✅ | 实体校验 + sourcePrompt 防篡改 + action 规范化 + 错误拦截 |
 | **M5: 真实数据** | 5 ✅ | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
-| **M6: 产品上线** | 6 | 前端集成 + Level 2 + SSE 升级 + Patch 机制 + 部署上线 |
+| **M6: 产品上线** | 6 🔄 | 前端集成 + Level 2 Per-Block AI + SSE Block 事件流 + Patch 机制 |
 
 ---
 
