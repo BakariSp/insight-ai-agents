@@ -4,7 +4,7 @@
 
 ---
 
-## 当前架构（Phase 3）
+## 当前架构（Phase 4）
 
 ```
 Client (HTTP / SSE)
@@ -18,6 +18,7 @@ Client (HTTP / SSE)
 │  POST /chat                   (兼容路由)           │
 │  GET  /models                                     │
 │  GET  /skills                                     │
+│  POST /api/conversation      → RouterAgent→Agents  │
 │                                                    │
 │  ┌────────────────────────────────────────────┐   │
 │  │  FastMCP (in-process tool registry)        │   │
@@ -48,6 +49,20 @@ Client (HTTP / SSE)
                    │          │  │└ Memory   │
                    └──────────┘  └──────────┘
 ```
+
+### 新增模块（Phase 4）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Conversation Models | `models/conversation.py` | IntentType + RouterResult + ClarifyOptions + ConversationRequest/Response |
+| RouterAgent | `agents/router.py` | 双模式意图分类（初始 + 追问）+ 置信度路由 |
+| ChatAgent | `agents/chat.py` | 闲聊 + 知识问答 Agent（chat_smalltalk / chat_qa） |
+| PageChatAgent | `agents/page_chat.py` | 基于页面上下文回答追问 |
+| Clarify Builder | `services/clarify_builder.py` | 交互式反问选项构建（needClassId / needTimeRange 等） |
+| Conversation API | `api/conversation.py` | POST /api/conversation 统一会话端点 |
+| Router Prompt | `config/prompts/router.py` | 初始/追问双模式分类 prompt |
+| Chat Prompt | `config/prompts/chat.py` | ChatAgent system prompt |
+| PageChat Prompt | `config/prompts/page_chat.py` | PageChatAgent system prompt |
 
 ### 新增模块（Phase 3）
 
@@ -172,7 +187,7 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 | 数据模型 | ✅ Blueprint + CamelModel | Blueprint 三层结构 |
 | 配置系统 | ✅ Pydantic Settings | Pydantic Settings |
 | LLM 接入 | ✅ PydanticAI + LiteLLM | PydanticAI + LiteLLM (streaming + tool_use) |
-| Agent 数量 | 2 个 (PlannerAgent + ExecutorAgent) + 1 个旧 ChatAgent | 4 个 Agent (2 对外 + 2 内部) |
+| Agent 数量 | ✅ 4 个 Agent (Planner + Executor + Router + Chat + PageChat) | 4+ Agents |
 | 输出模式 | ✅ SSE 流式 + JSON | SSE 流式 + JSON |
 | 数据来源 | Mock 数据 | Java Backend via httpx |
 | 前端集成 | 无 | Next.js API Routes proxy |
@@ -286,7 +301,7 @@ LiteLLM 的轻封装:
 
 ## 项目结构
 
-### 当前结构（Phase 3）
+### 当前结构（Phase 4）
 
 ```
 insight-ai-agent/
@@ -299,6 +314,7 @@ insight-ai-agent/
 │   ├── health.py               # GET /api/health
 │   ├── workflow.py             # POST /api/workflow/generate
 │   ├── page.py                 # POST /api/page/generate (SSE) ← Phase 3 新增
+│   ├── conversation.py        # POST /api/conversation (统一会话) ← Phase 4 新增
 │   ├── chat.py                 # POST /chat (兼容路由)
 │   └── models_routes.py        # GET /models, GET /skills
 │
@@ -308,11 +324,15 @@ insight-ai-agent/
 │   ├── component_registry.py   # 6 种 UI 组件定义
 │   └── prompts/
 │       ├── planner.py          # PlannerAgent system prompt + build_planner_prompt()
-│       └── executor.py         # ExecutorAgent compose prompt ← Phase 3 新增
+│       ├── executor.py         # ExecutorAgent compose prompt ← Phase 3 新增
+│       ├── router.py          # RouterAgent 双模式 prompt ← Phase 4 新增
+│       ├── chat.py            # ChatAgent prompt ← Phase 4 新增
+│       └── page_chat.py       # PageChatAgent prompt ← Phase 4 新增
 │
 ├── models/                     # Pydantic 数据模型
 │   ├── base.py                 # CamelModel 基类 (camelCase 输出)
 │   ├── blueprint.py            # Blueprint 三层模型
+│   ├── conversation.py        # 意图模型 + Clarify + ConversationRequest/Response ← Phase 4 新增
 │   └── request.py              # API 请求/响应模型
 │
 ├── tools/                      # FastMCP 工具
@@ -325,10 +345,14 @@ insight-ai-agent/
 │   ├── planner.py              # PlannerAgent: user prompt → Blueprint
 │   ├── resolver.py             # 路径引用解析器 ($context/$data/$compute) ← Phase 3 新增
 │   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE) ← Phase 3 新增
+│   ├── router.py              # RouterAgent: 意图分类 + 置信度路由 ← Phase 4 新增
+│   ├── chat.py                # ChatAgent: 闲聊 + QA ← Phase 4 新增
+│   ├── page_chat.py           # PageChatAgent: 页面追问 ← Phase 4 新增
 │   └── chat_agent.py           # ChatAgent: 对话 + 工具循环 (旧)
 │
 ├── services/
 │   ├── llm_service.py          # LiteLLM 封装
+│   ├── clarify_builder.py     # 交互式反问选项构建 ← Phase 4 新增
 │   └── mock_data.py            # 集中 mock 数据
 │
 ├── skills/                     # 旧技能系统 (Phase 0 遗留，ChatAgent 使用)
@@ -345,7 +369,14 @@ insight-ai-agent/
 │   ├── test_planner.py         # PlannerAgent 测试 (TestModel)
 │   ├── test_provider.py        # Provider 单元测试
 │   ├── test_models.py          # Blueprint 模型测试
-│   └── test_tools.py           # FastMCP 工具测试
+│   ├── test_tools.py           # FastMCP 工具测试
+│   ├── test_conversation_models.py  # 会话模型测试 ← Phase 4 新增
+│   ├── test_router.py         # RouterAgent 测试 ← Phase 4 新增
+│   ├── test_chat_agent.py     # ChatAgent 测试 ← Phase 4 新增
+│   ├── test_clarify_builder.py # ClarifyBuilder 测试 ← Phase 4 新增
+│   ├── test_page_chat.py      # PageChatAgent 测试 ← Phase 4 新增
+│   ├── test_conversation_api.py # 会话端点测试 ← Phase 4 新增
+│   ├── test_e2e_conversation.py # E2E 会话测试 ← Phase 4 新增
 │
 ├── docs/                       # ← 本文档
 │

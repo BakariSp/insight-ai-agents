@@ -10,10 +10,10 @@
 |--------|------|------|-------|------|
 | `POST` | `/api/workflow/generate` | 生成 Blueprint | PlannerAgent | ✅ |
 | `POST` | `/api/page/generate` | 执行 Blueprint (SSE) | ExecutorAgent | ✅ |
-| `POST` | `/api/page/followup` | 统一追问 (内部路由) | Router→Chat/Planner | 🔲 Phase 4 |
+| `POST` | `/api/conversation` | 统一会话网关 (内部路由) | Router→Chat/PageChat/Planner | ✅ Phase 4 |
 | `GET` | `/api/health` | 健康检查 | - | ✅ |
 
-> **设计变更 (2026-02-02)**: 原计划的 `POST /api/intent/classify` 和 `POST /api/page/chat` 合并为统一的 `POST /api/page/followup` 端点。RouterAgent 作为内部组件，不再对外暴露。
+> **设计变更 (2026-02-02)**: 原计划的 `POST /api/intent/classify` 和 `POST /api/page/chat` 合并为统一的 `POST /api/conversation` 端点。RouterAgent 作为内部组件，不再对外暴露。Phase 4 已完成实现。
 
 ---
 
@@ -102,58 +102,70 @@ SSE 事件格式详见 [sse-protocol.md](./sse-protocol.md)。
 
 ---
 
-## 3. Page Followup (统一追问 — 内部路由)
+## 3. Conversation (统一会话网关 — 内部路由)
 
-**Phase 4 新增**。单一入口处理所有追问场景，后端内部通过 RouterAgent 分类意图，然后调度到 PageChatAgent 或 PlannerAgent。
+**Phase 4 完成**。单一入口处理所有用户交互 — 初始模式（闲聊、问答、生成、反问）和追问模式（对话、微调、重建）。后端内部通过 RouterAgent 双模式分类意图，然后调度到 ChatAgent / PageChatAgent / PlannerAgent。
 
 ```
 Frontend                  Next.js Proxy              Python Service
 ────────                  ─────────────              ──────────────
 
-POST /api/ai/             POST /api/page/
-page-followup             followup
+POST /api/ai/             POST /api/
+conversation              conversation
 
 {                  ──►    {                   ──►    RouterAgent (内部)
-  message:                  message:                   │
-  "加一个语法...",            "加一个语法...",            ├─ "chat"    → PageChatAgent
-  blueprint: {...},         blueprint: {...},          ├─ "refine"  → PlannerAgent(微调)
-  pageContext: {...}        pageContext: {...}          └─ "rebuild" → PlannerAgent(重建)
-}                           }
-
-{                  ◄──    {                   ◄──    Response
-  action: "rebuild",        action: "rebuild",
-  chatResponse: "...",      chatResponse: "...",
-  blueprint: {...}          blueprint: {...}
+  message:                  message:                   │ blueprint=null → 初始模式
+  "分析成绩...",             "分析成绩...",              │ blueprint≠null → 追问模式
+  blueprint: null,          blueprint: null,           │
+  pageContext: null          pageContext: null          ├─ chat_smalltalk → ChatAgent
+}                           }                          ├─ chat_qa       → ChatAgent
+                                                       ├─ build_workflow → PlannerAgent
+                                                       ├─ clarify       → ClarifyBuilder
+                                                       ├─ chat          → PageChatAgent
+                                                       ├─ refine        → PlannerAgent(微调)
+{                  ◄──    {                   ◄──      └─ rebuild       → PlannerAgent(重建)
+  action: "build_workflow",  action: "build_workflow",
+  chatResponse: "...",       chatResponse: "...",
+  blueprint: {...},          blueprint: {...},
+  clarifyOptions: null       clarifyOptions: null
 }                           }
 ```
 
 **Python Request:**
 
 ```python
-class PageFollowupRequest(CamelModel):
-    message: str                             # 用户追问内容
-    blueprint: Blueprint                     # 当前 Blueprint
-    page_context: dict | None = None         # 当前页面摘要
+class ConversationRequest(CamelModel):
+    message: str                             # 用户输入 (必填)
+    language: str = "en"                     # 输出语言
+    teacher_id: str = ""                     # 教师 ID
+    context: dict | None = None              # 附加上下文
+    blueprint: Blueprint | None = None       # null=初始模式, 有值=追问模式
+    page_context: dict | None = None         # 当前页面摘要 (追问模式)
     conversation_id: str | None = None       # 会话 ID
 ```
 
 **Python Response:**
 
 ```python
-class PageFollowupResponse(CamelModel):
-    action: str                              # "chat" | "refine" | "rebuild"
-    chat_response: str                       # 面向用户的回复 (Markdown)
-    blueprint: Blueprint | None = None       # 修改后的 Blueprint (refine/rebuild 时)
+class ConversationResponse(CamelModel):
+    action: str                              # 7 种 action 之一
+    chat_response: str = ""                  # 面向用户的回复 (Markdown)
+    blueprint: Blueprint | None = None       # 生成/修改后的 Blueprint
+    clarify_options: ClarifyOptions | None = None  # 反问选项 (action=clarify)
     conversation_id: str | None = None       # 会话 ID
 ```
 
 **action 路由表 — 前端处理:**
 
-| action | 后端行为 | 响应内容 | 前端处理 |
-|--------|---------|---------|---------|
-| `chat` | PageChatAgent 回答 | `chatResponse` 文本 | 显示回复文本 |
-| `refine` | PlannerAgent 微调 Blueprint | `chatResponse` + 新 `blueprint` | 自动用新 blueprint 调 `/api/page/generate` |
-| `rebuild` | PlannerAgent 重新生成 Blueprint | `chatResponse` + 新 `blueprint` | 展示说明，用户确认后调 `/api/page/generate` |
+| action | 模式 | 后端行为 | 响应内容 | 前端处理 |
+|--------|------|---------|---------|---------|
+| `chat_smalltalk` | 初始 | ChatAgent 回复 | `chatResponse` | 显示回复文本 |
+| `chat_qa` | 初始 | ChatAgent 回复 | `chatResponse` | 显示回复文本 |
+| `build_workflow` | 初始 | PlannerAgent 生成 | `blueprint` + `chatResponse` | 用 blueprint 调 `/api/page/generate` |
+| `clarify` | 初始 | 返回反问选项 | `chatResponse` + `clarifyOptions` | 渲染选项 UI，用户选择后重新请求 |
+| `chat` | 追问 | PageChatAgent 回答 | `chatResponse` | 显示回复文本 |
+| `refine` | 追问 | PlannerAgent 微调 | `chatResponse` + 新 `blueprint` | 自动用新 blueprint 调 `/api/page/generate` |
+| `rebuild` | 追问 | PlannerAgent 重建 | `chatResponse` + 新 `blueprint` | 展示说明，用户确认后调 `/api/page/generate` |
 
 ---
 

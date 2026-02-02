@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-02-02 — Phase 4: 统一会话网关完成
+
+- 新增 `models/conversation.py`: IntentType/FollowupIntentType 枚举、RouterResult、ClarifyChoice/ClarifyOptions、ConversationRequest/ConversationResponse (13 项模型测试)
+- 新增 `agents/router.py`: RouterAgent 双模式意图分类（初始 4 种 + 追问 3 种）+ 置信度路由 (≥0.7 build, 0.4-0.7 clarify, <0.4 chat) (13 项测试)
+- 新增 `agents/chat.py`: ChatAgent 闲聊 + 知识问答 (3 项测试)
+- 新增 `services/clarify_builder.py`: 交互式反问选项构建，支持 needClassId/needTimeRange/needAssignment/needSubject 路由 (8 项测试)
+- 新增 `agents/page_chat.py`: PageChatAgent 页面追问对话，注入 blueprint 上下文 (7 项测试)
+- 新增 `api/conversation.py`: `POST /api/conversation` 统一会话端点，7 种 action 路由 (10 项 API 测试)
+- 新增 `config/prompts/`: router.py (双模式 prompt) + chat.py (教育助手 prompt) + page_chat.py (页面追问 prompt)
+- 更新 `main.py`: 注册 conversation router
+- 标记 `POST /chat` 为 deprecated
+- 新增 E2E 测试: 闲聊→反问→生成→追问→微调→重建 全闭环 (5 项 E2E 测试)
+- 151 项测试全部通过 (59 项 Phase 4 新增 + 92 项已有)
+
 ## 2026-02-02 — 架构调整: 统一追问端点
 
 - **设计变更**: 废弃原计划的 `POST /api/intent/classify` 和 `POST /api/page/chat` 两个独立端点

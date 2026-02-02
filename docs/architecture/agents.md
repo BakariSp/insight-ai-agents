@@ -10,10 +10,11 @@
 |-------|------|------|------|---------|
 | **PlannerAgent** | 理解用户需求，生成 Blueprint | 用户自然语言 | 结构化分析方案 JSON | `POST /api/workflow/generate` |
 | **ExecutorAgent** | 执行分析计划，调用工具，构建页面 | Blueprint + 数据 | SSE 流式页面 | `POST /api/page/generate` |
-| **RouterAgent** | 对追问进行意图分类 | 用户追问 + 上下文 | action 类型 | **内部组件** |
-| **PageChatAgent** | 处理页面相关的对话式交互 | 用户消息 + 页面上下文 | 文本回复 | **内部组件** |
+| **RouterAgent** | 意图分类 + 置信度路由 | 用户消息 + 可选上下文 | RouterResult (intent + confidence) | **内部组件** |
+| **ChatAgent** | 闲聊 + 知识问答 | 用户消息 + intent_type | Markdown 文本回复 | **内部组件** |
+| **PageChatAgent** | 页面追问对话 | 用户消息 + Blueprint + 页面上下文 | Markdown 文本回复 | **内部组件** |
 
-> **设计原则**: RouterAgent 和 PageChatAgent 不对外暴露独立端点，统一通过 `POST /api/page/followup` 内部调度。前端只调一个端点，根据响应中的 `action` 字段做渲染。
+> **设计原则**: RouterAgent、ChatAgent、PageChatAgent 不对外暴露独立端点，统一通过 `POST /api/conversation` 内部调度。前端只调一个端点，根据响应中的 `action` 字段做渲染。
 
 ---
 
@@ -202,72 +203,138 @@ Phase 3: Compose → 映射计算结果到 UIComposition，生成 page JSON (Pag
 
 ---
 
-## RouterAgent (`agents/router.py`) — 内部组件
+## RouterAgent (`agents/router.py`) ✅ 已实现
 
-意图分类 Agent，**不对外暴露端点**，作为 `POST /api/page/followup` 的内部决策器。
+意图分类 Agent，**不对外暴露端点**，作为 `POST /api/conversation` 的内部决策器。
+支持双模式：初始模式（4 种意图）和追问模式（3 种意图）。
 
 ```python
-# 伪代码 — Phase 4 实现
+from pydantic_ai import Agent
+from models.conversation import RouterResult
+from agents.provider import create_model
+from config.llm_config import LLMConfig
+from config.prompts.router import build_router_prompt
+
+ROUTER_LLM_CONFIG = LLMConfig(temperature=0.1, response_format="json_object")
+
+_initial_agent = Agent(
+    model=create_model(),
+    output_type=RouterResult,
+    system_prompt=build_router_prompt(),
+    retries=1,
+    defer_model_check=True,
+)
+
 async def classify_intent(
-    message: str, blueprint: Blueprint, page_context: dict | None,
-) -> str:
-    """返回 action: "chat" | "refine" | "rebuild"。"""
-    agent = Agent(
-        model=create_model(),
-        output_type=IntentResult,
-        system_prompt=ROUTER_SYSTEM_PROMPT,
-    )
-    result = await agent.run(f"Message: {message}\nBlueprint: {blueprint.name}\nContext: {page_context}")
-    return result.output.action
+    message: str,
+    *,
+    blueprint: Blueprint | None = None,
+    page_context: dict | None = None,
+) -> RouterResult:
+    """分类用户意图，带置信度路由调整。"""
+    # blueprint is None → 初始模式，否则 → 追问模式
+    # 置信度路由: ≥0.7 build, 0.4-0.7 clarify, <0.4 chat
+    ...
 ```
 
-| action | 含义 | 后端处理 | 前端处理 |
-|--------|------|---------|---------|
-| `chat` | 数据追问 | PageChatAgent 回答 | 显示 `chatResponse` 文本 |
-| `refine` | 页面微调 | PlannerAgent 微调 Blueprint | 自动用新 blueprint 调 `/api/page/generate` |
-| `rebuild` | 结构性重建 | PlannerAgent 重新生成 Blueprint | 展示说明，用户确认后调 `/api/page/generate` |
+**置信度路由策略:**
+
+| confidence | 路由行为 |
+|------------|---------|
+| `≥ 0.7` | 直接执行 `build_workflow` |
+| `0.4 ~ 0.7` | 强制 `clarify`（返回交互式反问） |
+| `< 0.4` | 当 `chat` 处理 |
 
 ---
 
-## PageChatAgent (`agents/page_chat.py`) — 内部组件
+## ChatAgent (`agents/chat.py`) ✅ 已实现
 
-处理页面相关的对话式交互。**不对外暴露端点**，由 followup 端点内部调用。
+处理 `chat_smalltalk` 和 `chat_qa` 意图，作为教育场景的友好对话入口。轻量级 Agent，不需要工具调用。
 
 ```python
-# 伪代码 — Phase 4 实现
-async def page_chat(
-    message: str, blueprint: Blueprint, page_context: dict | None,
+from pydantic_ai import Agent
+from config.llm_config import LLMConfig
+from config.prompts.chat import build_chat_prompt
+
+CHAT_LLM_CONFIG = LLMConfig(temperature=0.7)
+
+_chat_agent = Agent(
+    model=create_model(),
+    system_prompt=build_chat_prompt(),
+    retries=1,
+    defer_model_check=True,
+)
+
+async def generate_response(
+    message: str, intent_type: str = "chat_smalltalk", language: str = "en",
+) -> str:
+    """生成闲聊或 QA 文本回复（Markdown）。"""
+    ...
+```
+
+---
+
+## PageChatAgent (`agents/page_chat.py`) ✅ 已实现
+
+基于已有页面上下文回答用户追问。**不对外暴露端点**，由 conversation 端点内部调用。
+
+```python
+from pydantic_ai import Agent
+from config.prompts.page_chat import build_page_chat_prompt
+
+async def generate_response(
+    message: str,
+    blueprint: Blueprint,
+    page_context: dict | None = None,
+    language: str = "en",
 ) -> str:
     """基于页面上下文回答用户追问，返回 Markdown 文本。"""
     agent = Agent(
         model=create_model(),
-        system_prompt=f"你是页面数据分析助手。页面: {blueprint.name}。上下文: {page_context}",
+        system_prompt=build_page_chat_prompt(
+            blueprint_name=blueprint.name,
+            blueprint_description=blueprint.description,
+            page_summary=_summarize_page_context(page_context),
+        ),
+        retries=1,
+        defer_model_check=True,
     )
-    result = await agent.run(message)
-    return result.output
+    result = await agent.run(f"[Language: {language}]\n\n{message}")
+    return str(result.output)
 ```
 
 ---
 
-## 统一追问流程 (`POST /api/page/followup`)
+## 统一会话流程 (`POST /api/conversation`)
 
 ```
-用户追问
+用户消息
     │
     ▼
-POST /api/page/followup
+POST /api/conversation
     │
-    ├── RouterAgent.classify_intent()
+    ├── blueprint is None? → 初始模式
     │       │
-    │       ├── "chat"    → PageChatAgent → { action: "chat", chatResponse: "..." }
+    │       ├── RouterAgent.classify_intent()
+    │       │       │
+    │       │       ├── "chat_smalltalk" → ChatAgent → { action: "chat_smalltalk", chatResponse }
+    │       │       ├── "chat_qa"        → ChatAgent → { action: "chat_qa", chatResponse }
+    │       │       ├── "build_workflow" → PlannerAgent → { action: "build_workflow", blueprint, chatResponse }
+    │       │       └── "clarify"        → ClarifyBuilder → { action: "clarify", chatResponse, clarifyOptions }
     │       │
-    │       ├── "refine"  → PlannerAgent(微调) → { action: "refine", chatResponse: "...", blueprint: {...} }
-    │       │
-    │       └── "rebuild" → PlannerAgent(重建) → { action: "rebuild", chatResponse: "...", blueprint: {...} }
+    │       └── 追问模式
+    │               │
+    │               ├── RouterAgent.classify_intent()
+    │               │       │
+    │               │       ├── "chat"    → PageChatAgent → { action: "chat", chatResponse }
+    │               │       ├── "refine"  → PlannerAgent(微调) → { action: "refine", blueprint, chatResponse }
+    │               │       └── "rebuild" → PlannerAgent(重建) → { action: "rebuild", blueprint, chatResponse }
     │
     ▼
 前端根据 action 字段渲染
-    ├── "chat"    → 显示文本回复
-    ├── "refine"  → 自动调 /api/page/generate 重新渲染
-    └── "rebuild" → 展示说明 → 用户确认 → 调 /api/page/generate
+    ├── "chat_*"        → 显示文本回复
+    ├── "build_workflow" → 调 /api/page/generate
+    ├── "clarify"        → 渲染交互式选项 UI
+    ├── "refine"         → 自动调 /api/page/generate 重新渲染
+    └── "rebuild"        → 展示说明 → 用户确认 → 调 /api/page/generate
 ```

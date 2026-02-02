@@ -1,6 +1,6 @@
-# 当前 API（Phase 3）
+# 当前 API（Phase 4）
 
-> FastAPI 服务的 6 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
+> FastAPI 服务的 7 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
 
 ---
 
@@ -11,7 +11,8 @@
 | `GET` | `/api/health` | 健康检查 | ✅ |
 | `POST` | `/api/workflow/generate` | 生成 Blueprint（PlannerAgent） | ✅ Phase 2 |
 | `POST` | `/api/page/generate` | 执行 Blueprint → SSE 页面流（ExecutorAgent） | ✅ Phase 3 新增 |
-| `POST` | `/chat` | 通用对话 (兼容路由, 支持工具调用) | ✅ |
+| `POST` | `/api/conversation` | 统一会话入口（RouterAgent→Agents） | ✅ Phase 4 新增 |
+| `POST` | `/chat` | 通用对话 (兼容路由, 支持工具调用) | ⚠️ deprecated |
 | `GET` | `/models` | 列出支持的模型 | ✅ |
 | `GET` | `/skills` | 列出可用技能 | ✅ |
 
@@ -162,6 +163,92 @@ curl -N -X POST http://localhost:5000/api/page/generate \
 **错误处理:**
 - 缺少 `blueprint` → `422`
 - 工具调用失败/LLM 超时 → SSE 流中的 error COMPLETE 事件 (`page: null`)
+
+---
+
+## POST /api/conversation
+
+Phase 4 统一会话端点。单一入口处理所有用户交互 — 闲聊、问答、生成分析、反问、追问、微调、重建。后端通过 RouterAgent 自动分类意图并路由到对应 Agent。
+
+**请求 (camelCase):**
+
+```json
+{
+  "message": "分析 1A 班英语成绩",
+  "language": "zh-CN",
+  "teacherId": "t-001",
+  "context": null,
+  "blueprint": null,
+  "pageContext": null,
+  "conversationId": null
+}
+```
+
+> `blueprint` 为 `null` → 初始模式；有值 → 追问模式。
+
+**响应 (camelCase):**
+
+```json
+{
+  "action": "build_workflow",
+  "chatResponse": "Generated analysis: Unit 5 考试分析",
+  "blueprint": { "id": "bp-...", "name": "...", ... },
+  "clarifyOptions": null,
+  "conversationId": null
+}
+```
+
+**action 路由表:**
+
+| action | 模式 | 后端行为 | 关键响应字段 |
+|--------|------|---------|-------------|
+| `chat_smalltalk` | 初始 | ChatAgent 回复 | `chatResponse` |
+| `chat_qa` | 初始 | ChatAgent 回复 | `chatResponse` |
+| `build_workflow` | 初始 | PlannerAgent 生成 | `blueprint` + `chatResponse` |
+| `clarify` | 初始 | 返回反问选项 | `chatResponse` + `clarifyOptions` |
+| `chat` | 追问 | PageChatAgent 回答 | `chatResponse` |
+| `refine` | 追问 | PlannerAgent 微调 | `blueprint` + `chatResponse` |
+| `rebuild` | 追问 | PlannerAgent 重建 | `blueprint` + `chatResponse` |
+
+**clarifyOptions 示例 (action=clarify):**
+
+```json
+{
+  "action": "clarify",
+  "chatResponse": "请问您想分析哪个班级？",
+  "clarifyOptions": {
+    "type": "single_select",
+    "choices": [
+      { "label": "Form 1A", "value": "class-hk-f1a", "description": "Form 1 · English · 35 students" },
+      { "label": "Form 1B", "value": "class-hk-f1b", "description": "Form 1 · English · 32 students" }
+    ],
+    "allowCustomInput": true
+  }
+}
+```
+
+**示例:**
+
+```bash
+# 初始模式 — 闲聊
+curl -X POST http://localhost:5000/api/conversation \
+  -H "Content-Type: application/json" \
+  -d '{"message": "你好"}'
+
+# 初始模式 — 生成分析
+curl -X POST http://localhost:5000/api/conversation \
+  -H "Content-Type: application/json" \
+  -d '{"message": "分析 1A 班英语成绩", "language": "zh-CN", "teacherId": "t-001"}'
+
+# 追问模式
+curl -X POST http://localhost:5000/api/conversation \
+  -H "Content-Type: application/json" \
+  -d '{"message": "哪些学生需要关注？", "blueprint": {...}, "pageContext": {"mean": 74.2}}'
+```
+
+**错误处理:**
+- 缺少 `message` → `422`
+- Agent/LLM 失败 → `502` + `{"detail": "Conversation processing failed: ..."}`
 
 ---
 
