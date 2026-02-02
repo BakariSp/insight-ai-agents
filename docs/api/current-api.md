@@ -21,7 +21,7 @@
 
 ## POST /chat
 
-核心端点（兼容路由），支持多模型切换和工具调用。将在 Phase 4 被 `/api/page/generate` + `/api/page/chat` 替代。
+核心端点（兼容路由），支持多模型切换和工具调用。将在 Phase 4 被 `/api/page/generate` + `/api/page/followup` 替代。
 
 **请求:**
 

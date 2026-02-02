@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-02-02 — 架构调整: 统一追问端点
+
+- **设计变更**: 废弃原计划的 `POST /api/intent/classify` 和 `POST /api/page/chat` 两个独立端点
+- **新方案**: 合并为统一的 `POST /api/page/followup` 端点，后端内部通过 RouterAgent 分类意图
+- RouterAgent 和 PageChatAgent 作为内部组件，不对外暴露 HTTP 端点
+- 前端只需调一个端点，根据响应中的 `action` 字段 (`chat` / `refine` / `rebuild`) 做渲染
+- 更新文档: roadmap.md (Phase 4), agents.md, overview.md, target-api.md, frontend-integration.md
+
 ## 2026-02-02 — Phase 3: ExecutorAgent 完成
 
 - 新增 `agents/resolver.py`: 路径引用解析器，支持 `$context.` / `$input.` / `$data.` / `$compute.` 四种前缀和嵌套点号路径

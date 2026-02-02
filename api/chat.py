@@ -1,6 +1,6 @@
 """Legacy /chat compatibility route — kept for Phase 0 backward compat.
 
-Will be replaced by /api/page/generate + /api/page/chat in Phase 4.
+Will be replaced by /api/page/generate + /api/page/followup in Phase 4.
 """
 
 from fastapi import APIRouter, HTTPException

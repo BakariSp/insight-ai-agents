@@ -393,8 +393,7 @@ insight-ai-agent/
 │
 ├── api/
 │   ├── workflow.py             # POST /api/workflow/generate
-│   ├── page.py                 # POST /api/page/generate + chat
-│   ├── intent.py               # POST /api/intent/classify
+│   ├── page.py                 # POST /api/page/generate + followup
 │   └── health.py               # GET /api/health
 │
 └── tests/

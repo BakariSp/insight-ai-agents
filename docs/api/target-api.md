@@ -1,6 +1,6 @@
-# 目标 API（Phase 1+）
+# 目标 API（Phase 3+）
 
-> FastAPI 服务的 5 个端点。详细 SSE 协议和 Block 格式见 [sse-protocol.md](./sse-protocol.md)。
+> FastAPI 服务的 4 个端点。详细 SSE 协议和 Block 格式见 [sse-protocol.md](./sse-protocol.md)。
 
 ---
 
@@ -8,11 +8,12 @@
 
 | Method | Path | 功能 | Agent | 状态 |
 |--------|------|------|-------|------|
-| `POST` | `/api/workflow/generate` | 生成 Blueprint | PlannerAgent | 🔲 |
-| `POST` | `/api/page/generate` | 执行 Blueprint (SSE) | ExecutorAgent | 🔲 |
-| `POST` | `/api/page/chat` | 页面对话 | ChatAgent | 🔲 |
-| `POST` | `/api/intent/classify` | 意图分类 | RouterAgent | 🔲 |
-| `GET` | `/api/health` | 健康检查 | - | 🔲 |
+| `POST` | `/api/workflow/generate` | 生成 Blueprint | PlannerAgent | ✅ |
+| `POST` | `/api/page/generate` | 执行 Blueprint (SSE) | ExecutorAgent | ✅ |
+| `POST` | `/api/page/followup` | 统一追问 (内部路由) | Router→Chat/Planner | 🔲 Phase 4 |
+| `GET` | `/api/health` | 健康检查 | - | ✅ |
+
+> **设计变更 (2026-02-02)**: 原计划的 `POST /api/intent/classify` 和 `POST /api/page/chat` 合并为统一的 `POST /api/page/followup` 端点。RouterAgent 作为内部组件，不再对外暴露。
 
 ---
 
@@ -28,41 +29,41 @@ POST /api/ai/               POST /api/workflow/
 workflow-generate            generate
 
 {                  ──►      {                    ──►     PlannerAgent
-  userPrompt:                 user_prompt:                (result_type=Blueprint)
+  userPrompt:                 userPrompt:                 (output_type=Blueprint)
   "Analyze..."                "Analyze...",
 }                             language: "en"
                               }
 
                   ◄──       {                    ◄──     Blueprint JSON
-{                             success: true,
-  success: true,              chat_response: "...",
-  chatResponse: "...",        blueprint: {
+{                             blueprint: {
   blueprint: {                  id: "bp-...",
     id: "bp-...",               name: "...",
-    name: "...",                data_contract: {...},
-    dataContract: {...},        compute_graph: {...},
-    computeGraph: {...},        ui_composition: {...},
-    uiComposition: {...},       page_system_prompt: "..."
-    pageSystemPrompt: "..."     }
-  }                           }
+    name: "...",                dataContract: {...},
+    dataContract: {...},        computeGraph: {...},
+    computeGraph: {...},        uiComposition: {...},
+    uiComposition: {...},       pageSystemPrompt: "..."
+    pageSystemPrompt: "..."   },
+  },                          model: ""
+  model: ""                  }
 }
 ```
 
 **Python Request:**
 
 ```python
-class WorkflowGenerateRequest(BaseModel):
+class WorkflowGenerateRequest(CamelModel):
     user_prompt: str          # 用户原始输入
     language: str = "en"      # 输出语言
+    teacher_id: str = ""      # 教师 ID
+    context: dict | None = None  # 附加上下文
 ```
 
 **Python Response:**
 
 ```python
 class WorkflowGenerateResponse(CamelModel):
-    success: bool
-    chat_response: str
-    blueprint: BlueprintOutput
+    blueprint: Blueprint
+    model: str = ""
 ```
 
 ---
@@ -80,9 +81,8 @@ page-generate             generate
 
 {                  ──►    {                   ──►    ExecutorAgent
   blueprint: {...},         blueprint: {...},          (execute Blueprint)
-  data: {...},              data: {...},
   context: {                context: {
-    teacherId: "t-001"       teacher_id: "t-001"
+    teacherId: "t-001"       teacherId: "t-001"
   }                         }
 }                           }
 
@@ -93,100 +93,75 @@ page-generate             generate
 
 ```python
 class PageGenerateRequest(CamelModel):
-    blueprint: dict                              # 完整 Blueprint JSON
-    data: dict                                   # 用户选择的数据
-    context: dict | None = None                  # 运行时上下文（teacherId 等）
+    blueprint: Blueprint                     # 完整 Blueprint JSON
+    context: dict | None = None              # 运行时上下文（teacherId 等）
+    teacher_id: str = ""                     # 教师 ID
 ```
 
 SSE 事件格式详见 [sse-protocol.md](./sse-protocol.md)。
 
 ---
 
-## 3. Page Chat (Follow-up Questions)
+## 3. Page Followup (统一追问 — 内部路由)
 
-非流式端点，用于追问已有页面内容。
+**Phase 4 新增**。单一入口处理所有追问场景，后端内部通过 RouterAgent 分类意图，然后调度到 PageChatAgent 或 PlannerAgent。
 
 ```
 Frontend                  Next.js Proxy              Python Service
 ────────                  ─────────────              ──────────────
 
 POST /api/ai/             POST /api/page/
-page-chat                 chat
+page-followup             followup
 
-{                  ──►    {                   ──►    Chat Agent
-  userMessage:              user_message:
-  "哪些学生...",            "哪些学生...",
-  pageContext: {...},       page_context: {...},
-  data: {...}               data: {...}
+{                  ──►    {                   ──►    RouterAgent (内部)
+  message:                  message:                   │
+  "加一个语法...",            "加一个语法...",            ├─ "chat"    → PageChatAgent
+  blueprint: {...},         blueprint: {...},          ├─ "refine"  → PlannerAgent(微调)
+  pageContext: {...}        pageContext: {...}          └─ "rebuild" → PlannerAgent(重建)
 }                           }
 
-{                  ◄──    {                   ◄──    Text response
-  success: true,            success: true,
-  chatResponse: "..."       chat_response: "..."
+{                  ◄──    {                   ◄──    Response
+  action: "rebuild",        action: "rebuild",
+  chatResponse: "...",      chatResponse: "...",
+  blueprint: {...}          blueprint: {...}
 }                           }
 ```
 
 **Python Request:**
 
 ```python
-class PageChatRequest(BaseModel):
-    user_message: str
-    page_context: dict | None = None      # { meta, data_summary }
-    data: dict | None = None
+class PageFollowupRequest(CamelModel):
+    message: str                             # 用户追问内容
+    blueprint: Blueprint                     # 当前 Blueprint
+    page_context: dict | None = None         # 当前页面摘要
+    conversation_id: str | None = None       # 会话 ID
 ```
 
 **Python Response:**
 
 ```python
-class PageChatResponse(BaseModel):
-    success: bool
-    chat_response: str                    # Markdown 格式
+class PageFollowupResponse(CamelModel):
+    action: str                              # "chat" | "refine" | "rebuild"
+    chat_response: str                       # 面向用户的回复 (Markdown)
+    blueprint: Blueprint | None = None       # 修改后的 Blueprint (refine/rebuild 时)
+    conversation_id: str | None = None       # 会话 ID
 ```
+
+**action 路由表 — 前端处理:**
+
+| action | 后端行为 | 响应内容 | 前端处理 |
+|--------|---------|---------|---------|
+| `chat` | PageChatAgent 回答 | `chatResponse` 文本 | 显示回复文本 |
+| `refine` | PlannerAgent 微调 Blueprint | `chatResponse` + 新 `blueprint` | 自动用新 blueprint 调 `/api/page/generate` |
+| `rebuild` | PlannerAgent 重新生成 Blueprint | `chatResponse` + 新 `blueprint` | 展示说明，用户确认后调 `/api/page/generate` |
 
 ---
 
-## 4. Classify Intent (Follow-up Router)
-
-替换当前的关键词路由，判断用户追问走哪个路径。
-
-```
-Frontend                  Next.js Proxy              Python Service
-────────                  ─────────────              ──────────────
-
-POST /api/ai/             POST /api/intent/
-classify-intent           classify
-
-{                  ──►    {                   ──►    Router Agent
-  userMessage:              user_message:
-  "增加语法...",            "增加语法...",
-  workflowName:             workflow_name:
-  "Performance...",         "Performance...",
-  pageSummary:              page_summary:
-  "Overall good..."        "Overall good..."
-}                           }
-
-{                  ◄──    {                   ◄──    Classification
-  intent:                   intent:
-  "workflow_rebuild",       "workflow_rebuild",
-  confidence: 0.92          confidence: 0.92
-}                           }
-```
-
-**Intent 值和前端处理:**
-
-| Intent | 前端动作 | 调用的函数 |
-|--------|---------|-----------|
-| `workflow_rebuild` | 重新生成 Blueprint + page | `generateWorkflow()` → `generatePage()` |
-| `page_refine` | 仅重新生成 page | `generatePage()` (带修改指令) |
-| `data_chat` | 追问对话 | `chatWithPage()` |
-
----
-
-## 5. Health Check
+## 4. Health Check
 
 ```bash
 curl http://localhost:8000/api/health
-# → {"status": "healthy", "version": "1.0.0"}
+# → {"status": "healthy"}
 ```
 
 ---
@@ -200,12 +175,11 @@ from config.settings import get_settings
 
 from api.workflow import router as workflow_router
 from api.page import router as page_router
-from api.intent import router as intent_router
 from api.health import router as health_router
 
 settings = get_settings()
 
-app = FastAPI(title="Insight AI Agent Service", version="1.0.0")
+app = FastAPI(title="Insight AI Agent Service", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -215,7 +189,6 @@ app.add_middleware(
 
 app.include_router(workflow_router)
 app.include_router(page_router)
-app.include_router(intent_router)
 app.include_router(health_router)
 
 if __name__ == "__main__":
