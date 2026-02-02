@@ -614,72 +614,99 @@
 
 ---
 
-## Phase 5: Java 后端对接 🔲
+## Phase 5: Java 后端对接 ✅ 已完成
 
 **目标**: 将 mock 数据替换为真实的 Java 后端 API 调用，通过 Adapter 抽象层隔离外部 API 变化，实现数据从教务系统到 AI 分析的完整链路。
 
 **前置条件**: Phase 4.5 完成（实体校验 + 错误拦截机制就位）。
 
-### Step 5.1: HTTP 客户端封装
+### Step 5.1: HTTP 客户端封装 ✅ 已完成
 
 > 建立与 Java 后端通信的基础设施。
 
-- [ ] **5.1.1** 安装 httpx 依赖
-- [ ] **5.1.2** 创建 `services/java_client.py`：
+- [x] **5.1.1** 安装 httpx 依赖
+- [x] **5.1.2** 创建 `services/java_client.py`：
   - 封装 `httpx.AsyncClient`，配置 base_url / timeout / headers
   - 通用请求方法：`get()`, `post()`，统一错误处理
-- [ ] **5.1.3** 在 Settings 中添加 Java 后端配置：`java_backend_url`, `java_api_timeout`
-- [ ] **5.1.4** 实现连接池管理和优雅关闭（FastAPI lifespan）
+  - 自定义异常：`JavaClientError`（非 2xx 响应）, `CircuitOpenError`（熔断器打开）
+- [x] **5.1.3** 在 Settings 中添加 Java 后端配置：`spring_boot_base_url`, `spring_boot_api_prefix`, `spring_boot_timeout`, `spring_boot_access_token`, `spring_boot_refresh_token`
+- [x] **5.1.4** 实现连接池管理和优雅关闭（FastAPI lifespan）
+  - `main.py` 的 `lifespan()` 中 `await client.start()` / `await client.close()`
+  - `get_java_client()` 单例模式
 
 > ✅ 验收: `java_client.get("/dify/teacher/t-001/classes/me")` 可成功调用（或在 Java 不可用时优雅降级）。
 
-### Step 5.2: Data Adapter 抽象层（新增）
+### Step 5.2: Data Adapter 抽象层 ✅ 已完成
 
 > 在工具层和 Java 客户端之间建立适配层，隔离外部 API 变化对内部系统的影响。
 
-- [ ] **5.2.1** 定义内部标准数据结构 `models/data.py`：
-  - `ClassInfo`, `ClassDetail`, `StudentInfo`, `AssignmentInfo`, `SubmissionData`, `GradeData`
+- [x] **5.2.1** 定义内部标准数据结构 `models/data.py`：
+  - `ClassInfo`, `ClassDetail`, `StudentInfo`, `AssignmentInfo`, `SubmissionData`, `SubmissionRecord`, `GradeData`, `GradeRecord`
   - 工具层、Planner、Executor 只依赖这些内部模型
-- [ ] **5.2.2** 创建 `adapters/` 目录，实现各数据适配器：
-  - `adapters/class_adapter.py` — Java 班级 API 响应 → `ClassInfo` / `ClassDetail`
-  - `adapters/grade_adapter.py` — Java 成绩 API 响应 → `GradeData`
-  - `adapters/assignment_adapter.py` — Java 作业 API 响应 → `AssignmentInfo` / `SubmissionData`
-  - 每个 adapter 实现：`from_java_response(raw_dict) → InternalModel`
-- [ ] **5.2.3** 编写 adapter 单元测试：Java 响应样本 → 内部模型映射正确
+- [x] **5.2.2** 创建 `adapters/` 目录，实现各数据适配器：
+  - `adapters/class_adapter.py` — Java 班级 API 响应 → `ClassInfo` / `ClassDetail` / `AssignmentInfo`
+  - `adapters/grade_adapter.py` — Java 成绩 API 响应 → `GradeData` / `GradeRecord`
+  - `adapters/submission_adapter.py` — Java 作业 API 响应 → `SubmissionData` / `SubmissionRecord`
+  - 每个 adapter 实现 `_unwrap_data()` 解包 Java `Result<T>` 包装 + `_parse_*()` 字段映射
+- [x] **5.2.3** 编写 adapter 单元测试：Java 响应样本 → 内部模型映射正确（15 项测试）
 
 > ✅ 验收: Java API 字段改名/结构变化 → 只改 adapter，工具层/Planner/Executor 不受影响。
 
 ```
 架构:
-tools/data_tools.py  →  adapters/class_adapter.py  →  services/java_client.py
-                     →  adapters/grade_adapter.py   →
-                     →  adapters/assignment_adapter.py →
+tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_client.py
+                     →  adapters/grade_adapter.py        →
+                     →  adapters/submission_adapter.py   →
 ```
 
-### Step 5.3: 数据工具切换
+### Step 5.3: 数据工具切换 ✅ 已完成
 
 > 将 mock 数据工具替换为调用 Java API 的真实版本（通过 adapter 层）。
 
-- [ ] **5.3.1** 重构 `tools/data_tools.py`：每个工具内部调用 adapter → `java_client`
+- [x] **5.3.1** 重构 `tools/data_tools.py`：每个工具内部调用 adapter → `java_client`
   - `get_teacher_classes` → `class_adapter.list_classes(java_client, teacher_id)`
-  - `get_class_detail` → `class_adapter.get_detail(java_client, teacher_id, class_id)`
-  - `get_assignment_submissions` → `assignment_adapter.get_submissions(java_client, ...)`
-  - `get_student_grades` → `grade_adapter.get_grades(java_client, ...)`
-- [ ] **5.3.2** 保留 mock fallback：当 Java 不可用时降级到 mock 数据（通过配置开关 `USE_MOCK_DATA`）
-- [ ] **5.3.3** 工具对外接口保持不变，Planner/Executor 无需修改
+  - `get_class_detail` → `class_adapter.get_detail(java_client, teacher_id, class_id)` + `list_assignments()`
+  - `get_assignment_submissions` → `submission_adapter.get_submissions(java_client, ...)`
+  - `get_student_grades` → `grade_adapter.get_student_submissions(java_client, ...)`
+- [x] **5.3.2** 保留 mock fallback：当 Java 不可用时降级到 mock 数据（通过配置开关 `USE_MOCK_DATA`）
+  - `_should_use_mock()` 检查 `Settings.use_mock_data`
+  - 所有工具 `except Exception` → 自动降级到 mock
+- [x] **5.3.3** 工具对外接口保持不变，Planner/Executor 无需修改
 
 > ✅ 验收: 连接 Java 后端时使用真实数据，断连时降级到 mock，工具对外接口不变。
 
-### Step 5.4: 错误处理与健壮性
+### Step 5.4: 错误处理与健壮性 ✅ 已完成
 
 > 确保外部依赖不稳定时系统仍可用。
 
-- [ ] **5.4.1** 实现重试策略：网络超时、5xx 错误自动重试（指数退避，最多 3 次）
-- [ ] **5.4.2** 实现熔断/降级：连续失败 N 次后自动切换到 mock 数据
-- [ ] **5.4.3** 添加请求日志：记录 Java API 调用耗时、状态码
-- [ ] **5.4.4** 端到端测试：模拟 Java 服务超时/500 → 验证降级行为
+- [x] **5.4.1** 实现重试策略：网络超时、5xx 错误自动重试（指数退避，最多 3 次）
+  - `MAX_RETRIES=3`, `RETRY_BASE_DELAY=0.5s`（每次翻倍）
+  - 重试条件：`httpx.TransportError`（网络错误）+ 5xx 响应
+  - 不重试：4xx 客户端错误（立即抛出）
+- [x] **5.4.2** 实现熔断/降级：连续失败 5 次后自动切换到 mock 数据
+  - `CIRCUIT_OPEN_THRESHOLD=5`, `CIRCUIT_RESET_TIMEOUT=60s`
+  - 三状态：CLOSED → OPEN（快速失败）→ HALF_OPEN（探测恢复）
+  - 成功请求自动重置计数器
+- [x] **5.4.3** 添加请求日志：记录 Java API 调用耗时、状态码
+  - `"{method} {path} → {status_code} ({elapsed_ms}ms)"`
+- [x] **5.4.4** 端到端测试：模拟 Java 服务超时/500 → 验证降级行为
+  - 20 项 Java 客户端测试（重试、熔断、生命周期）
+  - 8 项工具降级测试（4 个工具 × fallback + adapter path）
+  - 2 项 E2E 降级测试（Java 500/timeout → mock → 完整页面输出）
 
 > ✅ 验收: Java 后端宕机时，系统自动降级到 mock 数据，不影响用户使用。
+
+### Phase 5 总验收
+
+- [x] `services/java_client.py` — httpx.AsyncClient + 重试（指数退避 3 次）+ 熔断器（5 次阈值）+ Bearer token 认证
+- [x] `models/data.py` — 8 个内部数据模型：ClassInfo/ClassDetail/StudentInfo/AssignmentInfo/SubmissionData/SubmissionRecord/GradeData/GradeRecord
+- [x] `adapters/class_adapter.py` — Java Classroom API → ClassInfo/ClassDetail/AssignmentInfo
+- [x] `adapters/submission_adapter.py` — Java Submission API → SubmissionData/SubmissionRecord
+- [x] `adapters/grade_adapter.py` — Java Grade API → GradeData/GradeRecord
+- [x] `tools/data_tools.py` — 4 个数据工具通过 adapter 调用 Java API + 自动 mock 降级
+- [x] `config/settings.py` — spring_boot_base_url/api_prefix/timeout/access_token/refresh_token/use_mock_data
+- [x] `main.py` — lifespan 管理 JavaClient 生命周期
+- [x] `pytest tests/ -v` 全部通过（238 项测试：15 adapters + 20 java_client + 21 tools + 7 E2E_page + 175 existing）
 
 ---
 
@@ -785,7 +812,7 @@ tools/data_tools.py  →  adapters/class_adapter.py  →  services/java_client.p
 | **M3: 页面构建** | 3 ✅ | Blueprint → SSE 流式页面 |
 | **M4: 会话网关** | 4 ✅ | 统一会话入口 + 意图路由 + 交互式反问，完整交互闭环 |
 | **M4.5: 健壮性增强** | 4.5 ✅ | 实体校验 + sourcePrompt 防篡改 + action 规范化 + 错误拦截 |
-| **M5: 真实数据** | 5 | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
+| **M5: 真实数据** | 5 ✅ | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
 | **M6: 产品上线** | 6 | 前端集成 + Level 2 + SSE 升级 + Patch 机制 + 部署上线 |
 
 ---

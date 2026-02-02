@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-02-03 — Phase 5 完成: Java 后端对接
+
+实现 Adapter 抽象层 + HTTP 客户端封装 + 数据工具双源切换 + 重试/熔断/降级机制。
+
+**Step 5.1: HTTP 客户端封装**
+- 新增 `services/java_client.py`: `JavaClient` 封装 `httpx.AsyncClient`，配置 base_url / timeout / Bearer token 认证
+- 自定义异常: `JavaClientError`（非 2xx）+ `CircuitOpenError`（熔断器打开）
+- `get_java_client()` 单例模式 + `main.py` lifespan 管理生命周期
+- 更新 `config/settings.py`: 新增 `spring_boot_base_url`, `spring_boot_api_prefix`, `spring_boot_timeout`, `spring_boot_access_token`, `spring_boot_refresh_token`, `use_mock_data` 配置项
+
+**Step 5.2: Data Adapter 抽象层**
+- 新增 `models/data.py`: 8 个内部数据模型（ClassInfo, ClassDetail, StudentInfo, AssignmentInfo, SubmissionData, SubmissionRecord, GradeData, GradeRecord）
+- 新增 `adapters/class_adapter.py`: Java Classroom API → ClassInfo/ClassDetail/AssignmentInfo
+- 新增 `adapters/submission_adapter.py`: Java Submission API → SubmissionData/SubmissionRecord
+- 新增 `adapters/grade_adapter.py`: Java Grade API → GradeData/GradeRecord
+- 每个 adapter 实现 `_unwrap_data()` 解包 Java `Result<T>` + `_parse_*()` 字段映射
+
+**Step 5.3: 数据工具切换**
+- 重构 `tools/data_tools.py`: 4 个数据工具调用 adapter → java_client，保留 mock fallback
+- `_should_use_mock()` → `Settings.use_mock_data` 开关
+- 所有工具 `except Exception` → 自动降级到 mock 数据
+- 工具对外接口（返回 dict）不变，Planner/Executor 无需修改
+
+**Step 5.4: 错误处理与健壮性**
+- 重试: 指数退避（MAX_RETRIES=3, RETRY_BASE_DELAY=0.5s），重试网络错误 + 5xx，不重试 4xx
+- 熔断: CIRCUIT_OPEN_THRESHOLD=5 次连续失败 → 打开，CIRCUIT_RESET_TIMEOUT=60s 后 HALF_OPEN 探测
+- 请求日志: `"{method} {path} → {status_code} ({elapsed_ms}ms)"`
+- 新增 `tests/test_java_client.py`: 20 项测试（重试/熔断/生命周期/单例）
+- 新增 `tests/test_adapters.py`: 15 项测试（3 个 adapter × Java 响应样本 → 内部模型）
+- 更新 `tests/test_tools.py`: 8 项新增（4 个工具降级 + 4 个 adapter 路径）
+- 更新 `tests/test_e2e_page.py`: 2 项新增（Java 500/timeout → mock 降级 → 完整页面输出）
+
+- 238 项测试全部通过（8 项新增 + 230 项已有）
+
+---
+
 ## 2026-02-02 — Phase 4.5 完成: 健壮性增强 + 数据契约升级
 
 完成 Phase 4.5 剩余三步（4.5.2–4.5.4），全面提升系统健壮性。

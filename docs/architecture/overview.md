@@ -4,50 +4,57 @@
 
 ---
 
-## 当前架构（Phase 4.5）
+## 当前架构（Phase 5）
 
 ```
 Client (HTTP / SSE)
     │
     ▼
+┌──────────────────────────────────────────────────────────┐
+│  FastAPI App (:5000)                                      │
+│  POST /api/conversation       → RouterAgent → Agents      │
+│  POST /api/workflow/generate  → PlannerAgent               │
+│  POST /api/page/generate      → ExecutorAgent (SSE)        │
+│  GET  /api/health                                          │
+│  POST /chat                   (兼容路由, deprecated)        │
+│                                                            │
+│  ┌──────────────────────────────────────────────────┐     │
+│  │  FastMCP (in-process tool registry)              │     │
+│  │  Data:  get_teacher_classes / get_class_detail /  │     │
+│  │         get_assignment_submissions /              │     │
+│  │         get_student_grades                        │     │
+│  │  Stats: calculate_stats / compare_performance    │     │
+│  └──────────────────┬───────────────────────────────┘     │
+│                      │                                     │
+│  ┌──────────────────▼───────────────────────────────┐     │
+│  │  Adapters (tools → adapters → java_client)       │     │
+│  │  class_adapter   → list_classes / get_detail      │     │
+│  │  submission_adapter → get_submissions             │     │
+│  │  grade_adapter   → get_student_submissions        │     │
+│  └──────────────────┬───────────────────────────────┘     │
+│                      │ httpx (retry + circuit breaker)      │
+│                      ▼                                     │
+│  ┌──────────────────────────────────────────────────┐     │
+│  │  JavaClient (services/java_client.py)            │     │
+│  │  • httpx.AsyncClient + connection pool           │     │
+│  │  • retry: 3× exponential backoff                 │     │
+│  │  • circuit breaker: 5 failures → OPEN → 60s      │     │
+│  │  • fallback: USE_MOCK_DATA or auto-degrade       │     │
+│  └──────────────────┬───────────────────────────────┘     │
+│                      │                                     │
+│  Agents → LLM (async, streaming, tool_use)                │
+└──────────┬───────────┘─────────────────────────────────────┘
+           │ httpx
+           ▼
 ┌──────────────────────────────────────────────────┐
-│  FastAPI App (:5000)                              │
-│  POST /api/workflow/generate  → PlannerAgent      │
-│  POST /api/page/generate      → ExecutorAgent(SSE)│
-│  GET  /api/health                                 │
-│  POST /chat                   (兼容路由)           │
-│  GET  /models                                     │
-│  GET  /skills                                     │
-│  POST /api/conversation      → RouterAgent→Agents  │
-│                                                    │
-│  ┌────────────────────────────────────────────┐   │
-│  │  FastMCP (in-process tool registry)        │   │
-│  │  + TOOL_REGISTRY dict for direct invoke    │   │
-│  │  Data:  get_teacher_classes()              │   │
-│  │         get_class_detail()                 │   │
-│  │         get_assignment_submissions()       │   │
-│  │         get_student_grades()               │   │
-│  │  Stats: calculate_stats()                  │   │
-│  │         compare_performance()              │   │
-│  └────────────────────────────────────────────┘   │
-└──────────┬────────────────────────────────────────┘
-           │
-     ┌─────┴──────────┐
-     ▼                ▼
-┌──────────────┐  ┌───────────────────────────┐
-│  PlannerAgent │  │  ExecutorAgent (Phase 3)   │
-│  (PydanticAI) │  │  • Blueprint → Page (SSE) │
-│  • user prompt│  │  • Data → Compute → Compose│
-│    → Blueprint│  │  • 确定性 block + AI 叙事  │
-│  • retries=2  │  └──────────┬────────────────┘
-└──────┬───────┘             │
-       │               ┌─────┴─────┐
-       ▼               ▼           ▼
-   LLM Providers   ┌─────────┐  ┌──────────┐
-   (via litellm)   │LLMService│  │  Skills  │
-                   │(LiteLLM) │  │├ WebSearch│
-                   │          │  │└ Memory   │
-                   └──────────┘  └──────────┘
+│  Java Backend (SpringBoot)                        │
+│  /dify/teacher/{id}/classes/me                    │
+│  /dify/teacher/{id}/classes/{classId}             │
+│  /dify/teacher/{id}/classes/{classId}/assignments │
+│  /dify/teacher/{id}/submissions/assignments/{id}  │
+│  /dify/teacher/{id}/submissions/students/{id}     │
+└──────────────────────────────────────────────────┘
+   ↕ 不可用时自动降级到 mock_data.py
 ```
 
 ### 新增模块（Phase 4.5 — 实体解析层）
@@ -199,15 +206,15 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 | Entity Models | `models/entity.py` | ResolvedEntity + ResolveResult | ✅ 已完成 |
 | Custom Exceptions | `errors/exceptions.py` | ToolError → DataFetchError → EntityNotFoundError | ✅ 已完成 |
 
-### 计划新增模块（Phase 5 — Adapter 层）
+### 新增模块（Phase 5 — Java 后端对接）
 
-| 模块 | 文件 | 功能 |
-|------|------|------|
-| Internal Data Models | `models/data.py` | ClassInfo / ClassDetail / GradeData 等标准数据结构 |
-| Class Adapter | `adapters/class_adapter.py` | Java 班级 API → ClassInfo / ClassDetail |
-| Grade Adapter | `adapters/grade_adapter.py` | Java 成绩 API → GradeData |
-| Assignment Adapter | `adapters/assignment_adapter.py` | Java 作业 API → AssignmentInfo / SubmissionData |
-| Java Client | `services/java_client.py` | httpx 异步客户端 + 连接池 + 重试 |
+| 模块 | 文件 | 功能 | 状态 |
+|------|------|------|------|
+| Internal Data Models | `models/data.py` | ClassInfo / ClassDetail / StudentInfo / AssignmentInfo / SubmissionData / GradeData 标准数据结构 | ✅ 已完成 |
+| Class Adapter | `adapters/class_adapter.py` | Java 班级 API → ClassInfo / ClassDetail / AssignmentInfo | ✅ 已完成 |
+| Submission Adapter | `adapters/submission_adapter.py` | Java 作业 API → SubmissionData / SubmissionRecord | ✅ 已完成 |
+| Grade Adapter | `adapters/grade_adapter.py` | Java 成绩 API → GradeData / GradeRecord | ✅ 已完成 |
+| Java Client | `services/java_client.py` | httpx 异步客户端 + 连接池 + 重试(3×) + 熔断器(5次) + Bearer token | ✅ 已完成 |
 
 ### 计划新增模块（Phase 6 — SSE 升级 + Patch）
 
@@ -217,11 +224,11 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 
 ### 当前 → 目标的差距
 
-| 方面 | 当前 (Phase 4.5) | 目标 |
+| 方面 | 当前 (Phase 5) | 目标 |
 |------|------|------|
 | Web 框架 | ✅ FastAPI (异步) | FastAPI (异步) |
 | 工具框架 | ✅ FastMCP 6 工具 + TOOL_REGISTRY | FastMCP `@mcp.tool` + 自动 Schema |
-| 数据模型 | ✅ Blueprint + CamelModel + Conversation + Entity | Blueprint + Conversation + Patch + Internal Data |
+| 数据模型 | ✅ Blueprint + CamelModel + Conversation + Entity + Internal Data | Blueprint + Conversation + Patch + Internal Data |
 | 配置系统 | ✅ Pydantic Settings | Pydantic Settings |
 | LLM 接入 | ✅ PydanticAI + LiteLLM | PydanticAI + LiteLLM (streaming + tool_use) |
 | Agent 数量 | ✅ 5 个 Agent (Planner + Executor + Router + Chat + PageChat) | 5+ Agents |
@@ -229,7 +236,7 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 | 实体解析 | ✅ Entity Resolver 自动匹配班级/学生/作业 → ID | Entity Resolver 完整校验 |
 | 异常体系 | ✅ ToolError → DataFetchError → EntityNotFoundError | 完整异常体系 |
 | Action 命名 | ✅ mode/action/chatKind 三维结构 + legacyAction 兼容 | 结构化 Action |
-| 数据来源 | Mock 数据 | Java Backend via httpx + Adapter 层 |
+| 数据来源 | ✅ Java Backend via httpx + Adapter 层 + mock 降级 | Java Backend + Adapter 层 |
 | 前端集成 | 无 | Next.js API Routes proxy |
 | Patch 机制 | 无 | refine 支持 PATCH_LAYOUT / PATCH_COMPOSE / FULL_REBUILD |
 
@@ -342,91 +349,101 @@ LiteLLM 的轻封装:
 
 ## 项目结构
 
-### 当前结构（Phase 4.5）
+### 当前结构（Phase 5）
 
 ```
 insight-ai-agent/
-├── main.py                     # FastAPI 入口
-├── requirements.txt            # 依赖 (含 pydantic-ai)
+├── main.py                     # FastAPI 入口 + lifespan (JavaClient 生命周期)
+├── requirements.txt            # 依赖 (含 pydantic-ai, httpx)
 ├── .env.example                # 环境变量模板
 ├── pytest.ini                  # pytest 配置 (asyncio_mode=auto)
 │
 ├── api/                        # API 路由
 │   ├── health.py               # GET /api/health
 │   ├── workflow.py             # POST /api/workflow/generate
-│   ├── page.py                 # POST /api/page/generate (SSE) ← Phase 3 新增
-│   ├── conversation.py        # POST /api/conversation (统一会话) ← Phase 4 新增
-│   ├── chat.py                 # POST /chat (兼容路由)
+│   ├── page.py                 # POST /api/page/generate (SSE)
+│   ├── conversation.py        # POST /api/conversation (统一会话)
+│   ├── chat.py                 # POST /chat (兼容路由, deprecated)
 │   └── models_routes.py        # GET /models, GET /skills
 │
 ├── config/                     # 配置系统
-│   ├── settings.py             # Pydantic Settings + get_settings() + get_default_llm_config()
-│   ├── llm_config.py           # LLMConfig 可复用生成参数模型 (merge / to_litellm_kwargs)
+│   ├── settings.py             # Pydantic Settings + Java 后端配置 (spring_boot_*)
+│   ├── llm_config.py           # LLMConfig 可复用生成参数模型
 │   ├── component_registry.py   # 6 种 UI 组件定义
 │   └── prompts/
-│       ├── planner.py          # PlannerAgent system prompt + build_planner_prompt()
-│       ├── executor.py         # ExecutorAgent compose prompt ← Phase 3 新增
-│       ├── router.py          # RouterAgent 双模式 prompt ← Phase 4 新增
-│       ├── chat.py            # ChatAgent prompt ← Phase 4 新增
-│       └── page_chat.py       # PageChatAgent prompt ← Phase 4 新增
+│       ├── planner.py          # PlannerAgent system prompt
+│       ├── executor.py         # ExecutorAgent compose prompt
+│       ├── router.py          # RouterAgent 双模式 prompt
+│       ├── chat.py            # ChatAgent prompt
+│       └── page_chat.py       # PageChatAgent prompt
 │
 ├── models/                     # Pydantic 数据模型
 │   ├── base.py                 # CamelModel 基类 (camelCase 输出)
 │   ├── blueprint.py            # Blueprint 三层模型
-│   ├── conversation.py        # 意图模型 + Clarify + ConversationRequest/Response ← Phase 4 新增
-│   ├── entity.py              # ResolvedEntity + ResolveResult ← Phase 4.5 新增
+│   ├── conversation.py        # 意图模型 + Clarify + ConversationRequest/Response
+│   ├── entity.py              # ResolvedEntity + ResolveResult
+│   ├── data.py                # 内部标准数据结构 (ClassInfo, GradeData 等) ← Phase 5 新增
 │   └── request.py              # API 请求/响应模型
+│
+├── adapters/                  # Data Adapter 层 ← Phase 5 新增
+│   ├── __init__.py
+│   ├── class_adapter.py       # Java Classroom API → ClassInfo/ClassDetail/AssignmentInfo
+│   ├── submission_adapter.py  # Java Submission API → SubmissionData/SubmissionRecord
+│   └── grade_adapter.py       # Java Grade API → GradeData/GradeRecord
 │
 ├── tools/                      # FastMCP 工具
 │   ├── __init__.py             # mcp + TOOL_REGISTRY + get_tool_descriptions()
-│   ├── data_tools.py           # 4 个数据工具 (mock)
+│   ├── data_tools.py           # 4 个数据工具 (adapter → java_client + mock fallback) ← Phase 5 重构
 │   └── stats_tools.py          # 2 个统计工具 (numpy)
 │
-├── agents/                     # ← Phase 3 扩展
+├── agents/
 │   ├── provider.py             # create_model / execute_mcp_tool / get_mcp_tool_*
 │   ├── planner.py              # PlannerAgent: user prompt → Blueprint
-│   ├── resolver.py             # 路径引用解析器 ($context/$data/$compute) ← Phase 3 新增
-│   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE) ← Phase 3 新增
-│   ├── router.py              # RouterAgent: 意图分类 + 置信度路由 ← Phase 4 新增
-│   ├── chat.py                # ChatAgent: 闲聊 + QA ← Phase 4 新增
-│   ├── page_chat.py           # PageChatAgent: 页面追问 ← Phase 4 新增
-│   └── chat_agent.py           # ChatAgent: 对话 + 工具循环 (旧)
+│   ├── resolver.py             # 路径引用解析器 ($context/$data/$compute)
+│   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE)
+│   ├── router.py              # RouterAgent: 意图分类 + 置信度路由
+│   ├── chat.py                # ChatAgent: 闲聊 + QA
+│   ├── page_chat.py           # PageChatAgent: 页面追问
+│   └── chat_agent.py           # ChatAgent: 对话 + 工具循环 (旧, deprecated)
 │
-├── errors/                    # ← Phase 4.5 新增
+├── errors/
 │   ├── __init__.py             # 导出 ToolError / DataFetchError / EntityNotFoundError
 │   └── exceptions.py           # 自定义异常体系
 │
 ├── services/
 │   ├── llm_service.py          # LiteLLM 封装
-│   ├── entity_resolver.py     # 确定性实体解析（班级名 → classId）← Phase 4.5 新增
-│   ├── clarify_builder.py     # 交互式反问选项构建 ← Phase 4 新增
-│   └── mock_data.py            # 集中 mock 数据
+│   ├── java_client.py         # httpx 异步客户端 + 重试 + 熔断器 ← Phase 5 新增
+│   ├── entity_resolver.py     # 确定性实体解析（班级名 → classId）
+│   ├── clarify_builder.py     # 交互式反问选项构建
+│   └── mock_data.py            # 集中 mock 数据 (开发 + 降级 fallback)
 │
 ├── skills/                     # 旧技能系统 (Phase 0 遗留，ChatAgent 使用)
 │   ├── base.py                 # BaseSkill 抽象基类
 │   ├── web_search.py           # Brave Search 技能
 │   └── memory.py               # 持久化记忆技能
 │
-├── tests/
-│   ├── test_api.py             # FastAPI 端点测试 (含 workflow + page 端点)
-│   ├── test_e2e_page.py        # E2E 端到端测试 (Blueprint → SSE) ← Phase 3 新增
-│   ├── test_executor.py        # ExecutorAgent 单元测试 ← Phase 3 新增
-│   ├── test_resolver.py        # 路径解析器单元测试 ← Phase 3 新增
+├── tests/                      # 238 项测试
+│   ├── test_api.py             # FastAPI 端点测试
+│   ├── test_e2e_page.py        # E2E 测试 (Blueprint → SSE + 降级)
+│   ├── test_e2e_conversation.py # E2E 会话测试
+│   ├── test_executor.py        # ExecutorAgent 单元测试
+│   ├── test_resolver.py        # 路径解析器单元测试
 │   ├── test_llm_config.py      # LLMConfig 单元测试
-│   ├── test_planner.py         # PlannerAgent 测试 (TestModel)
+│   ├── test_planner.py         # PlannerAgent 测试
 │   ├── test_provider.py        # Provider 单元测试
 │   ├── test_models.py          # Blueprint 模型测试
-│   ├── test_tools.py           # FastMCP 工具测试
-│   ├── test_conversation_models.py  # 会话模型测试 ← Phase 4 新增
-│   ├── test_router.py         # RouterAgent 测试 ← Phase 4 新增
-│   ├── test_chat_agent.py     # ChatAgent 测试 ← Phase 4 新增
-│   ├── test_clarify_builder.py # ClarifyBuilder 测试 ← Phase 4 新增
-│   ├── test_page_chat.py      # PageChatAgent 测试 ← Phase 4 新增
-│   ├── test_conversation_api.py # 会话端点测试 ← Phase 4 新增
-│   ├── test_e2e_conversation.py # E2E 会话测试 ← Phase 4 新增
-│   ├── test_entity_resolver.py # 实体解析器测试 ← Phase 4.5 新增
+│   ├── test_tools.py           # 工具测试 (mock + adapter path + fallback)
+│   ├── test_adapters.py       # Adapter 映射测试 ← Phase 5 新增
+│   ├── test_java_client.py    # Java 客户端测试 (retry/circuit breaker) ← Phase 5 新增
+│   ├── test_conversation_models.py  # 会话模型测试
+│   ├── test_router.py         # RouterAgent 测试
+│   ├── test_chat_agent.py     # ChatAgent 测试
+│   ├── test_clarify_builder.py # ClarifyBuilder 测试
+│   ├── test_page_chat.py      # PageChatAgent 测试
+│   ├── test_conversation_api.py # 会话端点测试
+│   └── test_entity_resolver.py # 实体解析器测试
 │
-├── docs/                       # ← 本文档
+├── docs/                       # 文档
 │
 └── .claude/                    # Claude Code 配置
 ```

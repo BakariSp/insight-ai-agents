@@ -4,7 +4,7 @@
 
 ---
 
-## 当前（Phase 2）
+## 当前（Phase 5）
 
 ```
 # Web framework
@@ -21,7 +21,7 @@ pydantic>=2.0           # 数据验证
 pydantic-settings>=2.0  # 配置管理 (.env 自动加载)
 
 # HTTP client
-httpx>=0.27             # 异步 HTTP 客户端
+httpx>=0.27             # 异步 HTTP 客户端 (Java 后端通信 + retry + circuit breaker)
 requests>=2.31          # HTTP 客户端 (Brave Search 技能)
 
 # Tools
