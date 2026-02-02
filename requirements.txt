@@ -5,6 +5,7 @@ sse-starlette>=2.0
 
 # LLM
 litellm>=1.0
+pydantic-ai>=1.0
 
 # Data validation & settings
 pydantic>=2.0
