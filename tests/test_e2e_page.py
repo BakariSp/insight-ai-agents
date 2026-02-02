@@ -1,10 +1,10 @@
 """End-to-end tests — full pipeline from Blueprint to SSE page events.
 
 These tests verify:
-1. Blueprint → ExecutorAgent → SSE events (using real mock tools, mocked LLM)
-2. SSE event format matches sse-protocol.md
+1. Blueprint -> ExecutorAgent -> SSE events (using real mock tools, mocked LLM)
+2. SSE event format matches sse-protocol.md (Phase 6 BLOCK events)
 3. Page content correctness: KPIs from tool calcs, AI text from LLM
-4. Java backend degradation: 500/timeout → mock fallback → pipeline works
+4. Java backend degradation: 500/timeout -> mock fallback -> pipeline works
 """
 
 import json
@@ -54,7 +54,7 @@ async def test_e2e_executor_with_real_tools():
 
     with patch.object(
         ExecutorAgent,
-        "_generate_ai_narrative",
+        "_generate_block_content",
         new_callable=AsyncMock,
         return_value=ai_text,
     ):
@@ -99,10 +99,18 @@ async def test_e2e_executor_with_real_tools():
     compose_phases = [e for e in events if e["type"] == "PHASE" and e.get("phase") == "compose"]
     assert len(compose_phases) == 1
 
-    # Must have MESSAGE with AI text
-    messages = [e for e in events if e["type"] == "MESSAGE"]
-    assert len(messages) == 1
-    assert messages[0]["content"] == ai_text
+    # Must have BLOCK events for AI content (Phase 6.2)
+    block_starts = [e for e in events if e["type"] == "BLOCK_START"]
+    assert len(block_starts) == 1
+    assert block_starts[0]["blockId"] == "insight"
+    assert block_starts[0]["componentType"] == "markdown"
+
+    slot_deltas = [e for e in events if e["type"] == "SLOT_DELTA"]
+    assert len(slot_deltas) == 1
+    assert slot_deltas[0]["deltaText"] == ai_text
+
+    block_completes = [e for e in events if e["type"] == "BLOCK_COMPLETE"]
+    assert len(block_completes) == 1
 
     # Must end with COMPLETE
     assert types[-1] == "COMPLETE"
@@ -121,7 +129,7 @@ async def test_e2e_page_content_from_real_tools():
 
     with patch.object(
         ExecutorAgent,
-        "_generate_ai_narrative",
+        "_generate_block_content",
         new_callable=AsyncMock,
         return_value=ai_text,
     ):
@@ -152,7 +160,7 @@ async def test_e2e_page_content_from_real_tools():
     kpi_block = tab["blocks"][0]
     assert kpi_block["type"] == "kpi_grid"
     kpi_values = {item["label"]: item["value"] for item in kpi_block["data"]}
-    # Mock data scores: [58, 85, 72, 91, 65] → mean=74.2, count=5
+    # Mock data scores: [58, 85, 72, 91, 65] -> mean=74.2, count=5
     # numpy returns floats, so values are like "74.2", "91.0"
     assert kpi_values["Average"] == "74.2"
     assert kpi_values["Total Students"] == "5"
@@ -171,13 +179,13 @@ async def test_e2e_page_content_from_real_tools():
 
 @pytest.mark.asyncio
 async def test_e2e_sse_event_format():
-    """Verify all SSE events match the sse-protocol.md format."""
+    """Verify all SSE events match the sse-protocol.md format (Phase 6.2)."""
     bp = Blueprint(**_sample_blueprint_args())
     executor = ExecutorAgent()
 
     with patch.object(
         ExecutorAgent,
-        "_generate_ai_narrative",
+        "_generate_block_content",
         new_callable=AsyncMock,
         return_value="Test insight.",
     ):
@@ -205,9 +213,21 @@ async def test_e2e_sse_event_format():
             assert "status" in event
             assert event["status"] in ("success", "error")
 
-        elif event["type"] == "MESSAGE":
-            assert "content" in event
-            assert isinstance(event["content"], str)
+        elif event["type"] == "BLOCK_START":
+            assert "blockId" in event
+            assert "componentType" in event
+            assert isinstance(event["blockId"], str)
+            assert isinstance(event["componentType"], str)
+
+        elif event["type"] == "SLOT_DELTA":
+            assert "blockId" in event
+            assert "slotKey" in event
+            assert "deltaText" in event
+            assert isinstance(event["deltaText"], str)
+
+        elif event["type"] == "BLOCK_COMPLETE":
+            assert "blockId" in event
+            assert isinstance(event["blockId"], str)
 
         elif event["type"] == "COMPLETE":
             assert "message" in event
@@ -224,6 +244,14 @@ async def test_e2e_sse_event_format():
                 assert "layout" in page
                 assert "tabs" in page
 
+    # Verify BLOCK event ordering: BLOCK_START before SLOT_DELTA before BLOCK_COMPLETE
+    block_events = [e for e in events if e["type"] in ("BLOCK_START", "SLOT_DELTA", "BLOCK_COMPLETE")]
+    assert len(block_events) >= 3  # at least one full block cycle
+    # Find first block cycle
+    assert block_events[0]["type"] == "BLOCK_START"
+    assert block_events[1]["type"] == "SLOT_DELTA"
+    assert block_events[2]["type"] == "BLOCK_COMPLETE"
+
 
 # ── E2E: HTTP SSE endpoint ──────────────────────────────────
 
@@ -236,7 +264,7 @@ async def test_e2e_http_sse_stream(client):
 
     with patch.object(
         ExecutorAgent,
-        "_generate_ai_narrative",
+        "_generate_block_content",
         new_callable=AsyncMock,
         return_value=ai_text,
     ):
@@ -258,12 +286,14 @@ async def test_e2e_http_sse_stream(client):
 
     events = _parse_sse_events(resp.text)
 
-    # Must have PHASE, TOOL_CALL, TOOL_RESULT, MESSAGE, COMPLETE
+    # Must have PHASE, TOOL_CALL, TOOL_RESULT, BLOCK events, COMPLETE
     types = {e["type"] for e in events}
     assert "PHASE" in types
     assert "TOOL_CALL" in types
     assert "TOOL_RESULT" in types
-    assert "MESSAGE" in types
+    assert "BLOCK_START" in types
+    assert "SLOT_DELTA" in types
+    assert "BLOCK_COMPLETE" in types
     assert "COMPLETE" in types
 
     # COMPLETE must have page
@@ -324,7 +354,7 @@ async def test_e2e_java_backend_500_falls_back_to_mock():
          patch("tools.data_tools._get_client", side_effect=RuntimeError("Java 500")), \
          patch.object(
              ExecutorAgent,
-             "_generate_ai_narrative",
+             "_generate_block_content",
              new_callable=AsyncMock,
              return_value=ai_text,
          ):
@@ -352,13 +382,13 @@ async def test_e2e_java_backend_500_falls_back_to_mock():
     kpi_block = page["tabs"][0]["blocks"][0]
     assert kpi_block["type"] == "kpi_grid"
     kpi_values = {item["label"]: item["value"] for item in kpi_block["data"]}
-    # Mock scores [58, 85, 72, 91, 65] → mean=74.2
+    # Mock scores [58, 85, 72, 91, 65] -> mean=74.2
     assert kpi_values["Average"] == "74.2"
 
 
 @pytest.mark.asyncio
 async def test_e2e_java_timeout_falls_back_to_mock(client):
-    """HTTP SSE: Java timeout → tools fallback to mock → SSE stream completes."""
+    """HTTP SSE: Java timeout -> tools fallback to mock -> SSE stream completes."""
 
     ai_text = "Timeout degradation."
 
@@ -366,7 +396,7 @@ async def test_e2e_java_timeout_falls_back_to_mock(client):
          patch("tools.data_tools._get_client", side_effect=RuntimeError("connect timeout")), \
          patch.object(
              ExecutorAgent,
-             "_generate_ai_narrative",
+             "_generate_block_content",
              new_callable=AsyncMock,
              return_value=ai_text,
          ):
