@@ -185,3 +185,36 @@ def test_conversation_response_all_actions():
     ]:
         resp = ConversationResponse(action=action)
         assert resp.action == action
+
+
+# ── resolved_entities field ──────────────────────────────────
+
+
+def test_conversation_response_with_resolved_entities():
+    """Verify resolved_entities serializes to camelCase."""
+    from models.entity import ResolvedEntity
+
+    resp = ConversationResponse(
+        action="build_workflow",
+        chat_response="Generated analysis",
+        resolved_entities=[
+            ResolvedEntity(
+                class_id="class-hk-f1a",
+                display_name="Form 1A",
+                confidence=1.0,
+                match_type="exact",
+            ),
+        ],
+    )
+    data = resp.model_dump(by_alias=True)
+    assert "resolvedEntities" in data
+    assert len(data["resolvedEntities"]) == 1
+    assert data["resolvedEntities"][0]["classId"] == "class-hk-f1a"
+    assert data["resolvedEntities"][0]["matchType"] == "exact"
+
+
+def test_conversation_response_resolved_entities_none():
+    """Verify resolvedEntities defaults to null."""
+    resp = ConversationResponse(action="chat_smalltalk")
+    data = resp.model_dump(by_alias=True)
+    assert data["resolvedEntities"] is None

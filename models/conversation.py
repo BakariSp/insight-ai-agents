@@ -15,6 +15,7 @@ from pydantic import Field
 
 from models.base import CamelModel
 from models.blueprint import Blueprint
+from models.entity import ResolvedEntity
 
 
 # ── Intent enums ──────────────────────────────────────────────
@@ -105,3 +106,4 @@ class ConversationResponse(CamelModel):
     blueprint: Blueprint | None = None
     clarify_options: ClarifyOptions | None = None
     conversation_id: str | None = None
+    resolved_entities: list[ResolvedEntity] | None = None

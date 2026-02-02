@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from main import app
 from models.blueprint import Blueprint
 from models.conversation import ClarifyChoice, ClarifyOptions, RouterResult
+from models.entity import ResolvedEntity, ResolveResult
 from tests.test_planner import _sample_blueprint_args
 
 
@@ -347,3 +348,190 @@ async def test_conversation_clarify_then_build(client):
     assert data["action"] == "build_workflow"
     assert data["blueprint"] is not None
     assert data["conversationId"] == "conv-123"
+
+
+# ── Entity resolution: auto-resolve single class ─────────────
+
+
+@pytest.mark.asyncio
+async def test_conversation_build_with_auto_resolve(client):
+    """Class mention in message → auto-resolve classId, include resolvedEntities."""
+    mock_router = RouterResult(
+        intent="build_workflow", confidence=0.9, should_build=True,
+    )
+    mock_bp = Blueprint(**_sample_blueprint_args())
+    mock_resolve = ResolveResult(
+        matches=[
+            ResolvedEntity(
+                class_id="class-hk-f1a",
+                display_name="Form 1A",
+                confidence=1.0,
+                match_type="exact",
+            ),
+        ],
+        is_ambiguous=False,
+        scope_mode="single",
+    )
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.resolve_classes",
+            new_callable=AsyncMock,
+            return_value=mock_resolve,
+        ),
+        patch(
+            "api.conversation.generate_blueprint",
+            new_callable=AsyncMock,
+            return_value=(mock_bp, "dashscope/qwen-max"),
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={"message": "分析 1A 班英语成绩", "teacherId": "t-001"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "build_workflow"
+    assert data["resolvedEntities"] is not None
+    assert len(data["resolvedEntities"]) == 1
+    assert data["resolvedEntities"][0]["classId"] == "class-hk-f1a"
+
+
+# ── Entity resolution: ambiguous → clarify ───────────────────
+
+
+@pytest.mark.asyncio
+async def test_conversation_build_ambiguous_downgrade_to_clarify(client):
+    """Ambiguous class mention → downgrade to clarify with options."""
+    mock_router = RouterResult(
+        intent="build_workflow", confidence=0.9, should_build=True,
+    )
+    mock_resolve = ResolveResult(
+        matches=[
+            ResolvedEntity(
+                class_id="class-hk-f1a",
+                display_name="Form 1A",
+                confidence=0.6,
+                match_type="fuzzy",
+            ),
+            ResolvedEntity(
+                class_id="class-hk-f1b",
+                display_name="Form 1B",
+                confidence=0.5,
+                match_type="fuzzy",
+            ),
+        ],
+        is_ambiguous=True,
+        scope_mode="multi",
+    )
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.resolve_classes",
+            new_callable=AsyncMock,
+            return_value=mock_resolve,
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={"message": "分析 F1 成绩", "teacherId": "t-001"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "clarify"
+    assert data["clarifyOptions"] is not None
+    assert len(data["clarifyOptions"]["choices"]) == 2
+
+
+# ── Entity resolution: no mention → normal flow ─────────────
+
+
+@pytest.mark.asyncio
+async def test_conversation_build_no_class_mention(client):
+    """No class mention → bypass entity resolution, normal build."""
+    mock_router = RouterResult(
+        intent="build_workflow", confidence=0.9, should_build=True,
+    )
+    mock_bp = Blueprint(**_sample_blueprint_args())
+    mock_resolve = ResolveResult(matches=[], is_ambiguous=False, scope_mode="none")
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.resolve_classes",
+            new_callable=AsyncMock,
+            return_value=mock_resolve,
+        ),
+        patch(
+            "api.conversation.generate_blueprint",
+            new_callable=AsyncMock,
+            return_value=(mock_bp, "dashscope/qwen-max"),
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={"message": "分析英语表现", "teacherId": "t-001"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "build_workflow"
+    assert data["resolvedEntities"] is None
+
+
+# ── Entity resolution: context already has classId ───────────
+
+
+@pytest.mark.asyncio
+async def test_conversation_build_skips_resolve_when_context_has_class(client):
+    """When context already has classId, skip entity resolution entirely."""
+    mock_router = RouterResult(
+        intent="build_workflow", confidence=0.9, should_build=True,
+    )
+    mock_bp = Blueprint(**_sample_blueprint_args())
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.generate_blueprint",
+            new_callable=AsyncMock,
+            return_value=(mock_bp, "dashscope/qwen-max"),
+        ),
+        patch(
+            "api.conversation.resolve_classes",
+            new_callable=AsyncMock,
+        ) as mock_resolve_fn,
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={
+                "message": "分析英语表现",
+                "context": {"classId": "class-hk-f1a"},
+                "teacherId": "t-001",
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "build_workflow"
+    mock_resolve_fn.assert_not_called()
