@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from models.base import CamelModel
 from models.blueprint import Blueprint
@@ -88,22 +88,40 @@ class ConversationRequest(CamelModel):
 class ConversationResponse(CamelModel):
     """POST /api/conversation — unified response body.
 
-    The ``action`` field determines which response fields are populated:
+    Uses a structured ``mode`` + ``action`` + ``chatKind`` triple to classify
+    the response type.  A backward-compatible ``legacyAction`` computed field
+    produces the Phase-4 single-string action values for older consumers.
 
-    | action           | mode     | key fields                        |
-    |------------------|----------|-----------------------------------|
-    | chat_smalltalk   | initial  | chatResponse                      |
-    | chat_qa          | initial  | chatResponse                      |
-    | build_workflow   | initial  | blueprint, chatResponse            |
-    | clarify          | initial  | chatResponse, clarifyOptions       |
-    | chat             | followup | chatResponse                      |
-    | refine           | followup | blueprint, chatResponse            |
-    | rebuild          | followup | blueprint, chatResponse            |
+    | mode     | action  | chatKind  | legacyAction   | key fields              |
+    |----------|---------|-----------|----------------|-------------------------|
+    | entry    | chat    | smalltalk | chat_smalltalk | chatResponse            |
+    | entry    | chat    | qa        | chat_qa        | chatResponse            |
+    | entry    | build   | —         | build_workflow | blueprint, chatResponse |
+    | entry    | clarify | —         | clarify        | chatResponse, options   |
+    | followup | chat    | page      | chat           | chatResponse            |
+    | followup | refine  | —         | refine         | blueprint, chatResponse |
+    | followup | rebuild | —         | rebuild        | blueprint, chatResponse |
     """
 
-    action: str
+    mode: Literal["entry", "followup"]
+    action: Literal["chat", "build", "clarify", "refine", "rebuild"]
+    chat_kind: Literal["smalltalk", "qa", "page"] | None = None
     chat_response: str | None = None
     blueprint: Blueprint | None = None
     clarify_options: ClarifyOptions | None = None
     conversation_id: str | None = None
     resolved_entities: list[ResolvedEntity] | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def legacy_action(self) -> str:
+        """Backward-compatible action string matching Phase 4 convention."""
+        if self.action == "chat":
+            if self.chat_kind == "smalltalk":
+                return "chat_smalltalk"
+            if self.chat_kind == "qa":
+                return "chat_qa"
+            return "chat"
+        if self.action == "build":
+            return "build_workflow"
+        return self.action

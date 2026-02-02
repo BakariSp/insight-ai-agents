@@ -49,7 +49,8 @@ async def test_e2e_smalltalk_to_build(client):
             json={"message": "你好", "language": "zh-CN"},
         )
     assert resp.status_code == 200
-    assert resp.json()["action"] == "chat_smalltalk"
+    assert resp.json()["action"] == "chat"
+    assert resp.json()["legacyAction"] == "chat_smalltalk"
 
     # Round 2: Clear analysis request
     mock_bp = Blueprint(**_sample_blueprint_args())
@@ -77,7 +78,8 @@ async def test_e2e_smalltalk_to_build(client):
         )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
+    assert data["legacyAction"] == "build_workflow"
     assert data["blueprint"] is not None
     assert data["blueprint"]["id"] == "bp-test-planner"
 
@@ -141,7 +143,7 @@ async def test_e2e_clarify_to_build(client):
         )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
     assert data["blueprint"] is not None
     assert data["conversationId"] == "conv-001"
 
@@ -260,10 +262,15 @@ async def test_e2e_response_camel_case(client):
     assert "chatResponse" in data
     assert "clarifyOptions" in data
     assert "conversationId" in data
+    assert "legacyAction" in data
+    assert "chatKind" in data
+    assert "mode" in data
     # Verify no snake_case keys leak through
     assert "chat_response" not in data
     assert "clarify_options" not in data
     assert "conversation_id" not in data
+    assert "legacy_action" not in data
+    assert "chat_kind" not in data
 
 
 @pytest.mark.asyncio

@@ -131,11 +131,16 @@ def test_conversation_request_from_camel():
 
 def test_conversation_response_chat():
     resp = ConversationResponse(
-        action="chat_smalltalk",
+        mode="entry",
+        action="chat",
+        chat_kind="smalltalk",
         chat_response="Hello! How can I help you?",
     )
     data = resp.model_dump(by_alias=True)
-    assert data["action"] == "chat_smalltalk"
+    assert data["action"] == "chat"
+    assert data["mode"] == "entry"
+    assert data["chatKind"] == "smalltalk"
+    assert data["legacyAction"] == "chat_smalltalk"
     assert "chatResponse" in data
     assert data["chatResponse"] == "Hello! How can I help you?"
     assert data["blueprint"] is None
@@ -144,17 +149,20 @@ def test_conversation_response_chat():
 
 def test_conversation_response_build_workflow():
     resp = ConversationResponse(
-        action="build_workflow",
+        mode="entry",
+        action="build",
         chat_response="I'll generate an analysis for you.",
         blueprint=None,  # would be populated in real usage
     )
     data = resp.model_dump(by_alias=True)
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
+    assert data["legacyAction"] == "build_workflow"
     assert "chatResponse" in data
 
 
 def test_conversation_response_clarify():
     resp = ConversationResponse(
+        mode="entry",
         action="clarify",
         chat_response="Which class do you want to analyze?",
         clarify_options=ClarifyOptions(
@@ -167,24 +175,31 @@ def test_conversation_response_clarify():
     )
     data = resp.model_dump(by_alias=True)
     assert data["action"] == "clarify"
+    assert data["legacyAction"] == "clarify"
     assert data["clarifyOptions"] is not None
     assert data["clarifyOptions"]["type"] == "single_select"
     assert len(data["clarifyOptions"]["choices"]) == 2
 
 
 def test_conversation_response_all_actions():
-    """Verify all 7 action types can be set."""
-    for action in [
-        "chat_smalltalk",
-        "chat_qa",
-        "build_workflow",
-        "clarify",
-        "chat",
-        "refine",
-        "rebuild",
-    ]:
-        resp = ConversationResponse(action=action)
+    """Verify all 7 response types can be constructed with new structured fields."""
+    cases = [
+        ("entry", "chat", "smalltalk", "chat_smalltalk"),
+        ("entry", "chat", "qa", "chat_qa"),
+        ("entry", "build", None, "build_workflow"),
+        ("entry", "clarify", None, "clarify"),
+        ("followup", "chat", "page", "chat"),
+        ("followup", "refine", None, "refine"),
+        ("followup", "rebuild", None, "rebuild"),
+    ]
+    for mode, action, chat_kind, expected_legacy in cases:
+        resp = ConversationResponse(
+            mode=mode, action=action, chat_kind=chat_kind,
+        )
         assert resp.action == action
+        assert resp.mode == mode
+        assert resp.chat_kind == chat_kind
+        assert resp.legacy_action == expected_legacy
 
 
 # ── resolved_entities field ──────────────────────────────────
@@ -195,7 +210,8 @@ def test_conversation_response_with_resolved_entities():
     from models.entity import EntityType, ResolvedEntity
 
     resp = ConversationResponse(
-        action="build_workflow",
+        mode="entry",
+        action="build",
         chat_response="Generated analysis",
         resolved_entities=[
             ResolvedEntity(
@@ -217,6 +233,29 @@ def test_conversation_response_with_resolved_entities():
 
 def test_conversation_response_resolved_entities_none():
     """Verify resolvedEntities defaults to null."""
-    resp = ConversationResponse(action="chat_smalltalk")
+    resp = ConversationResponse(mode="entry", action="chat", chat_kind="smalltalk")
     data = resp.model_dump(by_alias=True)
     assert data["resolvedEntities"] is None
+
+
+# ── legacyAction computed field (Phase 4.5.3) ───────────────
+
+
+def test_legacy_action_computed_field():
+    """Verify legacyAction computed field produces backward-compatible values."""
+    resp = ConversationResponse(mode="entry", action="build")
+    assert resp.legacy_action == "build_workflow"
+
+    resp2 = ConversationResponse(mode="entry", action="chat", chat_kind="qa")
+    assert resp2.legacy_action == "chat_qa"
+
+    resp3 = ConversationResponse(mode="followup", action="chat", chat_kind="page")
+    assert resp3.legacy_action == "chat"
+
+
+def test_legacy_action_in_serialized_output():
+    """Verify legacyAction appears in camelCase JSON output."""
+    resp = ConversationResponse(mode="entry", action="chat", chat_kind="smalltalk")
+    data = resp.model_dump(by_alias=True)
+    assert "legacyAction" in data
+    assert data["legacyAction"] == "chat_smalltalk"

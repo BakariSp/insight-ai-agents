@@ -48,7 +48,10 @@ async def test_conversation_smalltalk(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "chat_smalltalk"
+    assert data["action"] == "chat"
+    assert data["mode"] == "entry"
+    assert data["chatKind"] == "smalltalk"
+    assert data["legacyAction"] == "chat_smalltalk"
     assert data["chatResponse"] is not None
     assert data["blueprint"] is None
 
@@ -82,7 +85,9 @@ async def test_conversation_chat_qa(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "chat_qa"
+    assert data["action"] == "chat"
+    assert data["chatKind"] == "qa"
+    assert data["legacyAction"] == "chat_qa"
     assert "KPI" in data["chatResponse"]
 
 
@@ -116,7 +121,9 @@ async def test_conversation_build_workflow(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
+    assert data["mode"] == "entry"
+    assert data["legacyAction"] == "build_workflow"
     assert data["blueprint"] is not None
     assert data["blueprint"]["id"] == "bp-test-planner"
     assert data["chatResponse"] is not None
@@ -203,6 +210,8 @@ async def test_conversation_followup_chat(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["action"] == "chat"
+    assert data["mode"] == "followup"
+    assert data["chatKind"] == "page"
     assert "Wong Ka Ho" in data["chatResponse"]
     assert data["blueprint"] is None
 
@@ -242,6 +251,7 @@ async def test_conversation_followup_refine(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["action"] == "refine"
+    assert data["mode"] == "followup"
     assert data["blueprint"] is not None
 
 
@@ -280,6 +290,7 @@ async def test_conversation_followup_rebuild(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["action"] == "rebuild"
+    assert data["mode"] == "followup"
     assert data["blueprint"] is not None
 
 
@@ -345,7 +356,8 @@ async def test_conversation_clarify_then_build(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
+    assert data["legacyAction"] == "build_workflow"
     assert data["blueprint"] is not None
     assert data["conversationId"] == "conv-123"
 
@@ -398,7 +410,7 @@ async def test_conversation_build_with_auto_resolve(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
     assert data["resolvedEntities"] is not None
     assert len(data["resolvedEntities"]) == 1
     assert data["resolvedEntities"][0]["entityId"] == "class-hk-f1a"
@@ -495,7 +507,7 @@ async def test_conversation_build_no_class_mention(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
     assert data["resolvedEntities"] is None
 
 
@@ -537,5 +549,5 @@ async def test_conversation_build_skips_resolve_when_context_has_class(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["action"] == "build_workflow"
+    assert data["action"] == "build"
     mock_resolve_fn.assert_not_called()

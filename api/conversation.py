@@ -93,8 +93,11 @@ async def _handle_initial(
             intent_type=intent,
             language=req.language,
         )
+        kind = "smalltalk" if intent == IntentType.CHAT_SMALLTALK.value else "qa"
         return ConversationResponse(
-            action=intent,
+            mode="entry",
+            action="chat",
+            chat_kind=kind,
             chat_response=text,
             conversation_id=req.conversation_id,
         )
@@ -108,7 +111,8 @@ async def _handle_initial(
             )
             _verify_source_prompt(blueprint, req.message)
             return ConversationResponse(
-                action="build_workflow",
+                mode="entry",
+                action="build",
                 blueprint=blueprint,
                 chat_response=f"Generated analysis: {blueprint.name}",
                 conversation_id=req.conversation_id,
@@ -128,6 +132,7 @@ async def _handle_initial(
                 hint, teacher_id=req.teacher_id,
             )
             return ConversationResponse(
+                mode="entry",
                 action="clarify",
                 chat_response="Which class would you like to look at?",
                 clarify_options=clarify_options,
@@ -143,7 +148,8 @@ async def _handle_initial(
             )
             _verify_source_prompt(blueprint, req.message)
             return ConversationResponse(
-                action="build_workflow",
+                mode="entry",
+                action="build",
                 blueprint=blueprint,
                 chat_response=f"Generated analysis: {blueprint.name}",
                 conversation_id=req.conversation_id,
@@ -171,6 +177,7 @@ async def _handle_initial(
                     allow_custom_input=True,
                 )
             return ConversationResponse(
+                mode="entry",
                 action="clarify",
                 chat_response="Could you confirm which you'd like to analyze?",
                 clarify_options=clarify_options,
@@ -218,7 +225,8 @@ async def _handle_initial(
         )
         _verify_source_prompt(blueprint, enhanced_prompt)
         return ConversationResponse(
-            action="build_workflow",
+            mode="entry",
+            action="build",
             blueprint=blueprint,
             chat_response=f"Generated analysis: {blueprint.name}",
             resolved_entities=resolved_entities,
@@ -232,6 +240,7 @@ async def _handle_initial(
             teacher_id=req.teacher_id,
         )
         return ConversationResponse(
+            mode="entry",
             action="clarify",
             chat_response=router_result.clarifying_question
             or "Could you provide more details?",
@@ -242,7 +251,9 @@ async def _handle_initial(
     # Fallback — treat as smalltalk
     text = await chat_response(req.message, language=req.language)
     return ConversationResponse(
-        action="chat_smalltalk",
+        mode="entry",
+        action="chat",
+        chat_kind="smalltalk",
         chat_response=text,
         conversation_id=req.conversation_id,
     )
@@ -264,7 +275,9 @@ async def _handle_followup(
             language=req.language,
         )
         return ConversationResponse(
+            mode="followup",
             action="chat",
+            chat_kind="page",
             chat_response=text,
             conversation_id=req.conversation_id,
         )
@@ -281,6 +294,7 @@ async def _handle_followup(
         )
         _verify_source_prompt(blueprint, refine_prompt)
         return ConversationResponse(
+            mode="followup",
             action="refine",
             blueprint=blueprint,
             chat_response=f"Updated analysis: {blueprint.name}",
@@ -299,6 +313,7 @@ async def _handle_followup(
         )
         _verify_source_prompt(blueprint, rebuild_prompt)
         return ConversationResponse(
+            mode="followup",
             action="rebuild",
             blueprint=blueprint,
             chat_response=f"Rebuilt analysis: {blueprint.name}",
@@ -313,7 +328,9 @@ async def _handle_followup(
         language=req.language,
     )
     return ConversationResponse(
+        mode="followup",
         action="chat",
+        chat_kind="page",
         chat_response=text,
         conversation_id=req.conversation_id,
     )
