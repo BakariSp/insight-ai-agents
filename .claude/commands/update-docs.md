@@ -22,6 +22,10 @@ docs/
 ├── integration/
 │   ├── frontend-integration.md    # 前端集成
 │   └── java-backend.md            # Java 后端对接
+├── testing/
+│   ├── README.md                  # 测试文档导航 + 各阶段概览 + Use Case 索引
+│   ├── phaseX-test-report.md      # Phase X pytest 测试报告
+│   └── phaseX-conversation-log.md # Phase X Live 对话日志
 ├── tech-stack.md                  # 技术栈
 ├── roadmap.md                     # 实施路线图
 └── changelog.md                   # 变更日志
@@ -59,6 +63,9 @@ docs/
 | 前端集成变化 | `docs/integration/frontend-integration.md` |
 | Java 对接变化 | `docs/integration/java-backend.md` |
 | 环境变量变化 | `docs/guides/environment.md` |
+| 完成某个 Phase 的开发/测试 | `docs/testing/README.md` (概览表 + Use Case 索引) |
+| 新增 pytest 测试报告 | `docs/testing/phaseX-test-report.md` (新建) |
+| 新增 Live 对话日志 | `docs/testing/phaseX-conversation-log.md` (新建) |
 
 ### 3. 必须更新的文件
 
@@ -67,6 +74,7 @@ docs/
 1. **`docs/README.md`**: 更新"当前阶段"和核心目标状态表
 2. **`docs/roadmap.md`**: 更新路线图 checkbox
 3. **`docs/changelog.md`**: 在最前面（`---` 分隔线之后）追加本次变更条目
+4. **`docs/testing/README.md`**: 如涉及测试变更，更新各阶段测试概览表和 Use Case 索引
 
 ### 4. 格式要求
 

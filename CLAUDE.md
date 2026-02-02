@@ -11,6 +11,7 @@
 - `docs/api/` — API 文档（当前端点、目标端点、SSE 协议）
 - `docs/guides/` — 开发指南（快速开始、添加技能、环境变量）
 - `docs/integration/` — 集成规范（前端对接、Java 后端）
+- `docs/testing/` — 测试报告与用例记录（各阶段 pytest 报告、Live 日志、Use Cases）
 - `docs/roadmap.md` — 实施路线图
 - `docs/changelog.md` — 变更日志
 - `docs/tech-stack.md` — 技术栈
@@ -36,6 +37,7 @@
 - 完成路线图中的某个任务 → `docs/roadmap.md`
 - 依赖变化 (requirements.txt) → `docs/tech-stack.md`
 - 架构调整 → `docs/architecture/`
+- 完成某阶段测试/新增用例 → `docs/testing/` (报告 + Use Case 索引)
 - 所有变更 → `docs/changelog.md`（追加记录）
 
 ## 常用命令

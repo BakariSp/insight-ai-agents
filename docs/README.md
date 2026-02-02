@@ -1,6 +1,6 @@
 # Insight AI Agent — 文档中心
 
-> **最后更新**: 2026-02-02
+> **最后更新**: 2026-02-03
 > **当前阶段**: Phase 4.5 完成 → Phase 5 待开始
 > **一句话概述**: 面向教育场景的 AI Agent 服务，教师用自然语言即可构建结构化的数据分析页面并进行对话式交互。
 
@@ -71,6 +71,16 @@
 |------|------|
 | [前端集成](integration/frontend-integration.md) | Next.js Proxy、字段映射、前端改动清单、Mock 策略、错误处理 |
 | [Java 后端对接](integration/java-backend.md) | Java API 端点、数据工具映射、对接计划 |
+
+### 测试与用例
+
+| 文档 | 内容 |
+|------|------|
+| [测试文档导航](testing/README.md) | 各阶段测试概览、Use Case 索引、文档规范 |
+| [Phase 4 测试报告](testing/phase4-test-report.md) | 统一会话网关 — 151 项测试 + 7 种 action 场景 |
+| [Phase 4 Live 日志](testing/phase4-conversation-log.md) | 7 场景真实 LLM 对话记录 |
+| [Phase 4.5 测试报告](testing/phase4.5-test-report.md) | 健壮性增强 — 230 项测试 + 12 种 Use Case |
+| [Phase 4.5 Live 日志](testing/phase4.5-conversation-log.md) | 15 场景实体解析对话记录 |
 
 ### 项目管理
 
