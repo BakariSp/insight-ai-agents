@@ -12,6 +12,7 @@ from agents.executor import (
     _build_table_block,
     _topo_sort,
 )
+from errors.exceptions import DataFetchError
 from models.blueprint import Blueprint
 from tests.test_planner import _sample_blueprint_args
 
@@ -363,3 +364,108 @@ async def test_full_stream_no_ai_slots():
     complete = events[-1]
     assert complete["type"] == "COMPLETE"
     assert complete["result"]["page"] is not None
+
+
+# ── DATA_ERROR interception (Phase 4.5.4) ───────────────────
+
+
+@pytest.mark.asyncio
+async def test_required_binding_error_dict_emits_data_error():
+    """Required binding returns {error: ...} → DATA_ERROR + error COMPLETE."""
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+
+    error_result = {"error": "Class class-2c not found", "teacher_id": "t-001"}
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        new_callable=AsyncMock,
+        return_value=error_result,
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp,
+            context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    types = [e["type"] for e in events]
+    assert "DATA_ERROR" in types
+
+    # DATA_ERROR event has expected shape
+    data_error = next(e for e in events if e["type"] == "DATA_ERROR")
+    assert data_error["entity"] == "submissions"  # binding.id
+    assert "not found" in data_error["message"]
+    assert isinstance(data_error["suggestions"], list)
+
+    # COMPLETE event is error with data_error errorType
+    complete = events[-1]
+    assert complete["type"] == "COMPLETE"
+    assert complete["message"] == "error"
+    assert complete["result"]["page"] is None
+    assert complete["result"]["errorType"] == "data_error"
+
+
+@pytest.mark.asyncio
+async def test_non_required_binding_error_dict_skips_gracefully():
+    """Non-required binding returns {error: ...} → TOOL_RESULT error, no DATA_ERROR."""
+    bp_args = _sample_blueprint_args()
+    # Make the binding non-required
+    bp_args["data_contract"]["bindings"][0]["required"] = False
+    bp = Blueprint(**bp_args)
+    executor = ExecutorAgent()
+
+    error_result = {"error": "Class not found", "teacher_id": "t-001"}
+    mock_stats = {"mean": 0, "count": 0}
+
+    async def mock_tool(name, arguments):
+        if name == "get_assignment_submissions":
+            return error_result
+        if name == "calculate_stats":
+            return mock_stats
+        raise ValueError(f"Unexpected tool: {name}")
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=mock_tool,
+    ), patch.object(
+        ExecutorAgent,
+        "_generate_ai_narrative",
+        new_callable=AsyncMock,
+        return_value="AI text",
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp,
+            context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    types = [e["type"] for e in events]
+    # No DATA_ERROR for non-required binding
+    assert "DATA_ERROR" not in types
+    # But TOOL_RESULT with error status
+    error_results = [e for e in events if e.get("status") == "error"]
+    assert len(error_results) >= 1
+    # Stream completes successfully
+    complete = events[-1]
+    assert complete["type"] == "COMPLETE"
+    assert complete["message"] == "completed"
+
+
+# ── DataFetchError exception tests ──────────────────────────
+
+
+def test_data_fetch_error_attributes():
+    """DataFetchError carries tool_name, entity, suggestions."""
+    err = DataFetchError(
+        tool_name="get_class_detail",
+        message="Class 2C not found",
+        entity="class-2c",
+        suggestions=["class-hk-f1a", "class-hk-f1b"],
+    )
+    assert err.tool_name == "get_class_detail"
+    assert err.entity == "class-2c"
+    assert err.suggestions == ["class-hk-f1a", "class-hk-f1b"]
+    assert "get_class_detail" in str(err)
+    assert "Class 2C not found" in str(err)

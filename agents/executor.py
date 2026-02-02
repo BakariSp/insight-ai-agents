@@ -19,6 +19,7 @@ from agents.provider import create_model, execute_mcp_tool
 from agents.resolver import resolve_ref, resolve_refs
 from config.prompts.executor import build_compose_prompt
 from config.settings import get_settings
+from errors.exceptions import DataFetchError
 from models.blueprint import (
     Blueprint,
     ComputeNode,
@@ -119,6 +120,21 @@ class ExecutorAgent:
                 },
             }
 
+        except DataFetchError as exc:
+            logger.warning("Data fetch error: %s", exc)
+            yield {
+                "type": "COMPLETE",
+                "message": "error",
+                "progress": 100,
+                "result": {
+                    "response": "",
+                    "chatResponse": str(exc),
+                    "page": None,
+                    "errorType": "data_error",
+                    "entity": exc.entity,
+                    "suggestions": exc.suggestions,
+                },
+            }
         except Exception as exc:
             logger.exception("Blueprint execution failed")
             yield {
@@ -166,12 +182,42 @@ class ExecutorAgent:
 
             try:
                 result = await execute_mcp_tool(binding.tool_name, resolved_params)
+
+                # Check for error dicts returned by tools (e.g. entity not found)
+                if isinstance(result, dict) and "error" in result:
+                    error_msg = result["error"]
+                    logger.warning(
+                        "Tool %s returned error: %s", binding.tool_name, error_msg
+                    )
+                    if binding.required:
+                        yield {
+                            "type": "DATA_ERROR",
+                            "entity": binding.id,
+                            "message": error_msg,
+                            "suggestions": [],
+                        }
+                        raise DataFetchError(
+                            tool_name=binding.tool_name,
+                            message=error_msg,
+                            entity=binding.id,
+                        )
+                    # Non-required binding — log and skip
+                    yield {
+                        "type": "TOOL_RESULT",
+                        "tool": binding.tool_name,
+                        "status": "error",
+                        "error": error_msg,
+                    }
+                    continue
+
                 data_context[binding.id] = result
                 yield {
                     "type": "TOOL_RESULT",
                     "tool": binding.tool_name,
                     "status": "success",
                 }
+            except DataFetchError:
+                raise  # Re-raise without wrapping
             except Exception as exc:
                 logger.warning(
                     "Tool %s failed: %s", binding.tool_name, exc
