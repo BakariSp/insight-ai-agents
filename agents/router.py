@@ -1,0 +1,144 @@
+"""RouterAgent — unified intent classifier for the conversation gateway.
+
+Automatically detects initial vs follow-up mode based on whether a blueprint
+is provided, and applies confidence-based routing:
+- confidence ≥ 0.7  →  direct build
+- 0.4 ≤ confidence < 0.7  →  force clarify
+- confidence < 0.4  →  treat as chat
+"""
+
+from __future__ import annotations
+
+import logging
+
+from pydantic_ai import Agent
+
+from agents.provider import create_model
+from config.llm_config import LLMConfig
+from config.prompts.router import build_router_prompt
+from models.blueprint import Blueprint
+from models.conversation import IntentType, RouterResult
+
+logger = logging.getLogger(__name__)
+
+# Light, fast classification — low temperature for consistency
+ROUTER_LLM_CONFIG = LLMConfig(
+    temperature=0.1,
+    response_format="json_object",
+)
+
+
+def _build_initial_agent() -> Agent[None, RouterResult]:
+    """Create the initial-mode router agent (module-level singleton)."""
+    return Agent(
+        model=create_model(),
+        output_type=RouterResult,
+        system_prompt=build_router_prompt(),
+        retries=1,
+        defer_model_check=True,
+    )
+
+
+_initial_agent = _build_initial_agent()
+
+
+async def classify_intent(
+    message: str,
+    *,
+    blueprint: Blueprint | None = None,
+    page_context: dict | None = None,
+) -> RouterResult:
+    """Classify user intent, with confidence-based routing adjustments.
+
+    Args:
+        message: The user's message.
+        blueprint: If provided, switches to follow-up mode.
+        page_context: Page summary dict for follow-up context.
+
+    Returns:
+        A :class:`RouterResult` with adjusted intent and confidence.
+    """
+    is_followup = blueprint is not None
+
+    if is_followup:
+        # Build a per-request agent with follow-up context in the prompt
+        page_summary = ""
+        if page_context:
+            page_summary = str(page_context)[:500]
+
+        followup_agent = Agent(
+            model=create_model(),
+            output_type=RouterResult,
+            system_prompt=build_router_prompt(
+                blueprint_name=blueprint.name,
+                blueprint_description=blueprint.description,
+                page_summary=page_summary,
+            ),
+            retries=1,
+            defer_model_check=True,
+        )
+        result = await followup_agent.run(
+            message,
+            model_settings=ROUTER_LLM_CONFIG.to_litellm_kwargs(),
+        )
+        router_result = result.output
+        logger.info(
+            "Router (followup): intent=%s confidence=%.2f",
+            router_result.intent,
+            router_result.confidence,
+        )
+        return router_result
+
+    # ── Initial mode with confidence-based routing ──
+    result = await _initial_agent.run(
+        message,
+        model_settings=ROUTER_LLM_CONFIG.to_litellm_kwargs(),
+    )
+    router_result = result.output
+
+    # Apply confidence-based routing overrides
+    router_result = _apply_confidence_routing(router_result)
+
+    logger.info(
+        "Router (initial): intent=%s confidence=%.2f should_build=%s",
+        router_result.intent,
+        router_result.confidence,
+        router_result.should_build,
+    )
+    return router_result
+
+
+def _apply_confidence_routing(r: RouterResult) -> RouterResult:
+    """Apply confidence thresholds to adjust routing decisions.
+
+    - confidence ≥ 0.7 and intent is build_workflow → allow build
+    - 0.4 ≤ confidence < 0.7 → force clarify
+    - confidence < 0.4 → treat as chat
+    """
+    confidence = r.confidence
+
+    if confidence >= 0.7 and r.intent == IntentType.BUILD_WORKFLOW.value:
+        r.should_build = True
+        return r
+
+    if 0.4 <= confidence < 0.7:
+        # Force clarify — the intent might be build but we need more info
+        if r.intent in (IntentType.BUILD_WORKFLOW.value, IntentType.CLARIFY.value):
+            r.intent = IntentType.CLARIFY.value
+            r.should_build = False
+            if not r.clarifying_question:
+                r.clarifying_question = "Could you provide more details?"
+            return r
+
+    if confidence < 0.4:
+        # Too vague — treat as chat
+        if r.intent not in (
+            IntentType.CHAT_SMALLTALK.value,
+            IntentType.CHAT_QA.value,
+        ):
+            r.intent = IntentType.CHAT_SMALLTALK.value
+            r.should_build = False
+            return r
+
+    r.should_build = r.intent == IntentType.BUILD_WORKFLOW.value
+    return r
