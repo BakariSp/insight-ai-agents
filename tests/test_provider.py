@@ -1,6 +1,7 @@
 """Tests for agents/provider.py — model creation and MCP tool bridge."""
 
 import pytest
+from pydantic_ai.models.openai import OpenAIChatModel
 
 from agents.provider import (
     create_model,
@@ -15,13 +16,14 @@ from agents.provider import (
 
 def test_create_model_default():
     model = create_model()
-    assert model.startswith("litellm:")
-    assert "qwen" in model  # default_model contains "qwen"
+    assert isinstance(model, OpenAIChatModel)
+    assert "qwen" in model.model_name  # default_model contains "qwen"
 
 
 def test_create_model_custom():
     model = create_model("openai/gpt-4o")
-    assert model == "litellm:openai/gpt-4o"
+    assert isinstance(model, OpenAIChatModel)
+    assert model.model_name == "gpt-4o"
 
 
 # ── get_mcp_tool_names ────────────────────────────────────────

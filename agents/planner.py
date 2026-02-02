@@ -15,6 +15,7 @@ from pydantic_ai import Agent
 from agents.provider import create_model
 from config.llm_config import LLMConfig
 from config.prompts.planner import build_planner_prompt
+from config.settings import get_settings
 from models.blueprint import Blueprint
 
 logger = logging.getLogger(__name__)
@@ -40,18 +41,20 @@ async def generate_blueprint(
     user_prompt: str,
     language: str = "en",
     model: str | None = None,
-) -> Blueprint:
+) -> tuple[Blueprint, str]:
     """Generate a Blueprint from a user's natural-language request.
 
     Args:
         user_prompt: The teacher's analysis request in natural language.
         language: Language code for user-facing text in the Blueprint
                   (e.g. ``"en"``, ``"zh-CN"``).
-        model: Optional model override (LiteLLM identifier).
+        model: Optional model override (provider/model identifier).
 
     Returns:
-        A validated :class:`Blueprint` instance.
+        A ``(blueprint, model_name)`` tuple.
     """
+    model_name = model or get_settings().default_model
+
     run_prompt = (
         f"[Language: {language}]\n\n"
         f"User request: {user_prompt}"
@@ -75,4 +78,4 @@ async def generate_blueprint(
         blueprint.created_at = datetime.now(timezone.utc).isoformat()
 
     logger.info("Blueprint generated: %s (id=%s)", blueprint.name, blueprint.id)
-    return blueprint
+    return blueprint, model_name

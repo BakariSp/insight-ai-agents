@@ -62,7 +62,7 @@ async def test_workflow_generate(client):
     with patch(
         "api.workflow.generate_blueprint",
         new_callable=AsyncMock,
-        return_value=mock_bp,
+        return_value=(mock_bp, "dashscope/qwen-max"),
     ):
         resp = await client.post(
             "/api/workflow/generate",

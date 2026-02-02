@@ -8,26 +8,50 @@ from __future__ import annotations
 import inspect
 from typing import Any
 
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
+
 from config.settings import get_settings
 from tools import TOOL_REGISTRY, get_tool_descriptions
 
+# Provider prefix → (base_url, settings_key_attr)
+_PROVIDER_MAP: dict[str, tuple[str, str]] = {
+    "dashscope": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "dashscope_api_key"),
+    "zai": ("https://open.bigmodel.cn/api/paas/v4/", "zai_api_key"),
+}
 
-def create_model(model_name: str | None = None) -> str:
-    """Build a PydanticAI model identifier string.
 
-    PydanticAI v1.x accepts ``"litellm:<model>"`` as a model name,
-    delegating to the LiteLLM provider under the hood.
+def create_model(model_name: str | None = None) -> OpenAIChatModel:
+    """Build a PydanticAI model instance via OpenAI-compatible endpoint.
+
+    Parses the ``"provider/model"`` format (e.g. ``"dashscope/qwen-max"``)
+    and creates an :class:`OpenAIChatModel` pointing to the provider's
+    OpenAI-compatible API.
 
     Args:
-        model_name: LiteLLM model identifier (e.g. ``"dashscope/qwen-max"``).
+        model_name: Model identifier in ``"provider/model"`` format.
                     Defaults to ``settings.default_model``.
 
     Returns:
-        A ``"litellm:<model>"`` string ready for ``Agent(model=...)``.
+        An :class:`OpenAIChatModel` ready for ``Agent(model=...)``.
     """
     settings = get_settings()
     name = model_name or settings.default_model
-    return f"litellm:{name}"
+
+    # Split "provider/model" → lookup base_url and api_key
+    if "/" in name:
+        prefix, model_id = name.split("/", 1)
+        if prefix in _PROVIDER_MAP:
+            base_url, key_attr = _PROVIDER_MAP[prefix]
+            api_key = getattr(settings, key_attr, "")
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+            return OpenAIChatModel(model_id, provider=provider)
+
+    # Fallback: assume OpenAI-compatible with OPENAI_API_KEY
+    # Strip "openai/" prefix if present (LiteLLM convention)
+    model_id = name.split("/", 1)[1] if "/" in name else name
+    provider = OpenAIProvider(api_key=settings.openai_api_key)
+    return OpenAIChatModel(model_id, provider=provider)
 
 
 def get_mcp_tool_names() -> list[str]:

@@ -22,7 +22,7 @@ async def workflow_generate(req: WorkflowGenerateRequest):
     Blueprint with three layers: DataContract, ComputeGraph, UIComposition.
     """
     try:
-        blueprint = await generate_blueprint(
+        blueprint, model_name = await generate_blueprint(
             user_prompt=req.user_prompt,
             language=req.language,
         )
@@ -35,5 +35,5 @@ async def workflow_generate(req: WorkflowGenerateRequest):
 
     return WorkflowGenerateResponse(
         blueprint=blueprint,
-        model="",
+        model=model_name,
     )
