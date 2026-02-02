@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-02-02 — Phase 3: ExecutorAgent 完成
+
+- 新增 `agents/resolver.py`: 路径引用解析器，支持 `$context.` / `$input.` / `$data.` / `$compute.` 四种前缀和嵌套点号路径
+- 新增 `agents/executor.py`: ExecutorAgent 三阶段执行引擎（Data → Compute → Compose）
+  - Phase A: 拓扑排序 DataBinding，按依赖顺序调用工具获取数据
+  - Phase B: 执行 ComputeGraph TOOL 节点，解析参数引用并存入 compute_results
+  - Phase C: 确定性 block 构建（kpi_grid, chart, table）+ PydanticAI 生成 AI 叙事内容
+  - 错误处理：工具失败/LLM 超时 → error COMPLETE 事件
+- 新增 `config/prompts/executor.py`: compose prompt 构建器，注入数据上下文和计算结果
+- 新增 `api/page.py`: `POST /api/page/generate` SSE 流式端点（EventSourceResponse）
+- 更新 `main.py`: 注册 page router
+- 新增测试文件: `test_resolver.py` (16 项) + `test_executor.py` (16 项) + `test_e2e_page.py` (5 项) + 3 项新 API 测试
+- 92 项测试全部通过
+
 ## 2026-02-02 — LLMConfig: 可复用 LLM 生成参数管理
 
 - 新增 `config/llm_config.py`: `LLMConfig` Pydantic 模型，支持 temperature/top_p/top_k/seed/frequency_penalty/repetition_penalty/response_format/stop

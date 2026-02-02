@@ -4,15 +4,16 @@
 
 ---
 
-## 当前架构（Phase 2）
+## 当前架构（Phase 3）
 
 ```
-Client (HTTP)
+Client (HTTP / SSE)
     │
     ▼
 ┌──────────────────────────────────────────────────┐
 │  FastAPI App (:5000)                              │
 │  POST /api/workflow/generate  → PlannerAgent      │
+│  POST /api/page/generate      → ExecutorAgent(SSE)│
 │  GET  /api/health                                 │
 │  POST /chat                   (兼容路由)           │
 │  GET  /models                                     │
@@ -32,12 +33,12 @@ Client (HTTP)
            │
      ┌─────┴──────────┐
      ▼                ▼
-┌──────────────┐  ┌──────────────────────────┐
-│  PlannerAgent │  │  ChatAgent (旧)           │
-│  (PydanticAI) │  │  • 会话历史管理           │
-│  • user prompt│  │  • Agent 工具调用循环     │
-│    → Blueprint│  │  • 技能注册与执行         │
-│  • retries=2  │  └──────────┬───────────────┘
+┌──────────────┐  ┌───────────────────────────┐
+│  PlannerAgent │  │  ExecutorAgent (Phase 3)   │
+│  (PydanticAI) │  │  • Blueprint → Page (SSE) │
+│  • user prompt│  │  • Data → Compute → Compose│
+│    → Blueprint│  │  • 确定性 block + AI 叙事  │
+│  • retries=2  │  └──────────┬────────────────┘
 └──────┬───────┘             │
        │               ┌─────┴─────┐
        ▼               ▼           ▼
@@ -47,6 +48,15 @@ Client (HTTP)
                    │          │  │└ Memory   │
                    └──────────┘  └──────────┘
 ```
+
+### 新增模块（Phase 3）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Path Resolver | `agents/resolver.py` | `$context.` / `$data.` / `$compute.` 路径引用解析 |
+| ExecutorAgent | `agents/executor.py` | Blueprint 三阶段执行引擎（Data → Compute → Compose） |
+| Executor Prompt | `config/prompts/executor.py` | compose prompt 构建器（注入数据上下文 + 计算结果） |
+| Page API | `api/page.py` | POST /api/page/generate SSE 端点 |
 
 ### 新增模块（Phase 2）
 
@@ -106,8 +116,7 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 │                                                      │
 │  POST /api/workflow/generate   → PlannerAgent       │
 │  POST /api/page/generate       → ExecutorAgent (SSE)│
-│  POST /api/intent/classify     → RouterAgent        │
-│  POST /api/page/chat           → ChatAgent          │
+│  POST /api/page/followup       → Router→Chat/Plan   │
 │  GET  /api/health                                    │
 │                                                      │
 │  ┌──────────────────────────────────────────────┐   │
@@ -156,21 +165,44 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 
 ### 当前 → 目标的差距
 
-| 方面 | 当前 (Phase 2) | 目标 |
+| 方面 | 当前 (Phase 3) | 目标 |
 |------|------|------|
 | Web 框架 | ✅ FastAPI (异步) | FastAPI (异步) |
 | 工具框架 | ✅ FastMCP 6 工具 + TOOL_REGISTRY | FastMCP `@mcp.tool` + 自动 Schema |
 | 数据模型 | ✅ Blueprint + CamelModel | Blueprint 三层结构 |
 | 配置系统 | ✅ Pydantic Settings | Pydantic Settings |
 | LLM 接入 | ✅ PydanticAI + LiteLLM | PydanticAI + LiteLLM (streaming + tool_use) |
-| Agent 数量 | 1 个 PlannerAgent + 1 个旧 ChatAgent | 4 个专职 Agent |
-| 输出模式 | JSON 响应 | SSE 流式 + JSON |
+| Agent 数量 | 2 个 (PlannerAgent + ExecutorAgent) + 1 个旧 ChatAgent | 4 个 Agent (2 对外 + 2 内部) |
+| 输出模式 | ✅ SSE 流式 + JSON | SSE 流式 + JSON |
 | 数据来源 | Mock 数据 | Java Backend via httpx |
 | 前端集成 | 无 | Next.js API Routes proxy |
 
 ---
 
 ## 核心模块说明
+
+### ExecutorAgent (`agents/executor.py`) — Phase 3 新增
+
+三阶段执行引擎，将 Blueprint 转化为结构化页面:
+
+```
+Blueprint + Context
+    ↓
+Phase A: Data — 拓扑排序 DataBinding，调用 tools 获取数据
+    ↓
+Phase B: Compute — 执行 ComputeGraph TOOL 节点（解析 $data. 引用）
+    ↓
+Phase C: Compose — 确定性 block 构建 + AI 叙事生成
+    ↓
+SSE Events → PHASE / TOOL_CALL / TOOL_RESULT / MESSAGE / COMPLETE
+```
+
+关键特性:
+- 拓扑排序解析 DataBinding 和 ComputeNode 的依赖关系
+- 确定性 block 构建: kpi_grid (从 stats)、chart (从 distribution)、table (从 submissions)
+- AI 叙事: PydanticAI Agent 根据数据上下文生成分析文本
+- 路径引用解析: `resolve_ref()` / `resolve_refs()` 支持 `$context.` / `$input.` / `$data.` / `$compute.`
+- 错误处理: 工具失败/LLM 超时 → error COMPLETE 事件（`page: null`）
 
 ### PlannerAgent (`agents/planner.py`) — Phase 2 新增
 
@@ -254,7 +286,7 @@ LiteLLM 的轻封装:
 
 ## 项目结构
 
-### 当前结构（Phase 2）
+### 当前结构（Phase 3）
 
 ```
 insight-ai-agent/
@@ -265,7 +297,8 @@ insight-ai-agent/
 │
 ├── api/                        # API 路由
 │   ├── health.py               # GET /api/health
-│   ├── workflow.py             # POST /api/workflow/generate ← Phase 2 新增
+│   ├── workflow.py             # POST /api/workflow/generate
+│   ├── page.py                 # POST /api/page/generate (SSE) ← Phase 3 新增
 │   ├── chat.py                 # POST /chat (兼容路由)
 │   └── models_routes.py        # GET /models, GET /skills
 │
@@ -273,8 +306,9 @@ insight-ai-agent/
 │   ├── settings.py             # Pydantic Settings + get_settings() + get_default_llm_config()
 │   ├── llm_config.py           # LLMConfig 可复用生成参数模型 (merge / to_litellm_kwargs)
 │   ├── component_registry.py   # 6 种 UI 组件定义
-│   └── prompts/                # ← Phase 2 新增
-│       └── planner.py          # PlannerAgent system prompt + build_planner_prompt()
+│   └── prompts/
+│       ├── planner.py          # PlannerAgent system prompt + build_planner_prompt()
+│       └── executor.py         # ExecutorAgent compose prompt ← Phase 3 新增
 │
 ├── models/                     # Pydantic 数据模型
 │   ├── base.py                 # CamelModel 基类 (camelCase 输出)
@@ -286,9 +320,11 @@ insight-ai-agent/
 │   ├── data_tools.py           # 4 个数据工具 (mock)
 │   └── stats_tools.py          # 2 个统计工具 (numpy)
 │
-├── agents/                     # ← Phase 2 扩展
+├── agents/                     # ← Phase 3 扩展
 │   ├── provider.py             # create_model / execute_mcp_tool / get_mcp_tool_*
 │   ├── planner.py              # PlannerAgent: user prompt → Blueprint
+│   ├── resolver.py             # 路径引用解析器 ($context/$data/$compute) ← Phase 3 新增
+│   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE) ← Phase 3 新增
 │   └── chat_agent.py           # ChatAgent: 对话 + 工具循环 (旧)
 │
 ├── services/
@@ -301,10 +337,13 @@ insight-ai-agent/
 │   └── memory.py               # 持久化记忆技能
 │
 ├── tests/
-│   ├── test_api.py             # FastAPI 端点测试 (含 workflow 端点)
-│   ├── test_llm_config.py      # LLMConfig 单元测试 (merge / to_litellm_kwargs / Settings 集成)
-│   ├── test_planner.py         # PlannerAgent 测试 (TestModel) ← Phase 2 新增
-│   ├── test_provider.py        # Provider 单元测试 ← Phase 2 新增
+│   ├── test_api.py             # FastAPI 端点测试 (含 workflow + page 端点)
+│   ├── test_e2e_page.py        # E2E 端到端测试 (Blueprint → SSE) ← Phase 3 新增
+│   ├── test_executor.py        # ExecutorAgent 单元测试 ← Phase 3 新增
+│   ├── test_resolver.py        # 路径解析器单元测试 ← Phase 3 新增
+│   ├── test_llm_config.py      # LLMConfig 单元测试
+│   ├── test_planner.py         # PlannerAgent 测试 (TestModel)
+│   ├── test_provider.py        # Provider 单元测试
 │   ├── test_models.py          # Blueprint 模型测试
 │   └── test_tools.py           # FastMCP 工具测试
 │
@@ -327,8 +366,8 @@ insight-ai-agent/
 │   └── prompts/
 │       ├── planner.py          # PlannerAgent system prompt
 │       ├── executor.py         # ExecutorAgent system prompt
-│       ├── router.py           # Intent classification prompt
-│       └── chat.py             # Chat agent prompt
+│       ├── router.py           # RouterAgent 意图分类 prompt (内部)
+│       └── page_chat.py       # PageChatAgent prompt (内部)
 │
 ├── models/
 │   ├── base.py                 # CamelModel 基类
@@ -346,8 +385,8 @@ insight-ai-agent/
 │   ├── provider.py             # PydanticAI + LiteLLM provider + FastMCP bridge
 │   ├── planner.py              # PlannerAgent: user prompt → Blueprint
 │   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE)
-│   ├── router.py               # RouterAgent: intent classification
-│   └── chat.py                 # ChatAgent: page follow-up
+│   ├── router.py               # RouterAgent: 意图分类 (内部组件)
+│   └── page_chat.py            # PageChatAgent: 页面追问 (内部组件)
 │
 ├── services/
 │   └── mock_data.py            # Mock data (dev)

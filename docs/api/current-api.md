@@ -1,6 +1,6 @@
-# 当前 API（Phase 2）
+# 当前 API（Phase 3）
 
-> FastAPI 服务的 5 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
+> FastAPI 服务的 6 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
 
 ---
 
@@ -9,7 +9,8 @@
 | Method | Path | 功能 | 状态 |
 |--------|------|------|------|
 | `GET` | `/api/health` | 健康检查 | ✅ |
-| `POST` | `/api/workflow/generate` | 生成 Blueprint（PlannerAgent） | ✅ Phase 2 新增 |
+| `POST` | `/api/workflow/generate` | 生成 Blueprint（PlannerAgent） | ✅ Phase 2 |
+| `POST` | `/api/page/generate` | 执行 Blueprint → SSE 页面流（ExecutorAgent） | ✅ Phase 3 新增 |
 | `POST` | `/chat` | 通用对话 (兼容路由, 支持工具调用) | ✅ |
 | `GET` | `/models` | 列出支持的模型 | ✅ |
 | `GET` | `/skills` | 列出可用技能 | ✅ |
@@ -110,6 +111,57 @@ curl -X POST http://localhost:5000/api/workflow/generate \
 **错误处理:**
 - 缺少 `userPrompt` → `422`
 - LLM 超时/输出格式错误 → `502` + `{"detail": "Blueprint generation failed: ..."}`
+
+---
+
+## POST /api/page/generate
+
+ExecutorAgent 端点，执行 Blueprint 三阶段流水线（Data → Compute → Compose），通过 SSE 流式输出页面构建事件。
+
+**请求 (camelCase):**
+
+```json
+{
+  "blueprint": {
+    "id": "bp-unit5-analysis",
+    "name": "Unit 5 考试分析",
+    "dataContract": { "inputs": [...], "bindings": [...] },
+    "computeGraph": { "nodes": [...] },
+    "uiComposition": { "layout": "tabs", "tabs": [...] },
+    "pageSystemPrompt": "分析考试成绩..."
+  },
+  "context": { "teacherId": "t-001", "input": { "assignment": "a-001" } },
+  "teacherId": "t-001"
+}
+```
+
+**响应: SSE 事件流**
+
+```
+data: {"type":"PHASE","phase":"data","message":"Fetching data..."}
+data: {"type":"TOOL_CALL","tool":"get_assignment_submissions","args":{...}}
+data: {"type":"TOOL_RESULT","tool":"get_assignment_submissions","status":"success"}
+data: {"type":"PHASE","phase":"compute","message":"Computing analytics..."}
+data: {"type":"TOOL_CALL","tool":"calculate_stats","args":{...}}
+data: {"type":"TOOL_RESULT","tool":"calculate_stats","status":"success","result":{...}}
+data: {"type":"PHASE","phase":"compose","message":"Composing page..."}
+data: {"type":"MESSAGE","content":"**Key Findings**: The class average is 74.2..."}
+data: {"type":"COMPLETE","message":"completed","progress":100,"result":{"response":"...","chatResponse":"...","page":{...}}}
+```
+
+**SSE 事件类型:** `PHASE`, `TOOL_CALL`, `TOOL_RESULT`, `MESSAGE`, `COMPLETE`（详见 [SSE 协议](sse-protocol.md)）
+
+**示例:**
+
+```bash
+curl -N -X POST http://localhost:5000/api/page/generate \
+  -H "Content-Type: application/json" \
+  -d '{"blueprint": {...}, "teacherId": "t-001"}'
+```
+
+**错误处理:**
+- 缺少 `blueprint` → `422`
+- 工具调用失败/LLM 超时 → SSE 流中的 error COMPLETE 事件 (`page: null`)
 
 ---
 

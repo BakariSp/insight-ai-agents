@@ -2,7 +2,7 @@
 
 ## 项目概览
 
-教育场景 AI Agent 服务，用自然语言构建结构化的数据分析，题目生成等可交互页面。当前: FastAPI + PydanticAI + FastMCP + Pydantic 数据模型 (Phase 2 完成)。目标: 多 Agent 系统 + SSE 流式页面构建 (Phase 3+)。
+教育场景 AI Agent 服务，用自然语言构建结构化的数据分析，题目生成等可交互页面。当前: FastAPI + PydanticAI + FastMCP + Pydantic 数据模型 (Phase 3 完成)。目标: 多 Agent 协作闭环 + Java 后端对接 (Phase 4+)。
 
 文档入口: `docs/README.md`（导航首页，链接到所有子文档）。
 
@@ -69,9 +69,13 @@ pytest tests/ -v
 | `services/mock_data.py` | 集中管理 mock 数据 |
 | `agents/provider.py` | PydanticAI 模型创建 + MCP 工具桥接 |
 | `agents/planner.py` | PlannerAgent: user prompt → Blueprint |
+| `agents/resolver.py` | 路径引用解析器 ($context/$input/$data/$compute) |
+| `agents/executor.py` | ExecutorAgent: Blueprint → Page (SSE 三阶段执行) |
+| `config/prompts/executor.py` | ExecutorAgent compose prompt 构建器 |
 | `agents/chat_agent.py` | Agent 工具循环 (旧) |
 | `services/llm_service.py` | LiteLLM 多模型封装 |
 | `api/workflow.py` | POST /api/workflow/generate |
+| `api/page.py` | POST /api/page/generate (SSE) |
 | `api/health.py` | GET /api/health |
 | `api/chat.py` | POST /chat 兼容路由 |
 | `api/models_routes.py` | GET /models, GET /skills |

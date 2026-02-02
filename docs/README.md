@@ -1,7 +1,7 @@
 # Insight AI Agent — 文档中心
 
 > **最后更新**: 2026-02-02
-> **当前阶段**: Phase 2 完成 → Phase 3 待开始
+> **当前阶段**: Phase 3 完成 → Phase 4 待开始
 > **一句话概述**: 面向教育场景的 AI Agent 服务，教师用自然语言即可构建结构化的数据分析页面并进行对话式交互。
 
 ---
@@ -30,8 +30,8 @@
 | 多模型支持 | 通过 LiteLLM 支持 Anthropic/OpenAI/Qwen/GLM 等 | ✅ 已实现 |
 | Agent 工具循环 | LLM 可调用工具获取数据、执行计算 | ✅ 已实现 |
 | 可扩展技能框架 | BaseSkill 抽象基类，新增工具只需实现接口 | ✅ 已实现 |
-| SSE 流式页面构建 | 页面构建过程实时推送给前端 | 🔲 待实现 |
-| 多 Agent 协作 | Planner → Executor → Router 分工协作 | 🔄 PlannerAgent 已实现 |
+| SSE 流式页面构建 | 页面构建过程实时推送给前端 | ✅ 已实现 |
+| 多 Agent 协作 | Planner → Executor → Router 分工协作 | 🔄 Planner + Executor 已实现 |
 | FastMCP 工具注册 | 用 FastMCP 替代手写 JSON Schema | ✅ 已实现 |
 | Java 后端对接 | 从 Java 后端获取教育真实数据 | 🔲 待实现 |
 | 前端集成 | Next.js 通过 API Routes 代理 | 🔲 待实现 |
@@ -52,7 +52,7 @@
 
 | 文档 | 内容 |
 |------|------|
-| [当前 API](api/current-api.md) | Phase 2 的 5 个 FastAPI 端点 |
+| [当前 API](api/current-api.md) | Phase 3 的 6 个 FastAPI 端点 |
 | [目标 API](api/target-api.md) | Phase 1+ 的 5 个 FastAPI 端点，详细请求/响应 Schema |
 | [SSE 协议与 Block 格式](api/sse-protocol.md) | SSE 事件协议、6 种页面 Block 类型、CamelCase 映射 |
 

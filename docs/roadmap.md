@@ -184,7 +184,7 @@
 
 ---
 
-## Phase 3: ExecutorAgent (Blueprint 执行, Level 1) 🔲
+## Phase 3: ExecutorAgent (Blueprint 执行, Level 1) ✅ 已完成
 
 **目标**: 实现 ExecutorAgent，接收 Blueprint 执行三阶段流水线（Data → Compute → Compose），通过 SSE 流式构建页面。这是"可执行计划 → 结构化页面"的核心环节。
 
@@ -194,10 +194,10 @@
 
 > Blueprint 中的 `$context.`, `$data.`, `$compute.` 引用需要在运行时解析。
 
-- [ ] **3.1.1** 实现路径解析函数 `resolve_ref(ref_string, contexts)` → 按前缀从对应上下文取值
-- [ ] **3.1.2** 实现批量解析 `resolve_refs(args_dict, *contexts)` → 递归解析 dict 中所有 `$` 引用
-- [ ] **3.1.3** 处理边界情况：路径不存在返回 `None`，嵌套点号路径（如 `$data.submissions.scores`）
-- [ ] **3.1.4** 编写解析器单元测试
+- [x] **3.1.1** 实现路径解析函数 `resolve_ref(ref_string, contexts)` → 按前缀从对应上下文取值
+- [x] **3.1.2** 实现批量解析 `resolve_refs(args_dict, *contexts)` → 递归解析 dict 中所有 `$` 引用
+- [x] **3.1.3** 处理边界情况：路径不存在返回 `None`，嵌套点号路径（如 `$data.submissions.scores`）
+- [x] **3.1.4** 编写解析器单元测试
 
 > ✅ 验收: `resolve_ref("$data.submissions.scores", {"data": {"submissions": {"scores": [...]}}})` 正确返回。
 
@@ -205,18 +205,18 @@
 
 > ExecutorAgent 核心逻辑。
 
-- [ ] **3.2.1** 创建 `agents/executor.py`：`ExecutorAgent` 类
-- [ ] **3.2.2** **Phase A — Data Contract 解析**：
+- [x] **3.2.1** 创建 `agents/executor.py`：`ExecutorAgent` 类
+- [x] **3.2.2** **Phase A — Data Contract 解析**：
   - 拓扑排序 `DataBinding`（按 `depends_on`）
   - 按序调用 `execute_mcp_tool()` 获取数据
   - 构建 `data_context` 字典
-- [ ] **3.2.3** **Phase B — Compute Graph 执行**：
+- [x] **3.2.3** **Phase B — Compute Graph 执行**：
   - 分离 TOOL 节点和 AI 节点
   - TOOL 节点：解析参数引用 → 调用工具 → 存入 `compute_results`
   - AI 节点：暂跳过（Phase C 中由 AI 统一生成）
-- [ ] **3.2.4** **Phase C — AI Compose**：
+- [x] **3.2.4** **Phase C — AI Compose**：
   - 构建 compose prompt（注入 data_context + compute_results + UIComposition 布局要求）
-  - 使用 PydanticAI `agent.iter()` 流式生成
+  - 确定性 block 构建（kpi_grid, chart, table）+ AI 叙事生成
   - 产出 SSE 事件序列
 
 > ✅ 验收: 给定一个 Blueprint + mock 数据，三阶段顺序执行，输出完整的事件序列。
@@ -225,13 +225,13 @@
 
 > 将执行引擎的事件流通过 SSE 推送给前端。
 
-- [ ] **3.3.1** 创建 `api/page.py`：`POST /api/page/generate`
+- [x] **3.3.1** 创建 `api/page.py`：`POST /api/page/generate`
   - 接收 `PageGenerateRequest`
   - 调用 `ExecutorAgent.execute_blueprint_stream()`
   - 使用 `sse-starlette` 的 `EventSourceResponse` 包装
-- [ ] **3.3.2** 定义 SSE 事件类型：`PHASE`, `TOOL_CALL`, `TOOL_RESULT`, `MESSAGE`, `COMPLETE`, `ERROR`
-- [ ] **3.3.3** 实现错误处理：工具调用失败、LLM 超时 → `ERROR` 事件
-- [ ] **3.3.4** 在 `main.py` 注册 page router
+- [x] **3.3.2** 定义 SSE 事件类型：`PHASE`, `TOOL_CALL`, `TOOL_RESULT`, `MESSAGE`, `COMPLETE`, `ERROR`
+- [x] **3.3.3** 实现错误处理：工具调用失败、LLM 超时 → error COMPLETE 事件
+- [x] **3.3.4** 在 `main.py` 注册 page router
 
 > ✅ 验收: `curl -N -X POST /api/page/generate` 收到 SSE 事件流，最终 `COMPLETE` 事件包含完整页面结构。
 
@@ -239,55 +239,98 @@
 
 > 串联 Phase 2 + Phase 3，完成完整流程。
 
-- [ ] **3.4.1** 编写端到端测试：`user_prompt` → `generate_blueprint()` → `execute_blueprint_stream()` → SSE events
-- [ ] **3.4.2** 验证页面内容：KPI 数值来自 tool 计算（可信），叙事文本来自 AI（基于数据）
-- [ ] **3.4.3** 验证 SSE 事件格式符合 [sse-protocol.md](api/sse-protocol.md) 规范
+- [x] **3.4.1** 编写端到端测试：`user_prompt` → `generate_blueprint()` → `execute_blueprint_stream()` → SSE events
+- [x] **3.4.2** 验证页面内容：KPI 数值来自 tool 计算（可信），叙事文本来自 AI（基于数据）
+- [x] **3.4.3** 验证 SSE 事件格式符合 [sse-protocol.md](api/sse-protocol.md) 规范
 
 > ✅ 验收: 完整流程可跑通，SSE 输出符合协议，页面结构匹配 Blueprint 的 UIComposition。
 
+### Phase 3 总验收
+
+- [x] `agents/resolver.py` — resolve_ref / resolve_refs 解析 4 种前缀引用
+- [x] `agents/executor.py` — ExecutorAgent 三阶段执行引擎 + 确定性 block 构建 + AI 叙事
+- [x] `config/prompts/executor.py` — compose prompt 构建器
+- [x] `api/page.py` — POST /api/page/generate SSE 端点 + EventSourceResponse
+- [x] `pytest tests/ -v` 全部通过（92 项测试：16 resolver + 16 executor + 10 API + 5 E2E + 45 existing）
+
 ---
 
-## Phase 4: Router + Chat 🔲
+## Phase 4: Follow-up 闭环 (统一追问端点) 🔲
 
-**目标**: 实现 RouterAgent（意图分类）和 ChatAgent（页面追问对话），完成多 Agent 协作闭环。用户可以在页面生成后继续追问、修改或重新生成。
+**目标**: 实现统一的追问端点 `POST /api/page/followup`，后端内部完成意图分类 + 路由 + 执行。前端无需理解 Agent 架构，只需根据响应中的 `action` 字段做渲染。
 
 **前置条件**: Phase 3 完成（ExecutorAgent 可执行 Blueprint 并 SSE 输出页面）。
 
-### Step 4.1: RouterAgent (意图分类)
+**设计原则**: 前端发一次请求、看一个 `action` 字段、做对应渲染。路由逻辑全在后端。
 
-> 判断用户追问属于哪种类型，路由到对应处理流程。
+```
+旧方案（已废弃）:
+  用户追问 → 前端调 /intent/classify → 前端路由 → 调对应端点
+  问题: 多一次 LLM 往返, 前端承担路由逻辑, 低置信度无法处理
+
+新方案:
+  用户追问 → 前端调 /api/page/followup → 后端内部路由 → 返回 action + 结果
+  优点: 单次请求, 前端只做渲染, 零路由逻辑
+```
+
+### Step 4.1: RouterAgent (内部组件)
+
+> RouterAgent 不对外暴露端点，作为 followup 流程的内部决策器。
 
 - [ ] **4.1.1** 创建 `config/prompts/router.py`：意图分类 system prompt
-  - 定义三种意图：`workflow_rebuild` / `page_refine` / `data_chat`
+  - 定义三种 action：`chat` / `refine` / `rebuild`
   - 包含分类示例和判断规则
+  - 输入：用户消息 + blueprint 名称 + 页面摘要
 - [ ] **4.1.2** 创建 `agents/router.py`：`RouterAgent`
-  - 输入：用户消息 + 当前 workflow 名称 + 页面摘要
-  - 输出：`{ intent, confidence }`
-- [ ] **4.1.3** 创建 `api/intent.py`：`POST /api/intent/classify`
-- [ ] **4.1.4** 编写意图分类测试：覆盖三种意图的典型 case
+  - 内部函数 `classify_intent(message, blueprint, page_context)` → `action`
+  - 不暴露为 HTTP 端点
+- [ ] **4.1.3** 编写意图分类测试：覆盖三种 action 的典型 case
 
-> ✅ 验收: 给定追问消息，正确分类意图并返回 confidence 分数。
+> ✅ 验收: `classify_intent("哪些学生需要关注？", ...)` → `"chat"`；`classify_intent("加一个语法分析板块", ...)` → `"rebuild"`。
 
-### Step 4.2: ChatAgent (页面对话)
+### Step 4.2: PageChatAgent (页面对话)
 
 > 基于已有页面上下文回答用户追问。
 
-- [ ] **4.2.1** 创建 `config/prompts/chat.py`：对话 system prompt
-- [ ] **4.2.2** 创建 `agents/chat.py`：`ChatAgent`
-  - 输入：用户消息 + 页面上下文（摘要 + 关键数据）
+- [ ] **4.2.1** 创建 `config/prompts/page_chat.py`：对话 system prompt
+- [ ] **4.2.2** 创建 `agents/page_chat.py`：`PageChatAgent`
+  - 输入：用户消息 + 页面上下文（摘要 + 关键数据）+ blueprint
   - 输出：Markdown 格式文本回复
-- [ ] **4.2.3** 在 `api/page.py` 添加 `POST /api/page/chat` 端点
-- [ ] **4.2.4** 编写对话测试：验证回复与页面上下文相关
+- [ ] **4.2.3** 编写对话测试：验证回复与页面上下文相关，不产生幻觉数据
 
-> ✅ 验收: 给定页面上下文和追问，返回有意义的回复，不产生幻觉数据。
+> ✅ 验收: 给定页面上下文和追问，返回有意义的回复。
 
-### Step 4.3: CamelCase 输出与多 Agent 联调
+### Step 4.3: 统一追问端点 `POST /api/page/followup`
 
-> 确保所有 API 输出统一 camelCase，多 Agent 协作流程跑通。
+> 单一入口处理所有追问场景，后端内部决策。
 
-- [ ] **4.3.1** 检查所有 Response model 继承 `CamelModel`，序列化 `by_alias=True`
-- [ ] **4.3.2** 联调测试：生成页面 → 追问 → Router 分类 → 对应 Agent 处理
-- [ ] **4.3.3** 补充 API 错误响应的统一格式
+- [ ] **4.3.1** 创建请求/响应模型 (`models/request.py`)：
+  - `PageFollowupRequest`: message, blueprint, page_context, conversation_id
+  - `PageFollowupResponse`: action, chat_response, blueprint(可选), conversation_id
+- [ ] **4.3.2** 在 `api/page.py` 添加 `POST /api/page/followup` 端点
+  - 调用 RouterAgent 分类意图
+  - `chat` → 调用 PageChatAgent → 返回文本回复
+  - `refine` → 调用 PlannerAgent 微调 Blueprint → 返回修改后的 Blueprint
+  - `rebuild` → 调用 PlannerAgent 重新生成 Blueprint → 返回新 Blueprint + 说明
+- [ ] **4.3.3** 编写 followup 端点测试：三种 action 路径 + 错误处理
+
+**action 路由表:**
+
+| action | 后端行为 | 响应内容 | 前端处理 |
+|--------|---------|---------|---------|
+| `chat` | PageChatAgent 回答 | `chatResponse` 文本 | 显示回复 |
+| `refine` | PlannerAgent 微调 | `chatResponse` + 新 `blueprint` | 自动调 `/api/page/generate` |
+| `rebuild` | PlannerAgent 重建 | `chatResponse` + 新 `blueprint` | 展示说明，确认后调 `/api/page/generate` |
+
+> ✅ 验收: 单一端点处理追问、微调、重建三种场景，前端根据 `action` 字段渲染。
+
+### Step 4.4: 多 Agent 联调与验证
+
+> 完整闭环测试。
+
+- [ ] **4.4.1** 检查所有 Response model 继承 `CamelModel`，序列化 `by_alias=True`
+- [ ] **4.4.2** 联调测试：生成页面 → 追问(chat) → 微调(refine) → 重建(rebuild) 全路径
+- [ ] **4.4.3** 补充 API 错误响应的统一格式
 
 > ✅ 验收: 完整的"生成 → 追问 → 路由 → 响应"闭环可跑通，所有输出 camelCase。
 
@@ -352,8 +395,7 @@
 - [ ] **6.1.1** 协调前端创建 proxy routes（参见 [前端集成文档](integration/frontend-integration.md)）：
   - `/api/ai/workflow-generate` → `POST /api/workflow/generate`
   - `/api/ai/page-generate` → `POST /api/page/generate` (SSE passthrough)
-  - `/api/ai/page-chat` → `POST /api/page/chat`
-  - `/api/ai/classify-intent` → `POST /api/intent/classify`
+  - `/api/ai/page-followup` → `POST /api/page/followup`
 - [ ] **6.1.2** 确认字段映射：前端 camelCase ↔ Python snake_case（由 CamelModel 自动处理）
 - [ ] **6.1.3** 联调：前端 → Proxy → Python Service → 真实数据，全链路跑通
 
@@ -399,7 +441,7 @@
 | **M0: 原型验证** | 0 ✅ | Flask + LLM 工具调用可运行 |
 | **M1: 技术基座** | 1 ✅ | FastAPI + Pydantic Models + FastMCP Tools |
 | **M2: 智能规划** | 2 ✅ | 用户 prompt → 结构化 Blueprint |
-| **M3: 页面构建** | 3 | Blueprint → SSE 流式页面 |
-| **M4: 多 Agent 闭环** | 4 | 构建 + 追问 + 路由，完整交互循环 |
+| **M3: 页面构建** | 3 ✅ | Blueprint → SSE 流式页面 |
+| **M4: 追问闭环** | 4 | 统一 followup 端点 + 内部路由，完整交互循环 |
 | **M5: 真实数据** | 5 | Java 后端对接，mock → 真实教务数据 |
 | **M6: 产品上线** | 6 | 前端集成 + Level 2 + 部署上线 |

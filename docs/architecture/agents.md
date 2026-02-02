@@ -1,17 +1,19 @@
 # 多 Agent 设计
 
-> PlannerAgent / ExecutorAgent / RouterAgent / ChatAgent 的分工、实现与协作。
+> PlannerAgent / ExecutorAgent / RouterAgent / PageChatAgent 的分工、实现与协作。
 
 ---
 
 ## Agent 分工总览
 
-| Agent | 职责 | 输入 | 输出 |
-|-------|------|------|------|
-| **PlannerAgent** | 理解用户需求，生成 Blueprint | 用户自然语言 | 结构化分析方案 JSON |
-| **ExecutorAgent** | 执行分析计划，调用工具，构建页面 | Blueprint + 数据 | SSE 流式页面 |
-| **RouterAgent** | 对追问进行意图分类和路由 | 用户追问 | 意图类型 + 路由目标 |
-| **ChatAgent** | 处理页面相关的对话式交互 | 用户消息 + 页面上下文 | 文本回复 |
+| Agent | 职责 | 输入 | 输出 | 对外暴露 |
+|-------|------|------|------|---------|
+| **PlannerAgent** | 理解用户需求，生成 Blueprint | 用户自然语言 | 结构化分析方案 JSON | `POST /api/workflow/generate` |
+| **ExecutorAgent** | 执行分析计划，调用工具，构建页面 | Blueprint + 数据 | SSE 流式页面 | `POST /api/page/generate` |
+| **RouterAgent** | 对追问进行意图分类 | 用户追问 + 上下文 | action 类型 | **内部组件** |
+| **PageChatAgent** | 处理页面相关的对话式交互 | 用户消息 + 页面上下文 | 文本回复 | **内部组件** |
+
+> **设计原则**: RouterAgent 和 PageChatAgent 不对外暴露独立端点，统一通过 `POST /api/page/followup` 内部调度。前端只调一个端点，根据响应中的 `action` 字段做渲染。
 
 ---
 
@@ -122,7 +124,7 @@ async def generate_blueprint(
 
 ---
 
-## ExecutorAgent (`agents/executor.py`)
+## ExecutorAgent (`agents/executor.py`) ✅ 已实现
 
 执行 Blueprint 三阶段，输出 SSE stream → 前端 `handleSSEStream()` 直接消费，构建结构化页面。
 
@@ -200,30 +202,72 @@ Phase 3: Compose → 映射计算结果到 UIComposition，生成 page JSON (Pag
 
 ---
 
-## RouterAgent
+## RouterAgent (`agents/router.py`) — 内部组件
 
-意图分类 Agent，判断用户追问走哪个路径：
+意图分类 Agent，**不对外暴露端点**，作为 `POST /api/page/followup` 的内部决策器。
 
-| Intent | 含义 | 触发操作 |
-|--------|------|---------|
-| `workflow_rebuild` | 重新生成 Blueprint + page | `generateWorkflow()` → `generatePage()` |
-| `page_refine` | 仅重新生成 page | `generatePage()` (带修改指令) |
-| `data_chat` | 追问对话 | `chatWithPage()` |
+```python
+# 伪代码 — Phase 4 实现
+async def classify_intent(
+    message: str, blueprint: Blueprint, page_context: dict | None,
+) -> str:
+    """返回 action: "chat" | "refine" | "rebuild"。"""
+    agent = Agent(
+        model=create_model(),
+        output_type=IntentResult,
+        system_prompt=ROUTER_SYSTEM_PROMPT,
+    )
+    result = await agent.run(f"Message: {message}\nBlueprint: {blueprint.name}\nContext: {page_context}")
+    return result.output.action
+```
+
+| action | 含义 | 后端处理 | 前端处理 |
+|--------|------|---------|---------|
+| `chat` | 数据追问 | PageChatAgent 回答 | 显示 `chatResponse` 文本 |
+| `refine` | 页面微调 | PlannerAgent 微调 Blueprint | 自动用新 blueprint 调 `/api/page/generate` |
+| `rebuild` | 结构性重建 | PlannerAgent 重新生成 Blueprint | 展示说明，用户确认后调 `/api/page/generate` |
 
 ---
 
-## ChatAgent
+## PageChatAgent (`agents/page_chat.py`) — 内部组件
 
-处理页面相关的对话式交互。接收用户消息 + 页面上下文，返回文本回复。
+处理页面相关的对话式交互。**不对外暴露端点**，由 followup 端点内部调用。
 
 ```python
-@router.post("/api/page/chat")
-async def page_chat(request: PageChatRequest):
-    model = create_model()
+# 伪代码 — Phase 4 实现
+async def page_chat(
+    message: str, blueprint: Blueprint, page_context: dict | None,
+) -> str:
+    """基于页面上下文回答用户追问，返回 Markdown 文本。"""
     agent = Agent(
-        model=model,
-        system_prompt=f"你是页面数据分析助手。页面摘要：{request.page_context}",
+        model=create_model(),
+        system_prompt=f"你是页面数据分析助手。页面: {blueprint.name}。上下文: {page_context}",
     )
-    result = await agent.run(request.user_message)
-    return {"success": True, "chat_response": result.data}
+    result = await agent.run(message)
+    return result.output
+```
+
+---
+
+## 统一追问流程 (`POST /api/page/followup`)
+
+```
+用户追问
+    │
+    ▼
+POST /api/page/followup
+    │
+    ├── RouterAgent.classify_intent()
+    │       │
+    │       ├── "chat"    → PageChatAgent → { action: "chat", chatResponse: "..." }
+    │       │
+    │       ├── "refine"  → PlannerAgent(微调) → { action: "refine", chatResponse: "...", blueprint: {...} }
+    │       │
+    │       └── "rebuild" → PlannerAgent(重建) → { action: "rebuild", chatResponse: "...", blueprint: {...} }
+    │
+    ▼
+前端根据 action 字段渲染
+    ├── "chat"    → 显示文本回复
+    ├── "refine"  → 自动调 /api/page/generate 重新渲染
+    └── "rebuild" → 展示说明 → 用户确认 → 调 /api/page/generate
 ```
