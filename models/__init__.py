@@ -14,6 +14,15 @@ from models.blueprint import (
     TabSpec,
     UIComposition,
 )
+from models.conversation import (
+    ClarifyChoice,
+    ClarifyOptions,
+    ConversationRequest,
+    ConversationResponse,
+    FollowupIntentType,
+    IntentType,
+    RouterResult,
+)
 from models.request import (
     PageChatRequest,
     PageChatResponse,
@@ -42,4 +51,11 @@ __all__ = [
     "PageGenerateRequest",
     "PageChatRequest",
     "PageChatResponse",
+    "IntentType",
+    "FollowupIntentType",
+    "RouterResult",
+    "ClarifyChoice",
+    "ClarifyOptions",
+    "ConversationRequest",
+    "ConversationResponse",
 ]
