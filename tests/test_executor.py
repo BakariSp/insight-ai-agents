@@ -10,6 +10,8 @@ from agents.executor import (
     _build_chart_block,
     _build_kpi_block,
     _build_table_block,
+    _fill_single_block,
+    _get_slot_key,
     _topo_sort,
 )
 from errors.exceptions import DataFetchError
@@ -22,6 +24,24 @@ def _make_blueprint(**overrides) -> Blueprint:
     args = _sample_blueprint_args()
     args.update(overrides)
     return Blueprint(**args)
+
+
+# ── Shared mock tool dispatcher ──────────────────────────────
+
+
+async def _mock_tool_dispatch(name, arguments):
+    """Mock tool dispatcher for executor tests."""
+    if name == "get_assignment_submissions":
+        return {
+            "assignment_id": "a-001",
+            "scores": [58, 85, 72, 91, 65],
+            "submissions": [
+                {"student_id": "s-001", "name": "Alice", "score": 58, "submitted": True},
+            ],
+        }
+    if name == "calculate_stats":
+        return {"mean": 74.2, "median": 72, "count": 5, "max": 91, "min": 58}
+    raise ValueError(f"Unexpected tool: {name}")
 
 
 # ── Topological sort tests ───────────────────────────────────
@@ -129,6 +149,41 @@ def test_build_block_dispatches():
     assert block["type"] == "chart"
 
 
+# ── Block-level helper tests (Phase 6.2) ─────────────────────
+
+
+def test_get_slot_key_mapping():
+    """_get_slot_key maps component types to correct slot keys."""
+    assert _get_slot_key("markdown") == "content"
+    assert _get_slot_key("suggestion_list") == "items"
+    assert _get_slot_key("question_generator") == "questions"
+    assert _get_slot_key("unknown_type") == "content"  # fallback
+
+
+def test_fill_single_block_markdown():
+    """_fill_single_block fills markdown block content."""
+    block = {"type": "markdown", "content": "", "variant": "insight"}
+    _fill_single_block(block, "markdown", "AI analysis text")
+    assert block["content"] == "AI analysis text"
+
+
+def test_fill_single_block_suggestion_list():
+    """_fill_single_block fills suggestion_list items."""
+    block = {"type": "suggestion_list", "title": "Recs", "items": []}
+    _fill_single_block(block, "suggestion_list", "Some suggestion")
+    assert len(block["items"]) == 1
+    assert block["items"][0]["title"] == "AI Analysis"
+    assert block["items"][0]["description"] == "Some suggestion"
+
+
+def test_fill_single_block_question_generator():
+    """_fill_single_block fills question_generator questions."""
+    block = {"type": "question_generator", "title": "Quiz", "questions": []}
+    _fill_single_block(block, "question_generator", "What is 2+2?")
+    assert len(block["questions"]) == 1
+    assert block["questions"][0]["question"] == "What is 2+2?"
+
+
 # ── ExecutorAgent Phase A tests ──────────────────────────────
 
 
@@ -233,34 +288,18 @@ def test_build_page_structure():
 
 @pytest.mark.asyncio
 async def test_full_stream_with_ai():
-    """Full execute_blueprint_stream with mocked tools and AI."""
+    """Full execute_blueprint_stream with mocked tools and AI block content."""
     bp = _make_blueprint()
     executor = ExecutorAgent()
-
-    mock_submissions = {
-        "assignment_id": "a-001",
-        "scores": [58, 85, 72, 91, 65],
-        "submissions": [
-            {"student_id": "s-001", "name": "Alice", "score": 58, "submitted": True},
-        ],
-    }
-    mock_stats = {"mean": 74.2, "median": 72, "count": 5, "max": 91, "min": 58}
-
-    async def mock_tool(name, arguments):
-        if name == "get_assignment_submissions":
-            return mock_submissions
-        if name == "calculate_stats":
-            return mock_stats
-        raise ValueError(f"Unexpected tool: {name}")
 
     ai_text = "The class average is 74.2."
 
     with patch(
         "agents.executor.execute_mcp_tool",
-        side_effect=mock_tool,
+        side_effect=_mock_tool_dispatch,
     ), patch.object(
         ExecutorAgent,
-        "_generate_ai_narrative",
+        "_generate_block_content",
         new_callable=AsyncMock,
         return_value=ai_text,
     ):
@@ -279,7 +318,9 @@ async def test_full_stream_with_ai():
     assert types[0] == "PHASE"  # data phase
     assert "TOOL_CALL" in types
     assert "TOOL_RESULT" in types
-    assert "MESSAGE" in types
+    assert "BLOCK_START" in types
+    assert "SLOT_DELTA" in types
+    assert "BLOCK_COMPLETE" in types
     assert types[-1] == "COMPLETE"
 
     # Check COMPLETE event
@@ -324,7 +365,7 @@ async def test_full_stream_error_handling():
 
 @pytest.mark.asyncio
 async def test_full_stream_no_ai_slots():
-    """Blueprint without ai_content_slots skips LLM call."""
+    """Blueprint without ai_content_slots skips LLM call and BLOCK events."""
     bp_args = _sample_blueprint_args()
     # Remove the ai_content_slot from slots
     bp_args["ui_composition"]["tabs"][0]["slots"] = [
@@ -338,19 +379,9 @@ async def test_full_stream_no_ai_slots():
     bp = Blueprint(**bp_args)
     executor = ExecutorAgent()
 
-    mock_submissions = {"assignment_id": "a-001", "scores": [58, 85]}
-    mock_stats = {"mean": 71.5, "count": 2}
-
-    async def mock_tool(name, arguments):
-        if name == "get_assignment_submissions":
-            return mock_submissions
-        if name == "calculate_stats":
-            return mock_stats
-        raise ValueError(f"Unexpected tool: {name}")
-
     with patch(
         "agents.executor.execute_mcp_tool",
-        side_effect=mock_tool,
+        side_effect=_mock_tool_dispatch,
     ):
         events = []
         async for event in executor.execute_blueprint_stream(
@@ -359,11 +390,130 @@ async def test_full_stream_no_ai_slots():
             events.append(event)
 
     types = [e["type"] for e in events]
-    # No MESSAGE event (no AI content)
-    assert "MESSAGE" not in types
+    # No BLOCK events (no AI content)
+    assert "BLOCK_START" not in types
+    assert "SLOT_DELTA" not in types
+    assert "BLOCK_COMPLETE" not in types
     complete = events[-1]
     assert complete["type"] == "COMPLETE"
     assert complete["result"]["page"] is not None
+
+
+# ── BLOCK event tests (Phase 6.2) ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_stream_emits_block_start_for_ai_slots():
+    """Each ai_content_slot produces a BLOCK_START event."""
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+    ai_text = "Block AI text."
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=_mock_tool_dispatch,
+    ), patch.object(
+        ExecutorAgent,
+        "_generate_block_content",
+        new_callable=AsyncMock,
+        return_value=ai_text,
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp, context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    block_starts = [e for e in events if e["type"] == "BLOCK_START"]
+    assert len(block_starts) == 1
+    assert block_starts[0]["blockId"] == "insight"
+    assert block_starts[0]["componentType"] == "markdown"
+
+
+@pytest.mark.asyncio
+async def test_stream_emits_slot_delta_with_content():
+    """SLOT_DELTA event contains blockId, slotKey, and deltaText."""
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+    ai_text = "Delta content here."
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=_mock_tool_dispatch,
+    ), patch.object(
+        ExecutorAgent,
+        "_generate_block_content",
+        new_callable=AsyncMock,
+        return_value=ai_text,
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp, context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    deltas = [e for e in events if e["type"] == "SLOT_DELTA"]
+    assert len(deltas) == 1
+    assert deltas[0]["blockId"] == "insight"
+    assert deltas[0]["slotKey"] == "content"
+    assert deltas[0]["deltaText"] == ai_text
+
+
+@pytest.mark.asyncio
+async def test_block_event_ordering():
+    """BLOCK_START -> SLOT_DELTA -> BLOCK_COMPLETE ordering per block."""
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=_mock_tool_dispatch,
+    ), patch.object(
+        ExecutorAgent,
+        "_generate_block_content",
+        new_callable=AsyncMock,
+        return_value="Ordered text.",
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp, context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    block_events = [
+        e for e in events
+        if e["type"] in ("BLOCK_START", "SLOT_DELTA", "BLOCK_COMPLETE")
+    ]
+    assert len(block_events) == 3
+    assert block_events[0]["type"] == "BLOCK_START"
+    assert block_events[1]["type"] == "SLOT_DELTA"
+    assert block_events[2]["type"] == "BLOCK_COMPLETE"
+    # All same blockId
+    assert block_events[0]["blockId"] == block_events[1]["blockId"] == block_events[2]["blockId"]
+
+
+@pytest.mark.asyncio
+async def test_non_ai_slots_no_block_events():
+    """Blueprints without ai_content_slots produce no BLOCK events."""
+    bp_args = _sample_blueprint_args()
+    bp_args["ui_composition"]["tabs"][0]["slots"] = [
+        {"id": "kpi", "component_type": "kpi_grid", "data_binding": "$compute.scoreStats", "props": {}},
+    ]
+    bp = Blueprint(**bp_args)
+    executor = ExecutorAgent()
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=_mock_tool_dispatch,
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp, context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    block_types = {"BLOCK_START", "SLOT_DELTA", "BLOCK_COMPLETE"}
+    assert not any(e["type"] in block_types for e in events)
 
 
 # ── DATA_ERROR interception (Phase 4.5.4) ───────────────────
@@ -371,7 +521,7 @@ async def test_full_stream_no_ai_slots():
 
 @pytest.mark.asyncio
 async def test_required_binding_error_dict_emits_data_error():
-    """Required binding returns {error: ...} → DATA_ERROR + error COMPLETE."""
+    """Required binding returns {error: ...} -> DATA_ERROR + error COMPLETE."""
     bp = _make_blueprint()
     executor = ExecutorAgent()
 
@@ -408,7 +558,7 @@ async def test_required_binding_error_dict_emits_data_error():
 
 @pytest.mark.asyncio
 async def test_non_required_binding_error_dict_skips_gracefully():
-    """Non-required binding returns {error: ...} → TOOL_RESULT error, no DATA_ERROR."""
+    """Non-required binding returns {error: ...} -> TOOL_RESULT error, no DATA_ERROR."""
     bp_args = _sample_blueprint_args()
     # Make the binding non-required
     bp_args["data_contract"]["bindings"][0]["required"] = False
@@ -430,7 +580,7 @@ async def test_non_required_binding_error_dict_skips_gracefully():
         side_effect=mock_tool,
     ), patch.object(
         ExecutorAgent,
-        "_generate_ai_narrative",
+        "_generate_block_content",
         new_callable=AsyncMock,
         return_value="AI text",
     ):

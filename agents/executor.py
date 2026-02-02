@@ -22,6 +22,7 @@ from config.settings import get_settings
 from errors.exceptions import DataFetchError
 from models.blueprint import (
     Blueprint,
+    ComponentSlot,
     ComputeNode,
     ComputeNodeType,
     DataBinding,
@@ -93,20 +94,16 @@ class ExecutorAgent:
             # Build deterministic page structure
             page = self._build_page(blueprint, all_contexts)
 
-            # Generate AI narrative for ai_content_slots
-            has_ai_slots = any(
-                slot.ai_content_slot
-                for tab in blueprint.ui_composition.tabs
-                for slot in tab.slots
-            )
+            # Stream AI content with BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE
+            all_ai_texts: list[str] = []
+            async for event in self._stream_ai_content(
+                page, blueprint, data_context, compute_results
+            ):
+                yield event
+                if event.get("type") == "SLOT_DELTA":
+                    all_ai_texts.append(event.get("deltaText", ""))
 
-            ai_text = ""
-            if has_ai_slots:
-                ai_text = await self._generate_ai_narrative(
-                    blueprint, data_context, compute_results
-                )
-                self._fill_ai_content(page, blueprint, ai_text)
-                yield {"type": "MESSAGE", "content": ai_text}
+            combined_ai_text = "\n\n".join(all_ai_texts) if all_ai_texts else ""
 
             # Complete
             yield {
@@ -114,8 +111,8 @@ class ExecutorAgent:
                 "message": "completed",
                 "progress": 100,
                 "result": {
-                    "response": ai_text,
-                    "chatResponse": ai_text,
+                    "response": combined_ai_text,
+                    "chatResponse": combined_ai_text,
                     "page": page,
                 },
             }
@@ -374,6 +371,75 @@ class ExecutorAgent:
                         }
                     ]
 
+    # ── Phase C: Per-block streaming (Phase 6.2) ─────────────
+
+    async def _generate_block_content(
+        self,
+        slot: ComponentSlot,
+        blueprint: Blueprint,
+        data_context: dict[str, Any],
+        compute_results: dict[str, Any],
+    ) -> str:
+        """Generate AI content for a single block.
+
+        In Phase 6.2 this uses the same compose prompt for all blocks.
+        Phase 6.3 upgrades to per-block prompts via build_block_prompt().
+        """
+        prompt = build_compose_prompt(blueprint, data_context, compute_results)
+
+        agent = Agent(
+            model=self.model,
+            system_prompt=blueprint.page_system_prompt
+            or "You are an educational data analyst.",
+            defer_model_check=True,
+        )
+
+        result = await agent.run(prompt)
+        return str(result.output)
+
+    async def _stream_ai_content(
+        self,
+        page: dict[str, Any],
+        blueprint: Blueprint,
+        data_context: dict[str, Any],
+        compute_results: dict[str, Any],
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Yield BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE events per AI slot."""
+        for tab_spec, tab_data in zip(
+            blueprint.ui_composition.tabs, page["tabs"]
+        ):
+            for slot, block in zip(tab_spec.slots, tab_data["blocks"]):
+                if not slot.ai_content_slot:
+                    continue
+
+                component = slot.component_type.value
+                block_id = slot.id
+                slot_key = _get_slot_key(component)
+
+                yield {
+                    "type": "BLOCK_START",
+                    "blockId": block_id,
+                    "componentType": component,
+                }
+
+                ai_text = await self._generate_block_content(
+                    slot, blueprint, data_context, compute_results
+                )
+
+                yield {
+                    "type": "SLOT_DELTA",
+                    "blockId": block_id,
+                    "slotKey": slot_key,
+                    "deltaText": ai_text,
+                }
+
+                _fill_single_block(block, component, ai_text)
+
+                yield {
+                    "type": "BLOCK_COMPLETE",
+                    "blockId": block_id,
+                }
+
 
 # ── Block builders ───────────────────────────────────────────
 
@@ -512,6 +578,46 @@ def _build_table_block(data: Any, props: dict) -> dict[str, Any]:
             )
 
     return block
+
+
+# ── Block-level helpers (Phase 6.2) ──────────────────────────
+
+
+def _get_slot_key(component_type: str) -> str:
+    """Map component_type to the slot key used in SLOT_DELTA events."""
+    return {
+        "markdown": "content",
+        "suggestion_list": "items",
+        "question_generator": "questions",
+    }.get(component_type, "content")
+
+
+def _fill_single_block(
+    block: dict[str, Any],
+    component_type: str,
+    ai_text: str,
+) -> None:
+    """Fill a single AI content block with generated text."""
+    if component_type == "markdown":
+        block["content"] = ai_text
+    elif component_type == "suggestion_list":
+        block["items"] = [
+            {
+                "title": "AI Analysis",
+                "description": ai_text,
+                "priority": "medium",
+                "category": "insight",
+            }
+        ]
+    elif component_type == "question_generator":
+        block["questions"] = [
+            {
+                "id": "q1",
+                "type": "short_answer",
+                "question": ai_text,
+                "answer": "",
+            }
+        ]
 
 
 # ── Topological sort ─────────────────────────────────────────
