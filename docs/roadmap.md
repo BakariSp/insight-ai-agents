@@ -255,84 +255,236 @@
 
 ---
 
-## Phase 4: Follow-up 闭环 (统一追问端点) 🔲
+## Phase 4: 统一会话网关 (Intent Router + Conversation API) 🔲
 
-**目标**: 实现统一的追问端点 `POST /api/page/followup`，后端内部完成意图分类 + 路由 + 执行。前端无需理解 Agent 架构，只需根据响应中的 `action` 字段做渲染。
+**目标**: 引入中心意图路由器，统一初始入口和追问入口为 `POST /api/conversation`。后端内部完成意图分类 + 置信度路由 + 交互式反问 + 执行调度。前端只需发一次请求、看 `action` 字段、做对应渲染。
 
 **前置条件**: Phase 3 完成（ExecutorAgent 可执行 Blueprint 并 SSE 输出页面）。
 
-**设计原则**: 前端发一次请求、看一个 `action` 字段、做对应渲染。路由逻辑全在后端。
+**核心设计变更**:
 
 ```
-旧方案（已废弃）:
-  用户追问 → 前端调 /intent/classify → 前端路由 → 调对应端点
-  问题: 多一次 LLM 往返, 前端承担路由逻辑, 低置信度无法处理
+旧方案（Phase 3 现状）:
+  用户输入 → 前端直调 /api/workflow/generate → 无条件生成 Blueprint
+  问题: 无意图检测, 闲聊/无关请求也被硬编为 Blueprint, 前端承担路由判断
 
 新方案:
-  用户追问 → 前端调 /api/page/followup → 后端内部路由 → 返回 action + 结果
-  优点: 单次请求, 前端只做渲染, 零路由逻辑
+  用户输入 → 前端调 /api/conversation → RouterAgent 意图分类 → 按 action 路由
+  优点: 单一入口, 置信度控制, 交互式反问, 前端零路由逻辑
 ```
 
-### Step 4.1: RouterAgent (内部组件)
+**意图分类体系:**
 
-> RouterAgent 不对外暴露端点，作为 followup 流程的内部决策器。
+| 意图 | 触发条件 | 示例 |
+|------|---------|------|
+| `chat_smalltalk` | 闲聊/寒暄/无明确任务 | "天气怎么样"、"你好"、"谢谢" |
+| `chat_qa` | 问答/咨询（不涉及数据分析） | "怎么用这个功能"、"解释一下 KPI" |
+| `build_workflow` | 明确要生成分析页面/报告/题目 | "分析 1A 班英语成绩"、"给 1B 出一套阅读题" |
+| `clarify` | 看起来像任务但缺关键参数 | "分析英语表现"（没说哪个班/哪个时间段） |
 
-- [ ] **4.1.1** 创建 `config/prompts/router.py`：意图分类 system prompt
-  - 定义三种 action：`chat` / `refine` / `rebuild`
-  - 包含分类示例和判断规则
-  - 输入：用户消息 + blueprint 名称 + 页面摘要
-- [ ] **4.1.2** 创建 `agents/router.py`：`RouterAgent`
-  - 内部函数 `classify_intent(message, blueprint, page_context)` → `action`
-  - 不暴露为 HTTP 端点
-- [ ] **4.1.3** 编写意图分类测试：覆盖三种 action 的典型 case
+**置信度路由策略:**
 
-> ✅ 验收: `classify_intent("哪些学生需要关注？", ...)` → `"chat"`；`classify_intent("加一个语法分析板块", ...)` → `"rebuild"`。
+| confidence | 路由行为 |
+|------------|---------|
+| `≥ 0.7` | 直接执行 `build_workflow` |
+| `0.4 ~ 0.7` | 走 `clarify`，返回交互式反问 |
+| `< 0.4` | 当 `chat` 处理 |
 
-### Step 4.2: PageChatAgent (页面对话)
+**追问模式** (有 blueprint/pageContext 上下文时):
 
-> 基于已有页面上下文回答用户追问。
+| 意图 | 触发条件 | 示例 |
+|------|---------|------|
+| `chat` | 针对已有页面数据的提问 | "哪些学生需要关注？" |
+| `refine` | 微调当前页面 | "把图表颜色换成蓝色" |
+| `rebuild` | 结构性重建 | "加一个语法分析板块" |
 
-- [ ] **4.2.1** 创建 `config/prompts/page_chat.py`：对话 system prompt
-- [ ] **4.2.2** 创建 `agents/page_chat.py`：`PageChatAgent`
-  - 输入：用户消息 + 页面上下文（摘要 + 关键数据）+ blueprint
-  - 输出：Markdown 格式文本回复
-- [ ] **4.2.3** 编写对话测试：验证回复与页面上下文相关，不产生幻觉数据
+### Step 4.1: 意图模型与 Clarify 交互模型
 
-> ✅ 验收: 给定页面上下文和追问，返回有意义的回复。
+> 定义 Router 输出结构和交互式反问的数据契约。
 
-### Step 4.3: 统一追问端点 `POST /api/page/followup`
+- [ ] **4.1.1** 在 `models/` 下创建 `conversation.py`：
+  - `IntentType` 枚举：`chat_smalltalk` / `chat_qa` / `build_workflow` / `clarify`
+  - `FollowupIntentType` 枚举：`chat` / `refine` / `rebuild`
+  - `RouterResult(CamelModel)`：
+    ```python
+    intent: IntentType
+    confidence: float           # 0~1
+    should_build: bool          # 便于后续开关策略
+    clarifying_question: str | None
+    route_hint: str | None      # 如 "needClassId", "needTimeRange"
+    ```
+- [ ] **4.1.2** 定义 Clarify 交互模型：
+  - `ClarifyChoice(CamelModel)`：`label`, `value`, `description`
+  - `ClarifyOptions(CamelModel)`：
+    ```python
+    type: Literal["single_select", "multi_select"]
+    choices: list[ClarifyChoice]
+    allow_custom_input: bool = True  # 前端渲染 "其他" 自由输入框
+    ```
+- [ ] **4.1.3** 定义统一请求/响应模型：
+  - `ConversationRequest(CamelModel)`：
+    ```python
+    message: str                        # 用户消息
+    language: str = "en"
+    teacher_id: str = ""
+    context: dict | None = None         # 运行时上下文
+    blueprint: Blueprint | None = None  # 有值 → 追问模式
+    page_context: dict | None = None    # 页面摘要
+    conversation_id: str | None = None  # 多轮会话 ID
+    ```
+  - `ConversationResponse(CamelModel)`：
+    ```python
+    action: str                             # 见 action 路由表
+    chat_response: str | None = None        # chat 回复 (Markdown)
+    blueprint: Blueprint | None = None      # build/refine/rebuild 时有值
+    clarify_options: ClarifyOptions | None  # clarify 时有值
+    conversation_id: str | None = None
+    ```
+- [ ] **4.1.4** 编写模型单元测试：验证 camelCase 序列化、枚举值、可选字段
 
-> 单一入口处理所有追问场景，后端内部决策。
+> ✅ 验收: `ConversationResponse` 支持 6 种 action（chat_smalltalk/chat_qa/build_workflow/clarify/refine/rebuild），clarify 响应包含结构化选项。
 
-- [ ] **4.3.1** 创建请求/响应模型 (`models/request.py`)：
-  - `PageFollowupRequest`: message, blueprint, page_context, conversation_id
-  - `PageFollowupResponse`: action, chat_response, blueprint(可选), conversation_id
-- [ ] **4.3.2** 在 `api/page.py` 添加 `POST /api/page/followup` 端点
-  - 调用 RouterAgent 分类意图
-  - `chat` → 调用 PageChatAgent → 返回文本回复
-  - `refine` → 调用 PlannerAgent 微调 Blueprint → 返回修改后的 Blueprint
-  - `rebuild` → 调用 PlannerAgent 重新生成 Blueprint → 返回新 Blueprint + 说明
-- [ ] **4.3.3** 编写 followup 端点测试：三种 action 路径 + 错误处理
+### Step 4.2: RouterAgent (统一意图分类器)
 
-**action 路由表:**
+> RouterAgent 是内部组件，不对外暴露端点。根据是否有 blueprint 上下文自动切换初始/追问模式。
 
-| action | 后端行为 | 响应内容 | 前端处理 |
-|--------|---------|---------|---------|
-| `chat` | PageChatAgent 回答 | `chatResponse` 文本 | 显示回复 |
-| `refine` | PlannerAgent 微调 | `chatResponse` + 新 `blueprint` | 自动调 `/api/page/generate` |
-| `rebuild` | PlannerAgent 重建 | `chatResponse` + 新 `blueprint` | 展示说明，确认后调 `/api/page/generate` |
+- [ ] **4.2.1** 创建 `config/prompts/router.py`：Router system prompt
+  - **初始模式** prompt：4 种意图分类规则 + 置信度评估指引 + 分类示例
+  - **追问模式** prompt：3 种意图分类规则 + 页面上下文注入
+  - 输入模板：用户消息 + (可选) blueprint 名称 + 页面摘要
+- [ ] **4.2.2** 创建 `agents/router.py`：`RouterAgent`
+  - 初始化 PydanticAI `Agent(output_type=RouterResult)`
+  - `classify_intent(message, blueprint?, page_context?)` → `RouterResult`
+  - 自动检测模式：`blueprint is None` → 初始模式，否则 → 追问模式
+  - 置信度路由逻辑：
+    ```
+    if confidence >= 0.7 and intent == build_workflow → 直接 build
+    if 0.4 <= confidence < 0.7 → 强制 clarify（即使 LLM 说 build）
+    if confidence < 0.4 → 当 chat 处理
+    ```
+- [ ] **4.2.3** 编写 Router 单元测试（使用 PydanticAI TestModel）：
+  - 初始模式：覆盖 4 种意图 + 置信度边界
+  - 追问模式：覆盖 3 种意图
+  - 模式自动切换测试
 
-> ✅ 验收: 单一端点处理追问、微调、重建三种场景，前端根据 `action` 字段渲染。
+> ✅ 验收: `classify_intent("天气怎么样")` → `chat_smalltalk, confidence<0.4`；`classify_intent("分析 1A 班英语成绩")` → `build_workflow, confidence≥0.7`；`classify_intent("分析英语表现")` → `clarify, confidence~0.5`。
 
-### Step 4.4: 多 Agent 联调与验证
+### Step 4.3: ChatAgent (闲聊 + 知识问答)
+
+> 处理 `chat_smalltalk` 和 `chat_qa` 意图，作为教育场景的友好对话入口。
+
+- [ ] **4.3.1** 创建 `config/prompts/chat.py`：Chat system prompt
+  - 角色：教育数据分析助手
+  - `chat_smalltalk`：友好回复，引导用户使用分析功能
+  - `chat_qa`：回答教育相关问题、功能使用指导
+  - 约束：不编造数据，不生成 Blueprint 结构
+- [ ] **4.3.2** 创建 `agents/chat.py`：`ChatAgent`
+  - `generate_response(message, intent_type, language)` → `str`（Markdown）
+  - 轻量级 Agent，不需要工具调用
+- [ ] **4.3.3** 编写 ChatAgent 测试：闲聊回复、QA 回复、不泄露内部结构
+
+> ✅ 验收: `generate_response("你好", "chat_smalltalk")` → 友好问候 + 功能引导；`generate_response("KPI 是什么", "chat_qa")` → 教育相关解释。
+
+### Step 4.4: Clarify 交互机制
+
+> 当 Router 置信度不足时，生成结构化的反问选项，前端渲染为可交互 UI。
+
+- [ ] **4.4.1** 在 RouterAgent 中扩展 clarify 逻辑：
+  - 当 `intent == clarify` 时，额外生成 `ClarifyOptions`
+  - Router prompt 指导 LLM 输出 `clarifying_question` + `route_hint`
+- [ ] **4.4.2** 创建 `services/clarify_builder.py`：
+  - `build_clarify_options(route_hint, teacher_id)` → `ClarifyOptions`
+  - 根据 `route_hint` 调用对应工具获取选项数据：
+    - `"needClassId"` → 调用 `get_teacher_classes()` → 生成班级单选列表
+    - `"needTimeRange"` → 生成预设时间范围选项（本周/本月/本学期）
+    - `"needAssignment"` → 调用工具获取作业列表 → 生成作业单选
+  - 所有选项列表自动附加 `allow_custom_input=True`
+- [ ] **4.4.3** 实现多轮 clarify 流转：
+  - 用户选择选项后，将选择结果注入 `context` 字段重新发送
+  - Router 检测到 context 中有补全参数 → 重新分类为 `build_workflow`
+- [ ] **4.4.4** 编写 clarify 测试：
+  - 选项生成正确性
+  - 多轮流转（clarify → 用户选择 → build_workflow）
+  - `allow_custom_input` 自定义输入处理
+
+> ✅ 验收: "分析英语表现" → clarify + 班级选项列表；用户选择 "1A 班" → 自动进入 build_workflow 并带上 classId。
+
+### Step 4.5: PageChatAgent (页面追问对话)
+
+> 基于已有页面上下文回答用户追问（追问模式下的 `chat` 意图）。
+
+- [ ] **4.5.1** 创建 `config/prompts/page_chat.py`：页面对话 system prompt
+  - 注入：页面摘要 + 关键数据点 + blueprint 结构
+  - 约束：只基于已有数据回答，不编造数值
+- [ ] **4.5.2** 创建 `agents/page_chat.py`：`PageChatAgent`
+  - `generate_response(message, blueprint, page_context, language)` → `str`
+  - 有工具访问权限（可查询补充数据）
+- [ ] **4.5.3** 编写 PageChatAgent 测试：回复相关性、不产生幻觉数据
+
+> ✅ 验收: 给定页面上下文 + "哪些学生需要关注？" → 基于数据的具体回复。
+
+### Step 4.6: 统一会话端点 `POST /api/conversation`
+
+> 单一入口处理所有用户交互，后端内部决策和调度。
+
+- [ ] **4.6.1** 创建 `api/conversation.py`：`POST /api/conversation`
+  - 接收 `ConversationRequest`
+  - 检测模式：`blueprint is None` → 初始模式，否则 → 追问模式
+  - **初始模式路由:**
+    - `chat_smalltalk` / `chat_qa` → ChatAgent → 返回文本
+    - `build_workflow` → PlannerAgent → 返回 Blueprint
+    - `clarify` → 构建 ClarifyOptions → 返回交互选项
+  - **追问模式路由:**
+    - `chat` → PageChatAgent → 返回文本
+    - `refine` → PlannerAgent 微调 → 返回新 Blueprint
+    - `rebuild` → PlannerAgent 重建 → 返回新 Blueprint + 说明
+  - 返回 `ConversationResponse`
+- [ ] **4.6.2** 保留 `/api/workflow/generate` 和 `/api/page/generate` 作为直调端点（不删除）
+- [ ] **4.6.3** 在 `main.py` 注册 conversation router
+- [ ] **4.6.4** 编写端点测试：6 种 action 路径 + 错误处理 + clarify 多轮
+
+**action 路由表（完整版）:**
+
+| action | 模式 | 后端行为 | 响应关键字段 | 前端处理 |
+|--------|------|---------|-------------|---------|
+| `chat_smalltalk` | 初始 | ChatAgent 回复 | `chatResponse` | 显示回复 |
+| `chat_qa` | 初始 | ChatAgent 回复 | `chatResponse` | 显示回复 |
+| `build_workflow` | 初始 | PlannerAgent 生成 | `blueprint` + `chatResponse` | 调 `/api/page/generate` |
+| `clarify` | 初始 | 返回反问 + 选项 | `chatResponse` + `clarifyOptions` | 渲染交互式选项 UI |
+| `chat` | 追问 | PageChatAgent 回答 | `chatResponse` | 显示回复 |
+| `refine` | 追问 | PlannerAgent 微调 | `blueprint` + `chatResponse` | 自动调 `/api/page/generate` |
+| `rebuild` | 追问 | PlannerAgent 重建 | `blueprint` + `chatResponse` | 展示说明，确认后调 `/api/page/generate` |
+
+> ✅ 验收: 单一端点处理全部 7 种场景，前端根据 `action` 字段做对应渲染。
+
+### Step 4.7: 多 Agent 联调与端到端验证
 
 > 完整闭环测试。
 
-- [ ] **4.4.1** 检查所有 Response model 继承 `CamelModel`，序列化 `by_alias=True`
-- [ ] **4.4.2** 联调测试：生成页面 → 追问(chat) → 微调(refine) → 重建(rebuild) 全路径
-- [ ] **4.4.3** 补充 API 错误响应的统一格式
+- [ ] **4.7.1** 检查所有 Response model 继承 `CamelModel`，序列化 `by_alias=True`
+- [ ] **4.7.2** 联调测试 — 初始流程：
+  - 闲聊 → chat 回复
+  - 模糊请求 → clarify 选项 → 用户选择 → build_workflow → Blueprint
+  - 明确请求 → build_workflow → Blueprint → page/generate → SSE 页面
+- [ ] **4.7.3** 联调测试 — 追问流程：
+  - 生成页面 → 追问(chat) → 微调(refine) → 重建(rebuild) 全路径
+- [ ] **4.7.4** 补充 API 错误响应的统一格式
+- [ ] **4.7.5** 清理遗留路由：标记 `POST /chat` 为 deprecated
 
-> ✅ 验收: 完整的"生成 → 追问 → 路由 → 响应"闭环可跑通，所有输出 camelCase。
+> ✅ 验收: 完整的 "闲聊 → 反问 → 生成 → 追问 → 微调" 全闭环可跑通，所有输出 camelCase。
+
+### Phase 4 总验收
+
+- [ ] `models/conversation.py` — IntentType + RouterResult + ClarifyOptions + ConversationRequest/Response
+- [ ] `agents/router.py` — RouterAgent 初始/追问双模式 + 置信度路由
+- [ ] `agents/chat.py` — ChatAgent 闲聊 + QA
+- [ ] `agents/page_chat.py` — PageChatAgent 页面追问
+- [ ] `services/clarify_builder.py` — 交互式反问选项构建
+- [ ] `api/conversation.py` — POST /api/conversation 统一端点
+- [ ] `config/prompts/router.py` — Router 双模式 prompt
+- [ ] `config/prompts/chat.py` — ChatAgent prompt
+- [ ] `config/prompts/page_chat.py` — PageChatAgent prompt
+- [ ] `pytest tests/ -v` 全部通过
 
 ---
 
@@ -393,9 +545,9 @@
 > 前端通过 API Routes 代理所有 AI 请求，避免跨域和密钥暴露。
 
 - [ ] **6.1.1** 协调前端创建 proxy routes（参见 [前端集成文档](integration/frontend-integration.md)）：
-  - `/api/ai/workflow-generate` → `POST /api/workflow/generate`
+  - `/api/ai/conversation` → `POST /api/conversation`（主入口）
   - `/api/ai/page-generate` → `POST /api/page/generate` (SSE passthrough)
-  - `/api/ai/page-followup` → `POST /api/page/followup`
+  - `/api/ai/workflow-generate` → `POST /api/workflow/generate`（直调，可选）
 - [ ] **6.1.2** 确认字段映射：前端 camelCase ↔ Python snake_case（由 CamelModel 自动处理）
 - [ ] **6.1.3** 联调：前端 → Proxy → Python Service → 真实数据，全链路跑通
 
@@ -442,6 +594,6 @@
 | **M1: 技术基座** | 1 ✅ | FastAPI + Pydantic Models + FastMCP Tools |
 | **M2: 智能规划** | 2 ✅ | 用户 prompt → 结构化 Blueprint |
 | **M3: 页面构建** | 3 ✅ | Blueprint → SSE 流式页面 |
-| **M4: 追问闭环** | 4 | 统一 followup 端点 + 内部路由，完整交互循环 |
+| **M4: 会话网关** | 4 | 统一会话入口 + 意图路由 + 交互式反问，完整交互闭环 |
 | **M5: 真实数据** | 5 | Java 后端对接，mock → 真实教务数据 |
 | **M6: 产品上线** | 6 | 前端集成 + Level 2 + 部署上线 |

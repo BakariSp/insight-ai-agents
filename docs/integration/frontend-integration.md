@@ -21,53 +21,62 @@
 
 | 端点 | 方法 | 状态 | 用途 |
 |------|------|------|------|
-| `/api/workflow/generate` | POST | ✅ 已实现 | 用户提示词 → Blueprint |
+| `/api/conversation` | POST | 🔲 Phase 4 | **统一会话入口** — 意图分类 + 路由（聊天/构建/反问/追问） |
+| `/api/workflow/generate` | POST | ✅ 已实现 | 直调：用户提示词 → Blueprint（跳过意图分类） |
 | `/api/page/generate` | POST | ✅ 已实现 | 执行 Blueprint → SSE 流式页面 |
-| `/api/page/followup` | POST | 🔲 Phase 4 | 统一追问 (内部路由到 chat/refine/rebuild) |
 | `/api/health` | GET | ✅ 已实现 | 健康检查 |
 | `/models` | GET | ✅ 已实现 | 列出可用模型 |
 | `/skills` | GET | ✅ 已实现 | 列出可用技能/工具 |
-| `/chat` | POST | ✅ 遗留 | Phase 0 兼容路由，将被替代 |
+| `/chat` | POST | ⚠️ 遗留 | Phase 0 兼容路由，Phase 4 后废弃 |
 
 ---
 
 ## 集成流程
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        完整交互流程                               │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. 用户输入自然语言                                               │
-│     ──────────────────────                                       │
-│     "分析 F1A 班英语成绩"                                         │
-│           │                                                      │
-│           ▼                                                      │
-│  2. POST /api/workflow/generate                                  │
-│     ──────────────────────────                                   │
-│     返回 Blueprint JSON (含 dataContract.inputs)                  │
-│           │                                                      │
-│           ▼                                                      │
-│  3. 前端根据 inputs 渲染数据选择 UI                                │
-│     ──────────────────────────────                               │
-│     用户选择班级、作业等                                           │
-│           │                                                      │
-│           ▼                                                      │
-│  4. POST /api/page/generate  (Phase 3)                           │
-│     ──────────────────────────────────                           │
-│     将 Blueprint + 用户选择 → SSE 事件流                          │
-│           │                                                      │
-│           ▼                                                      │
-│  5. 前端渲染页面 (6 种 Block 组件)                                │
-│           │                                                      │
-│           ▼                                                      │
-│  6. 用户追问 → POST /api/page/followup  (Phase 4)               │
-│     后端内部路由，返回 action 字段:                                │
-│     ├── action: "chat"    → 显示文本回复                          │
-│     ├── action: "refine"  → 自动用新 blueprint 回到步骤 4        │
-│     └── action: "rebuild" → 展示说明，确认后回到步骤 4            │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        完整交互流程 (Phase 4+)                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. 用户输入自然语言                                                     │
+│     ──────────────────────                                              │
+│     任意消息: 闲聊、提问、或分析请求                                      │
+│           │                                                             │
+│           ▼                                                             │
+│  2. POST /api/conversation                                              │
+│     ──────────────────────────                                          │
+│     RouterAgent 意图分类 → 返回 action 字段:                             │
+│     │                                                                   │
+│     ├── action: "chat_smalltalk"  → 显示闲聊回复 (结束)                  │
+│     ├── action: "chat_qa"         → 显示问答回复 (结束)                  │
+│     ├── action: "clarify"         → 渲染交互式选项 UI (→ 步骤 2a)       │
+│     └── action: "build_workflow"  → 获得 Blueprint (→ 步骤 3)           │
+│                                                                         │
+│  2a. 用户选择 clarify 选项 (单选/多选/自定义输入)                         │
+│      ─────────────────────────────────────                              │
+│      将选择结果重新发送到 POST /api/conversation → 回到步骤 2             │
+│           │                                                             │
+│           ▼                                                             │
+│  3. 前端根据 Blueprint.dataContract.inputs 渲染数据选择 UI               │
+│     ──────────────────────────────────────────────────                  │
+│     用户选择班级、作业等                                                 │
+│           │                                                             │
+│           ▼                                                             │
+│  4. POST /api/page/generate                                             │
+│     ──────────────────────────────────                                  │
+│     将 Blueprint + 用户选择 → SSE 事件流                                │
+│           │                                                             │
+│           ▼                                                             │
+│  5. 前端渲染页面 (6 种 Block 组件)                                      │
+│           │                                                             │
+│           ▼                                                             │
+│  6. 用户追问 → POST /api/conversation (带 blueprint + pageContext)       │
+│     后端内部路由，返回 action 字段:                                      │
+│     ├── action: "chat"    → 显示文本回复                                │
+│     ├── action: "refine"  → 自动用新 blueprint 回到步骤 4               │
+│     └── action: "rebuild" → 展示说明，确认后回到步骤 4                   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -235,17 +244,32 @@ Phase 0 兼容路由，将在 Phase 4 被 `/api/page/generate` + `/api/page/foll
 
 ---
 
-### 7. 统一追问 — `POST /api/page/followup` 🔲 Phase 4
+### 7. 统一会话 — `POST /api/conversation` 🔲 Phase 4
 
-单一入口处理所有追问场景。后端内部通过 RouterAgent 分类意图，然后调度到对应 Agent。前端无需理解内部路由逻辑，只根据响应中的 `action` 字段做渲染。
+**统一入口**，处理所有用户交互：初始消息（闲聊/提问/构建请求/模糊请求）和追问消息（页面问答/微调/重建）。后端内部通过 RouterAgent 分类意图 + 置信度路由，前端只需根据 `action` 字段做渲染。
 
-> **设计变更**: 原计划的 `POST /api/intent/classify` 和 `POST /api/page/chat` 合并为此端点。RouterAgent 作为内部组件，不对外暴露。
+> **设计变更**: 原计划的 `/api/page/followup` 和 `/api/workflow/generate` 的入口职责合并为此端点。RouterAgent 作为内部组件，不对外暴露。`/api/workflow/generate` 保留为直调端点。
 
 **Request:**
 
-```json
+```jsonc
+// 初始消息 — 不传 blueprint
 {
-  "message": "帮我加一个语法分析的板块",
+  "message": "分析 1A 班英语成绩",
+  "language": "en",
+  "teacherId": "t-001",
+  "context": null,
+  "blueprint": null,
+  "pageContext": null,
+  "conversationId": null
+}
+
+// 追问消息 — 传入当前 blueprint + pageContext
+{
+  "message": "哪些学生需要关注？",
+  "language": "en",
+  "teacherId": "t-001",
+  "context": null,
   "blueprint": { "...": "当前 Blueprint，原样传入" },
   "pageContext": {
     "meta": { "pageTitle": "Form 1A English Performance Analysis" },
@@ -257,53 +281,108 @@ Phase 0 兼容路由，将在 Phase 4 被 `/api/page/generate` + `/api/page/foll
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `message` | string | **是** | 用户追问内容 |
-| `blueprint` | object | **是** | 当前 Blueprint，原样传入 |
-| `pageContext` | object \| null | 否 | 当前页面的元信息和数据摘要 |
+| `message` | string | **是** | 用户消息 |
+| `language` | string | 否 | 输出语言，默认 `"en"` |
+| `teacherId` | string | 否 | 教师 ID |
+| `context` | object \| null | 否 | 运行时上下文（如 clarify 选择结果） |
+| `blueprint` | object \| null | 否 | 当前 Blueprint；**有值 = 追问模式** |
+| `pageContext` | object \| null | 否 | 当前页面元信息和数据摘要 |
 | `conversationId` | string \| null | 否 | 会话 ID，用于多轮对话 |
 
-**Response (200) — 三种 action:**
+**Response (200) — 7 种 action:**
 
 ```jsonc
-// action: "chat" — 数据追问，直接返回文本回复
+// action: "chat_smalltalk" — 闲聊回复
 {
-  "action": "chat",
-  "chatResponse": "根据数据，进步最大的 5 位同学是...",
+  "action": "chat_smalltalk",
+  "chatResponse": "你好！我是教育数据分析助手，可以帮你分析班级成绩、生成练习题等。试试说「分析 1A 班英语成绩」？",
   "blueprint": null,
+  "clarifyOptions": null,
   "conversationId": "conv-001"
 }
 
-// action: "refine" — 页面微调，返回修改后的 Blueprint
+// action: "chat_qa" — 知识问答回复
+{
+  "action": "chat_qa",
+  "chatResponse": "KPI (Key Performance Indicator) 是关键绩效指标...",
+  "blueprint": null,
+  "clarifyOptions": null,
+  "conversationId": "conv-001"
+}
+
+// action: "build_workflow" — 生成 Blueprint
+{
+  "action": "build_workflow",
+  "chatResponse": "好的，我已为你规划了 1A 班英语成绩分析方案。",
+  "blueprint": { "...": "完整的 Blueprint" },
+  "clarifyOptions": null,
+  "conversationId": "conv-001"
+}
+
+// action: "clarify" — 交互式反问
+{
+  "action": "clarify",
+  "chatResponse": "你想分析哪个班级的英语表现？",
+  "blueprint": null,
+  "clarifyOptions": {
+    "type": "single_select",
+    "choices": [
+      { "label": "1A 班", "value": "class-1a", "description": "35 名学生" },
+      { "label": "1B 班", "value": "class-1b", "description": "32 名学生" },
+      { "label": "所有班级", "value": "all", "description": "对比分析" }
+    ],
+    "allowCustomInput": true
+  },
+  "conversationId": "conv-001"
+}
+
+// action: "chat" — 追问模式：页面数据追问
+{
+  "action": "chat",
+  "chatResponse": "根据数据，需要关注的 5 位同学是...",
+  "blueprint": null,
+  "clarifyOptions": null,
+  "conversationId": "conv-001"
+}
+
+// action: "refine" — 追问模式：页面微调
 {
   "action": "refine",
   "chatResponse": "好的，我已将图表颜色调整为蓝色系。",
   "blueprint": { "...": "修改后的 Blueprint" },
+  "clarifyOptions": null,
   "conversationId": "conv-001"
 }
 
-// action: "rebuild" — 结构性重建，返回全新 Blueprint
+// action: "rebuild" — 追问模式：结构性重建
 {
   "action": "rebuild",
-  "chatResponse": "好的，我重新规划了分析方案，增加了语法分析维度。新方案包含...",
+  "chatResponse": "好的，我重新规划了分析方案，增加了语法分析维度。",
   "blueprint": { "...": "全新的 Blueprint" },
+  "clarifyOptions": null,
   "conversationId": "conv-001"
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `action` | `"chat"` \| `"refine"` \| `"rebuild"` | 后端决定的操作类型 |
-| `chatResponse` | string | 面向用户的回复 (Markdown) |
-| `blueprint` | object \| null | 修改后的 Blueprint（仅 refine/rebuild 时有值） |
+| `action` | string | 后端决定的操作类型，见下表 |
+| `chatResponse` | string \| null | 面向用户的回复 (Markdown) |
+| `blueprint` | object \| null | Blueprint（仅 build_workflow/refine/rebuild 时有值） |
+| `clarifyOptions` | object \| null | 交互式选项（仅 clarify 时有值） |
 | `conversationId` | string \| null | 会话 ID |
 
 **前端处理逻辑:**
 
-| action | 前端行为 |
-|--------|---------|
-| `chat` | 显示 `chatResponse` 文本，页面不变 |
-| `refine` | 自动用新 `blueprint` 调 `/api/page/generate`，重新渲染页面 |
-| `rebuild` | 展示 `chatResponse` 说明变更，用户确认后调 `/api/page/generate` |
+| action | 模式 | 前端行为 |
+|--------|------|---------|
+| `chat_smalltalk` | 初始 | 显示 `chatResponse` |
+| `chat_qa` | 初始 | 显示 `chatResponse` |
+| `build_workflow` | 初始 | 拿 `blueprint` 调 `/api/page/generate`，可选先渲染 inputs UI |
+| `clarify` | 初始 | 渲染 `clarifyOptions` 为交互式 UI（单选/多选/自定义输入），用户选择后重新发送 |
+| `chat` | 追问 | 显示 `chatResponse`，页面不变 |
+| `refine` | 追问 | 自动用新 `blueprint` 调 `/api/page/generate`，重新渲染页面 |
+| `rebuild` | 追问 | 展示 `chatResponse` 说明变更，用户确认后调 `/api/page/generate` |
 
 ---
 
@@ -805,19 +884,44 @@ interface PageGenerateRequest {
   teacherId?: string;
 }
 
-// ── POST /api/page/followup (Phase 4) ──
+// ── POST /api/conversation (Phase 4) ──
 
-interface PageFollowupRequest {
+interface ConversationRequest {
   message: string;
-  blueprint: Blueprint;
+  language?: string;                     // 默认 "en"
+  teacherId?: string;
+  context?: Record<string, any> | null;
+  blueprint?: Blueprint | null;          // 有值 = 追问模式
   pageContext?: Record<string, any> | null;
   conversationId?: string | null;
 }
 
-interface PageFollowupResponse {
-  action: 'chat' | 'refine' | 'rebuild';
-  chatResponse: string;
-  blueprint: Blueprint | null;           // 仅 refine/rebuild 时有值
+type ConversationAction =
+  | 'chat_smalltalk'   // 初始：闲聊
+  | 'chat_qa'          // 初始：知识问答
+  | 'build_workflow'   // 初始：生成 Blueprint
+  | 'clarify'          // 初始：交互式反问
+  | 'chat'             // 追问：页面数据追问
+  | 'refine'           // 追问：微调 Blueprint
+  | 'rebuild';         // 追问：重建 Blueprint
+
+interface ClarifyChoice {
+  label: string;
+  value: string;
+  description?: string;
+}
+
+interface ClarifyOptions {
+  type: 'single_select' | 'multi_select';
+  choices: ClarifyChoice[];
+  allowCustomInput: boolean;             // true → 前端渲染 "其他" 自由输入框
+}
+
+interface ConversationResponse {
+  action: ConversationAction;
+  chatResponse: string | null;
+  blueprint: Blueprint | null;           // 仅 build_workflow/refine/rebuild 时有值
+  clarifyOptions: ClarifyOptions | null; // 仅 clarify 时有值
   conversationId: string | null;
 }
 ```
