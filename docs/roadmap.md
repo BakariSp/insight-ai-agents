@@ -488,11 +488,120 @@
 
 ---
 
+## Phase 4.5: 健壮性增强 + 数据契约升级 🔲
+
+**目标**: 解决 Phase 4 闭环后暴露的稳定性与可控性问题——实体存在性校验、sourcePrompt 一致性、action 命名规范化、Executor 错误拦截。确保 LLM 不编造不存在的实体，错误不穿透到前端页面。
+
+**前置条件**: Phase 4 完成（统一会话网关 + 意图路由 + 交互式反问闭环）。
+
+**核心问题场景**:
+
+```
+用户: "分析 2C 班英语成绩"（2C 班不存在）
+旧流程: Router→build_workflow→Planner 硬编 Blueprint→Executor 拿到 error dict→空壳页面
+新流程: Router→build_workflow→EntityValidator 发现 2C 不存在→降级 clarify→展示实际班级选项
+```
+
+### Step 4.5.1: 实体存在性校验层（Entity Validator）
+
+> 在 Router → Planner 之间加入实体校验，防止不存在的班级/学生/作业被传入 Blueprint 生成流程。
+
+- [ ] **4.5.1.1** 定义自定义异常：`errors/exceptions.py`
+  - `EntityNotFoundError(entity_type, entity_id, suggestions?)`
+  - `DataFetchError(tool_name, reason)`
+  - `ToolError` 基类
+- [ ] **4.5.1.2** 创建 `services/entity_validator.py`：
+  - `validate_entities(message, teacher_id, context?) → ValidationResult`
+  - `ValidationResult(CamelModel)`:
+    ```python
+    valid: bool
+    missing_entities: list[MissingEntity]  # type + mentioned_name
+    suggestions: ClarifyOptions | None     # 降级选项
+    ```
+  - 实体提取策略：规则匹配班级/学生名称模式 + context 中的显式 ID
+  - 调用 `get_teacher_classes()` 获取实际班级列表做比对
+- [ ] **4.5.1.3** 在 `api/conversation.py` 的 `build_workflow` 分支中插入校验：
+  ```
+  intent == build_workflow
+    → EntityValidator.validate(message, teacher_id)
+    → if not valid → 降级为 clarify, 返回 ClarifyOptions(实际班级列表)
+    → if valid → PlannerAgent 正常生成 Blueprint
+  ```
+- [ ] **4.5.1.4** 重构 `tools/data_tools.py` 的 not-found 处理：
+  - 将 `return {"error": "..."}` 改为 `raise EntityNotFoundError(...)`
+  - 调用方可明确区分"成功的空数据"与"实体不存在"
+- [ ] **4.5.1.5** 编写测试：
+  - 不存在的班级 → clarify 降级 + 展示实际班级选项
+  - 存在的班级 → 正常进入 build_workflow
+  - 工具返回 EntityNotFoundError → 验证异常传播
+
+> ✅ 验收: "分析 2C 班英语成绩" → 返回 `action=clarify` + `clarifyOptions` 包含 Form 1A / Form 1B；选择后成功进入 build_workflow。
+
+### Step 4.5.2: sourcePrompt 一致性校验
+
+> 防止 LLM 改写用户原始请求。确保 Blueprint.sourcePrompt 始终等于原始 message。
+
+- [ ] **4.5.2.1** 在 `agents/planner.py` 的 `generate_blueprint()` 返回前增加强制覆写：
+  - `blueprint.source_prompt = user_prompt`（不再判空，直接覆写）
+  - 如果 LLM 生成的 `source_prompt` 与原文不一致，记录 warning 日志
+- [ ] **4.5.2.2** 在 `api/conversation.py` 的 build/refine/rebuild 三个分支各加断言：
+  - `assert blueprint.source_prompt == original_message` 或等价校验
+- [ ] **4.5.2.3** 编写测试：验证 sourcePrompt 始终等于原始输入
+
+> ✅ 验收: 无论 LLM 输出什么 sourcePrompt，最终 Blueprint 的 sourcePrompt 必等于原始 message。
+
+### Step 4.5.3: Action 命名统一化
+
+> 消除 action 枚举混用问题（chat_smalltalk/chat_qa vs chat），前端/日志/统计可统一解读。
+
+- [ ] **4.5.3.1** 在 `ConversationResponse` 中新增结构化字段：
+  ```python
+  mode: Literal["entry", "followup"]
+  action: Literal["chat", "build", "clarify", "refine", "rebuild"]
+  chat_kind: Literal["smalltalk", "qa", "page"] | None = None
+  ```
+- [ ] **4.5.3.2** 保留旧 `action` 字段作为 `@computed_field` 向下兼容：
+  - `mode=entry, action=chat, chat_kind=smalltalk` → legacy `"chat_smalltalk"`
+  - `mode=entry, action=chat, chat_kind=qa` → legacy `"chat_qa"`
+  - `mode=followup, action=chat, chat_kind=page` → legacy `"chat"`
+- [ ] **4.5.3.3** 更新 Router / Conversation API 适配新字段结构
+- [ ] **4.5.3.4** 更新所有测试验证新字段
+
+> ✅ 验收: 前端可按 `action` + `chatKind` 二维判断渲染策略；旧 `action` 字段保持兼容。
+
+### Step 4.5.4: Executor 数据阶段错误拦截
+
+> 防止 error dict 穿透到 Compose 阶段，产出空壳页面。
+
+- [ ] **4.5.4.1** Executor `_resolve_data_contract` 中检查 tool 返回值：
+  - 如果返回包含 `"error"` key 且 binding.required == True → 抛出 `DataFetchError`
+  - 非 required binding 的错误 → warning 日志 + 跳过
+- [ ] **4.5.4.2** 新增 SSE 事件类型 `DATA_ERROR`：
+  ```json
+  {"type": "DATA_ERROR", "entity": "class-2c", "message": "班级不存在", "suggestions": [...]}
+  ```
+- [ ] **4.5.4.3** 前端收到 `DATA_ERROR` 时可展示友好提示而非空页面
+- [ ] **4.5.4.4** 编写测试：required binding 返回 error → 终止 + DATA_ERROR 事件
+
+> ✅ 验收: Executor 遇到不存在的实体时，返回 DATA_ERROR 事件，不再产出空壳页面。
+
+### Phase 4.5 总验收
+
+- [ ] `errors/exceptions.py` — EntityNotFoundError + DataFetchError + ToolError
+- [ ] `services/entity_validator.py` — 实体校验 + 降级逻辑
+- [ ] `agents/planner.py` — sourcePrompt 强制覆写
+- [ ] `models/conversation.py` — action 二维结构化 + 向下兼容
+- [ ] `agents/executor.py` — 数据阶段错误拦截 + DATA_ERROR 事件
+- [ ] `tools/data_tools.py` — not-found 改为 raise 异常
+- [ ] `pytest tests/ -v` 全部通过
+
+---
+
 ## Phase 5: Java 后端对接 🔲
 
-**目标**: 将 mock 数据替换为真实的 Java 后端 API 调用，实现数据从教务系统到 AI 分析的完整链路。
+**目标**: 将 mock 数据替换为真实的 Java 后端 API 调用，通过 Adapter 抽象层隔离外部 API 变化，实现数据从教务系统到 AI 分析的完整链路。
 
-**前置条件**: Phase 4 完成（多 Agent 系统功能完整，mock 数据跑通）。
+**前置条件**: Phase 4.5 完成（实体校验 + 错误拦截机制就位）。
 
 ### Step 5.1: HTTP 客户端封装
 
@@ -507,36 +616,59 @@
 
 > ✅ 验收: `java_client.get("/dify/teacher/t-001/classes/me")` 可成功调用（或在 Java 不可用时优雅降级）。
 
-### Step 5.2: 数据工具切换
+### Step 5.2: Data Adapter 抽象层（新增）
 
-> 将 mock 数据工具替换为调用 Java API 的真实版本。
+> 在工具层和 Java 客户端之间建立适配层，隔离外部 API 变化对内部系统的影响。
 
-- [ ] **5.2.1** 重构 `tools/data_tools.py`：每个工具内部调用 `java_client`
-  - `get_teacher_classes` → `GET /dify/teacher/{id}/classes/me`
-  - `get_class_detail` → `GET /dify/teacher/{id}/classes/{classId}`
-  - `get_assignment_submissions` → `GET /dify/teacher/{id}/classes/{classId}/assignments` + `GET .../submissions`
-  - `get_student_grades` → `GET /dify/teacher/{id}/submissions/students/{studentId}`
-- [ ] **5.2.2** 数据格式映射：Java API 响应 → 工具输出格式（保持工具接口不变）
-- [ ] **5.2.3** 保留 mock fallback：当 Java 不可用时降级到 mock 数据（通过配置开关）
+- [ ] **5.2.1** 定义内部标准数据结构 `models/data.py`：
+  - `ClassInfo`, `ClassDetail`, `StudentInfo`, `AssignmentInfo`, `SubmissionData`, `GradeData`
+  - 工具层、Planner、Executor 只依赖这些内部模型
+- [ ] **5.2.2** 创建 `adapters/` 目录，实现各数据适配器：
+  - `adapters/class_adapter.py` — Java 班级 API 响应 → `ClassInfo` / `ClassDetail`
+  - `adapters/grade_adapter.py` — Java 成绩 API 响应 → `GradeData`
+  - `adapters/assignment_adapter.py` — Java 作业 API 响应 → `AssignmentInfo` / `SubmissionData`
+  - 每个 adapter 实现：`from_java_response(raw_dict) → InternalModel`
+- [ ] **5.2.3** 编写 adapter 单元测试：Java 响应样本 → 内部模型映射正确
+
+> ✅ 验收: Java API 字段改名/结构变化 → 只改 adapter，工具层/Planner/Executor 不受影响。
+
+```
+架构:
+tools/data_tools.py  →  adapters/class_adapter.py  →  services/java_client.py
+                     →  adapters/grade_adapter.py   →
+                     →  adapters/assignment_adapter.py →
+```
+
+### Step 5.3: 数据工具切换
+
+> 将 mock 数据工具替换为调用 Java API 的真实版本（通过 adapter 层）。
+
+- [ ] **5.3.1** 重构 `tools/data_tools.py`：每个工具内部调用 adapter → `java_client`
+  - `get_teacher_classes` → `class_adapter.list_classes(java_client, teacher_id)`
+  - `get_class_detail` → `class_adapter.get_detail(java_client, teacher_id, class_id)`
+  - `get_assignment_submissions` → `assignment_adapter.get_submissions(java_client, ...)`
+  - `get_student_grades` → `grade_adapter.get_grades(java_client, ...)`
+- [ ] **5.3.2** 保留 mock fallback：当 Java 不可用时降级到 mock 数据（通过配置开关 `USE_MOCK_DATA`）
+- [ ] **5.3.3** 工具对外接口保持不变，Planner/Executor 无需修改
 
 > ✅ 验收: 连接 Java 后端时使用真实数据，断连时降级到 mock，工具对外接口不变。
 
-### Step 5.3: 错误处理与健壮性
+### Step 5.4: 错误处理与健壮性
 
 > 确保外部依赖不稳定时系统仍可用。
 
-- [ ] **5.3.1** 实现重试策略：网络超时、5xx 错误自动重试（指数退避，最多 3 次）
-- [ ] **5.3.2** 实现熔断/降级：连续失败 N 次后自动切换到 mock 数据
-- [ ] **5.3.3** 添加请求日志：记录 Java API 调用耗时、状态码
-- [ ] **5.3.4** 端到端测试：模拟 Java 服务超时/500 → 验证降级行为
+- [ ] **5.4.1** 实现重试策略：网络超时、5xx 错误自动重试（指数退避，最多 3 次）
+- [ ] **5.4.2** 实现熔断/降级：连续失败 N 次后自动切换到 mock 数据
+- [ ] **5.4.3** 添加请求日志：记录 Java API 调用耗时、状态码
+- [ ] **5.4.4** 端到端测试：模拟 Java 服务超时/500 → 验证降级行为
 
 > ✅ 验收: Java 后端宕机时，系统自动降级到 mock 数据，不影响用户使用。
 
 ---
 
-## Phase 6: 前端集成 + Level 2 🔲
+## Phase 6: 前端集成 + Level 2 + SSE 升级 🔲
 
-**目标**: 与 Next.js 前端对接，完成 Level 2 能力（AI 填充组件内容），进行端到端测试并上线。
+**目标**: 与 Next.js 前端对接，完成 Level 2 能力（AI 填充组件内容），升级 SSE 协议到 block/slot 粒度，引入 Patch 机制支持增量修改，进行端到端测试并上线。
 
 **前置条件**: Phase 5 完成（真实数据链路打通）。
 
@@ -553,30 +685,70 @@
 
 > ✅ 验收: 前端页面可发起请求，SSE 流式显示页面构建过程。
 
-### Step 6.2: Level 2 — AI 内容插槽
+### Step 6.2: SSE 协议升级（Block/Slot 粒度）
+
+> 将 MESSAGE 事件升级为 block/slot 粒度，前端可精确知道 AI 内容填到哪个 block 的哪个 slot。
+
+- [ ] **6.2.1** 新增 SSE 事件类型：
+  ```
+  BLOCK_START    {blockId, componentType}          # block 开始填充
+  SLOT_DELTA     {blockId, slotKey, deltaText}     # 增量文本推送到指定 slot
+  BLOCK_COMPLETE {blockId}                          # block 填充完成
+  ```
+- [ ] **6.2.2** 重构 Executor `_fill_ai_content` 为逐 block 流式输出：
+  - 每个 `ai_content_slot` 独立调用 AI → 逐 block 生成
+  - 生成过程中发送 `BLOCK_START → SLOT_DELTA(s) → BLOCK_COMPLETE`
+- [ ] **6.2.3** 保留 `MESSAGE` 事件作为 fallback（向下兼容旧前端）
+- [ ] **6.2.4** 更新 SSE 协议文档 (`docs/api/sse-protocol.md`)
+- [ ] **6.2.5** 编写测试：验证新事件类型格式 + 向下兼容
+
+> ✅ 验收: 前端可按 `blockId` 精确定位 AI 内容插入位置；旧前端仍可用 MESSAGE 兼容模式。
+
+### Step 6.3: Level 2 — AI 内容插槽
 
 > 让 AI 不仅选择和排列组件，还能填充组件内部内容。
 
-- [ ] **6.2.1** 在 ExecutorAgent 的 Compose 阶段支持 `ai_content_slot=true` 的 ComponentSlot
-- [ ] **6.2.2** AI 生成内容类型：
+- [ ] **6.3.1** 在 ExecutorAgent 的 Compose 阶段支持 `ai_content_slot=true` 的 ComponentSlot
+- [ ] **6.3.2** AI 生成内容类型：
   - `markdown` blocks → AI 撰写叙事分析文本
-  - `suggestion_list` → AI 生成教学建议条目
+  - `suggestion_list` → AI 生成教学建议条目（结构化 JSON）
   - `table` cells → AI 填写分析性文字列
-- [ ] **6.2.3** 更新 SSE 事件：AI 填充内容作为增量 `MESSAGE` 事件推送
-- [ ] **6.2.4** 前端适配：PageRenderer 处理 `aiContentSlot` 标记的组件
+- [ ] **6.3.3** 使用 Step 6.2 的新 SSE 事件推送 AI 填充内容
+- [ ] **6.3.4** 前端适配：PageRenderer 处理 `aiContentSlot` 标记的组件
 
 > ✅ 验收: 页面中 markdown / suggestion_list 等组件内容由 AI 实时生成并流式推送。
 
-### Step 6.3: E2E 测试与上线
+### Step 6.4: Refine Patch 机制
+
+> 追问模式的 refine/rebuild 引入 patch 指令，避免每次微调都整页重跑。
+
+- [ ] **6.4.1** 定义 `PatchInstruction` 模型（`models/patch.py`）：
+  ```python
+  class PatchInstruction(CamelModel):
+      type: Literal["update_props", "reorder", "add_block", "remove_block", "recompose"]
+      target_block_id: str | None = None
+      changes: dict = {}
+  ```
+- [ ] **6.4.2** Router followup 模式新增 `refine_scope` 判断：
+  - UI 层修改（颜色/顺序/标题）→ `PATCH_LAYOUT`：只改 props，不重拉数据
+  - 内容层修改（缩短文字/换措辞）→ `PATCH_COMPOSE`：只重跑 AI 叙事
+  - 结构层修改（增删模块）→ `FULL_REBUILD`：整页重建
+- [ ] **6.4.3** Executor 新增 `execute_patch(old_page, instructions) → patched_page`
+- [ ] **6.4.4** Conversation API 的 refine 分支根据 scope 选择 patch 或 rebuild
+- [ ] **6.4.5** 编写测试：3 种 scope 对应的执行路径
+
+> ✅ 验收: "把图表颜色换成蓝色" → PATCH_LAYOUT，不重拉数据不重跑 AI；"加一个语法分析板块" → FULL_REBUILD。
+
+### Step 6.5: E2E 测试与上线
 
 > 全链路质量保障。
 
-- [ ] **6.3.1** 编写 E2E 测试用例：
+- [ ] **6.5.1** 编写 E2E 测试用例：
   - 正常流程：输入 prompt → 生成 Blueprint → 构建页面 → 追问 → 对话
-  - 异常流程：Java 超时降级、LLM 不可用、无效 prompt
-- [ ] **6.3.2** 性能基线：记录 Blueprint 生成耗时、页面构建耗时、SSE 首字节时间
-- [ ] **6.3.3** 部署配置：Docker / 环境变量 / 健康检查
-- [ ] **6.3.4** 上线 checklist：
+  - 异常流程：Java 超时降级、LLM 不可用、无效 prompt、不存在的实体
+- [ ] **6.5.2** 性能基线：记录 Blueprint 生成耗时、页面构建耗时、SSE 首字节时间
+- [ ] **6.5.3** 部署配置：Docker / 环境变量 / 健康检查
+- [ ] **6.5.4** 上线 checklist：
   - [ ] 所有测试通过
   - [ ] API 文档（FastAPI Swagger）可访问
   - [ ] 日志和监控就绪
@@ -595,5 +767,31 @@
 | **M2: 智能规划** | 2 ✅ | 用户 prompt → 结构化 Blueprint |
 | **M3: 页面构建** | 3 ✅ | Blueprint → SSE 流式页面 |
 | **M4: 会话网关** | 4 ✅ | 统一会话入口 + 意图路由 + 交互式反问，完整交互闭环 |
-| **M5: 真实数据** | 5 | Java 后端对接，mock → 真实教务数据 |
-| **M6: 产品上线** | 6 | 前端集成 + Level 2 + 部署上线 |
+| **M4.5: 健壮性增强** | 4.5 | 实体校验 + sourcePrompt 防篡改 + action 规范化 + 错误拦截 |
+| **M5: 真实数据** | 5 | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
+| **M6: 产品上线** | 6 | 前端集成 + Level 2 + SSE 升级 + Patch 机制 + 部署上线 |
+
+---
+
+## Future: 长期策略（不急于实现，记录备查）
+
+### ComputeGraph 节点分类策略
+
+当前 Phase 3 的 ComputeGraph 中 AI 节点暂跳过（Phase C 统一生成），这是短期高效的做法。长期需要区分三种节点以支持增量更新和缓存：
+
+| 节点类型 | 说明 | 可缓存 | 可复现 |
+|----------|------|--------|--------|
+| `tool` | 确定性工具调用（当前已有） | 是（输入不变则输出不变） | 是 |
+| `deterministic` | 纯计算节点（如统计聚合） | 是 | 是 |
+| `llm` | AI 生成节点 | 需结构化输出 + 版本化 | 需 seed + 模型固定 |
+
+**未来收益**:
+- 增量更新："只重跑某几个节点"而非全页重建
+- 缓存策略：`tool` 和 `deterministic` 节点可直接复用结果
+- `llm` 节点输出必须结构化（Pydantic model）并可缓存
+
+### 多 Agent 协作扩展
+
+- Agent 间消息总线（当前通过 conversation.py 串行调度）
+- Agent 并行执行（如数据获取和 AI 叙事可并行）
+- Agent 结果聚合与冲突解决

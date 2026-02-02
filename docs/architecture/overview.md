@@ -124,31 +124,37 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 │  Next.js Frontend (React UI, SSE consumer)         │
 │  studio-agents.ts → /api/ai/* proxy routes         │
 └──────────────┬─────────────────────────────────────┘
-               │ HTTP / SSE
+               │ HTTP / SSE (BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE)
                ▼
-┌────────────────────────────────────────────────────┐
-│  FastAPI Application (:8000)                        │
-│                                                      │
-│  POST /api/workflow/generate   → PlannerAgent       │
-│  POST /api/page/generate       → ExecutorAgent (SSE)│
-│  POST /api/page/followup       → Router→Chat/Plan   │
-│  GET  /api/health                                    │
-│                                                      │
-│  ┌──────────────────────────────────────────────┐   │
-│  │  FastMCP (in-process tool registry)          │   │
-│  │                                              │   │
-│  │  Data:  get_teacher_classes()                │   │
-│  │         get_class_detail()                   │   │
-│  │         get_assignment_submissions()         │   │
-│  │         get_student_grades()                 │   │
-│  │                                              │   │
-│  │  Stats: calculate_stats()                    │   │
-│  │         compare_performance()                │   │
-│  └──────────────────────────────────────────────┘   │
-│                                                      │
-│  Agents → LLM (async, streaming, tool_use)          │
-└──────────────┬─────────────────────────────────────┘
-               │ httpx
+┌────────────────────────────────────────────────────────────────┐
+│  FastAPI Application (:8000)                                    │
+│                                                                  │
+│  POST /api/conversation         → RouterAgent → Agents          │
+│  POST /api/workflow/generate    → PlannerAgent                  │
+│  POST /api/page/generate        → ExecutorAgent (SSE)           │
+│  GET  /api/health                                                │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Services                                                │   │
+│  │  EntityValidator  — 实体存在性校验 + clarify 降级         │   │
+│  │  ClarifyBuilder   — 交互式反问选项构建                    │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  FastMCP (in-process tool registry)                      │   │
+│  │  Data:  get_teacher_classes / get_class_detail / ...     │   │
+│  │  Stats: calculate_stats / compare_performance            │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                            │                                     │
+│  ┌────────────────────────▼─────────────────────────────────┐   │
+│  │  Adapters (Phase 5)                                      │   │
+│  │  class_adapter / grade_adapter / assignment_adapter       │   │
+│  │  Java API 响应 → 内部标准数据结构 (models/data.py)       │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                            │                                     │
+│  Agents → LLM (async, streaming, tool_use)                      │
+└──────────────┬─────────────┘─────────────────────────────────────┘
+               │ httpx (via java_client.py)
                ▼
 ┌────────────────────────────────────────────────────┐
 │  Java Backend (:8080)                               │
@@ -178,19 +184,44 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### 计划新增模块（Phase 4.5 — 健壮性增强）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Entity Validator | `services/entity_validator.py` | 实体存在性校验 + 降级为 clarify |
+| Custom Exceptions | `errors/exceptions.py` | EntityNotFoundError / DataFetchError / ToolError |
+
+### 计划新增模块（Phase 5 — Adapter 层）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Internal Data Models | `models/data.py` | ClassInfo / ClassDetail / GradeData 等标准数据结构 |
+| Class Adapter | `adapters/class_adapter.py` | Java 班级 API → ClassInfo / ClassDetail |
+| Grade Adapter | `adapters/grade_adapter.py` | Java 成绩 API → GradeData |
+| Assignment Adapter | `adapters/assignment_adapter.py` | Java 作业 API → AssignmentInfo / SubmissionData |
+| Java Client | `services/java_client.py` | httpx 异步客户端 + 连接池 + 重试 |
+
+### 计划新增模块（Phase 6 — SSE 升级 + Patch）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Patch Model | `models/patch.py` | PatchInstruction 模型（update_props / reorder / recompose） |
+
 ### 当前 → 目标的差距
 
-| 方面 | 当前 (Phase 3) | 目标 |
+| 方面 | 当前 (Phase 4) | 目标 |
 |------|------|------|
 | Web 框架 | ✅ FastAPI (异步) | FastAPI (异步) |
 | 工具框架 | ✅ FastMCP 6 工具 + TOOL_REGISTRY | FastMCP `@mcp.tool` + 自动 Schema |
-| 数据模型 | ✅ Blueprint + CamelModel | Blueprint 三层结构 |
+| 数据模型 | ✅ Blueprint + CamelModel + Conversation | Blueprint + Conversation + Patch + Internal Data |
 | 配置系统 | ✅ Pydantic Settings | Pydantic Settings |
 | LLM 接入 | ✅ PydanticAI + LiteLLM | PydanticAI + LiteLLM (streaming + tool_use) |
-| Agent 数量 | ✅ 4 个 Agent (Planner + Executor + Router + Chat + PageChat) | 4+ Agents |
-| 输出模式 | ✅ SSE 流式 + JSON | SSE 流式 + JSON |
-| 数据来源 | Mock 数据 | Java Backend via httpx |
+| Agent 数量 | ✅ 5 个 Agent (Planner + Executor + Router + Chat + PageChat) | 5+ Agents |
+| 输出模式 | ✅ SSE 流式 (MESSAGE) | SSE 流式 (BLOCK_START / SLOT_DELTA / BLOCK_COMPLETE) |
+| 实体校验 | 无 | EntityValidator 拦截不存在的实体 |
+| 数据来源 | Mock 数据 | Java Backend via httpx + Adapter 层 |
 | 前端集成 | 无 | Next.js API Routes proxy |
+| Patch 机制 | 无 | refine 支持 PATCH_LAYOUT / PATCH_COMPOSE / FULL_REBUILD |
 
 ---
 
@@ -393,42 +424,60 @@ insight-ai-agent/
 │
 ├── config/
 │   ├── settings.py             # Pydantic Settings
+│   ├── llm_config.py           # LLMConfig 可复用生成参数
 │   ├── component_registry.py   # 组件注册表定义
 │   └── prompts/
 │       ├── planner.py          # PlannerAgent system prompt
 │       ├── executor.py         # ExecutorAgent system prompt
 │       ├── router.py           # RouterAgent 意图分类 prompt (内部)
-│       └── page_chat.py       # PageChatAgent prompt (内部)
+│       ├── chat.py             # ChatAgent prompt (内部)
+│       └── page_chat.py        # PageChatAgent prompt (内部)
 │
 ├── models/
 │   ├── base.py                 # CamelModel 基类
 │   ├── blueprint.py            # Blueprint, DataContract, ComputeGraph, UIComposition
-│   ├── components.py           # ComponentType, ComponentSlot, TabSpec
-│   ├── page.py                 # PageMeta, PageTab, blocks (输出模型)
+│   ├── conversation.py         # IntentType + RouterResult + ClarifyOptions + Request/Response
+│   ├── data.py                 # 内部标准数据结构 (Phase 5: ClassInfo, GradeData 等)
+│   ├── patch.py                # PatchInstruction 模型 (Phase 6)
 │   └── request.py              # API request/response models
 │
+├── errors/
+│   └── exceptions.py           # EntityNotFoundError / DataFetchError / ToolError (Phase 4.5)
+│
 ├── tools/                      # FastMCP tools
-│   ├── __init__.py             # mcp = FastMCP(...) + imports
-│   ├── data_tools.py           # Java backend → data
+│   ├── __init__.py             # mcp = FastMCP(...) + TOOL_REGISTRY
+│   ├── data_tools.py           # 数据工具 → adapters → java_client (Phase 5)
 │   └── stats_tools.py          # numpy → stats
+│
+├── adapters/                   # Data Adapter 层 (Phase 5)
+│   ├── class_adapter.py        # Java 班级 API → ClassInfo / ClassDetail
+│   ├── grade_adapter.py        # Java 成绩 API → GradeData
+│   └── assignment_adapter.py   # Java 作业 API → AssignmentInfo / SubmissionData
 │
 ├── agents/
 │   ├── provider.py             # PydanticAI + LiteLLM provider + FastMCP bridge
 │   ├── planner.py              # PlannerAgent: user prompt → Blueprint
-│   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE)
+│   ├── executor.py             # ExecutorAgent: Blueprint → Page (SSE + Patch)
 │   ├── router.py               # RouterAgent: 意图分类 (内部组件)
+│   ├── chat.py                 # ChatAgent: 闲聊 + QA (内部组件)
 │   └── page_chat.py            # PageChatAgent: 页面追问 (内部组件)
 │
 ├── services/
-│   └── mock_data.py            # Mock data (dev)
+│   ├── llm_service.py          # LiteLLM 封装
+│   ├── java_client.py          # httpx 异步客户端 (Phase 5)
+│   ├── entity_validator.py     # 实体存在性校验 (Phase 4.5)
+│   ├── clarify_builder.py      # 交互式反问选项构建
+│   └── mock_data.py            # Mock data (dev + fallback)
 │
 ├── api/
+│   ├── conversation.py         # POST /api/conversation (统一入口)
 │   ├── workflow.py             # POST /api/workflow/generate
-│   ├── page.py                 # POST /api/page/generate + followup
+│   ├── page.py                 # POST /api/page/generate (SSE)
 │   └── health.py               # GET /api/health
 │
 └── tests/
     ├── test_tools.py
     ├── test_agents.py
-    └── test_api.py
+    ├── test_api.py
+    └── ...
 ```

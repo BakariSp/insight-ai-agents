@@ -1,7 +1,7 @@
 # Insight AI Agent — 文档中心
 
 > **最后更新**: 2026-02-02
-> **当前阶段**: Phase 4 完成 → Phase 5 待开始
+> **当前阶段**: Phase 5 完成 → Phase 6 待开始
 > **一句话概述**: 面向教育场景的 AI Agent 服务，教师用自然语言即可构建结构化的数据分析页面并进行对话式交互。
 
 ---
@@ -34,7 +34,7 @@
 | 多 Agent 协作 | Planner → Executor → Router → Chat → PageChat | ✅ 已实现 |
 | 统一会话网关 | 意图路由 + 置信度控制 + 交互式反问 | ✅ 已实现 |
 | FastMCP 工具注册 | 用 FastMCP 替代手写 JSON Schema | ✅ 已实现 |
-| Java 后端对接 | 从 Java 后端获取教育真实数据 | 🔲 待实现 |
+| Java 后端对接 | 从 Java 后端获取教育真实数据 | ✅ 已实现 |
 | 前端集成 | Next.js 通过 API Routes 代理 | 🔲 待实现 |
 
 ---

@@ -78,6 +78,42 @@ data: {"type":"COMPLETE","message":"completed","progress":100,"result":{...}}
 - 前端 `handleSSEStream()` 只消费 `MESSAGE` 和 `COMPLETE`，忽略其他类型
 - `PHASE` 事件是可选的，前端忽略未知类型，向后兼容
 
+### 计划新增事件类型（Phase 4.5 + Phase 6）
+
+以下事件类型计划在后续 Phase 中引入，现有前端可安全忽略：
+
+#### Phase 4.5: DATA_ERROR 事件
+
+当 Executor 数据阶段发现实体不存在时，发送此事件替代空壳页面：
+
+```
+data: {"type":"DATA_ERROR","entity":"class-2c","message":"班级不存在","suggestions":["Form 1A","Form 1B"]}
+```
+
+前端收到 `DATA_ERROR` 时应展示友好提示和建议选项，而非继续等待 COMPLETE。
+
+#### Phase 6.2: Block/Slot 粒度事件
+
+将 AI 内容填充从单一 `MESSAGE` 升级为 block 级别的增量推送：
+
+```
+# Block 开始填充
+data: {"type":"BLOCK_START","blockId":"tab1-slot2","componentType":"markdown"}
+
+# 增量文本推送到指定 slot
+data: {"type":"SLOT_DELTA","blockId":"tab1-slot2","slotKey":"content","deltaText":"Based on "}
+data: {"type":"SLOT_DELTA","blockId":"tab1-slot2","slotKey":"content","deltaText":"the analysis..."}
+
+# Block 填充完成
+data: {"type":"BLOCK_COMPLETE","blockId":"tab1-slot2"}
+```
+
+- `BLOCK_START`: 通知前端某个 block 开始接收 AI 内容
+- `SLOT_DELTA`: 增量文本，前端按 `blockId + slotKey` 定位到具体 slot 追加
+- `BLOCK_COMPLETE`: 该 block 的 AI 内容已全部生成
+
+**向下兼容**: `MESSAGE` 事件将继续发送（包含所有 AI 文本），旧前端可忽略新事件类型继续工作。
+
 ### SSE 流错误处理
 
 Python 服务在 SSE 流中遇到错误时，发送错误 COMPLETE 事件:

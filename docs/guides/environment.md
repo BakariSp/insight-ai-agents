@@ -36,15 +36,25 @@
 > **注意**: LLM 生成参数 (`TEMPERATURE`, `TOP_P` 等) 设为 `None` 表示使用模型供应商默认值。
 > 每个 Agent 可通过 `LLMConfig` 声明自己的参数覆盖全局默认（见 `config/llm_config.py`）。
 
-### 目标变量（Phase 2+）
+### SpringBoot 后端变量（Phase 5 新增）
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `SPRING_BOOT_BASE_URL` | Java 后端基础地址 | `https://api.insightai.hk` |
+| `SPRING_BOOT_API_PREFIX` | API 路径前缀 | `/api` |
+| `SPRING_BOOT_ACCESS_TOKEN` | Bearer 访问令牌 | - |
+| `SPRING_BOOT_REFRESH_TOKEN` | 刷新令牌 | - |
+| `SPRING_BOOT_TIMEOUT` | HTTP 请求超时 (秒) | `15` |
+| `USE_MOCK_DATA` | 强制使用 Mock 数据 | `false` |
+
+> **注意**: `USE_MOCK_DATA=false` 时，如果 Java 后端不可用，data tools 会自动 fallback 到 mock 数据。
+
+### 目标变量（待实现）
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PLANNER_MODEL` | PlannerAgent 使用的模型 | `openai/gpt-4o-mini` |
 | `ROUTER_MODEL` | RouterAgent 使用的模型 | `openai/gpt-4o-mini` |
-| `JAVA_BACKEND_URL` | Java 后端地址 | `http://localhost:8080` |
-| `USE_MOCK_DATA` | 使用 Mock 数据 | `true` |
-| `TOOL_TIMEOUT` | 工具调用超时 (秒) | `10.0` |
 
 ### `.env` 示例
 
@@ -81,6 +91,14 @@ MCP_SERVER_NAME=insight-ai-agent
 # ── Skills / Tools ──────────────────────────────────────
 BRAVE_API_KEY=
 MEMORY_DIR=data
+
+# ── SpringBoot Backend ──────────────────────────────────
+SPRING_BOOT_BASE_URL=https://api.insightai.hk
+SPRING_BOOT_API_PREFIX=/api
+SPRING_BOOT_ACCESS_TOKEN=
+SPRING_BOOT_REFRESH_TOKEN=
+SPRING_BOOT_TIMEOUT=15
+USE_MOCK_DATA=false
 ```
 
 ### Pydantic Settings 配置

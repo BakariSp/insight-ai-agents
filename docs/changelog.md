@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-02-02 — Roadmap 优化: Phase 4.5 + Phase 5/6 调整
+
+基于 Phase 4 闭环后的稳定性分析，新增/调整以下路线图内容:
+
+**新增 Phase 4.5: 健壮性增强 + 数据契约升级**
+- 新增 `services/entity_validator.py` 计划: 实体存在性校验层，解决"用户提到不存在的班级"导致空壳页面的问题
+- 新增 `errors/exceptions.py` 计划: EntityNotFoundError / DataFetchError / ToolError 自定义异常体系
+- 规划 `agents/planner.py` sourcePrompt 强制覆写: 防止 LLM 改写用户原始请求
+- 规划 `models/conversation.py` action 二维结构化: mode + action + chatKind 替代混用枚举
+- 规划 Executor 数据阶段错误拦截: DATA_ERROR SSE 事件，防止 error dict 穿透到页面
+
+**调整 Phase 5: 新增 Adapter 抽象层**
+- 新增 Step 5.2: `adapters/` 目录 + `models/data.py` 内部标准数据结构
+- 工具层 → adapter → java_client 三层架构，隔离 Java API 变化
+
+**调整 Phase 6: SSE 升级 + Patch 机制**
+- 新增 Step 6.2: SSE 协议升级到 block/slot 粒度 (BLOCK_START / SLOT_DELTA / BLOCK_COMPLETE)
+- 新增 Step 6.4: Refine Patch 机制 (PATCH_LAYOUT / PATCH_COMPOSE / FULL_REBUILD)
+- 更新里程碑总览
+
+**新增 Future 长期策略**
+- ComputeGraph 节点分类策略 (tool / deterministic / llm)
+- 多 Agent 协作扩展方向
+
+---
+
 ## 2026-02-02 — Phase 4: 统一会话网关完成
 
 - 新增 `models/conversation.py`: IntentType/FollowupIntentType 枚举、RouterResult、ClarifyChoice/ClarifyOptions、ConversationRequest/ConversationResponse (13 项模型测试)
