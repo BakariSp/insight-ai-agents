@@ -50,16 +50,23 @@ Client (HTTP / SSE)
                    └──────────┘  └──────────┘
 ```
 
+### 新增模块（Phase 4.5 — 实体解析层）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Entity Models | `models/entity.py` | ResolvedEntity + ResolveResult（实体解析输出模型） |
+| Entity Resolver | `services/entity_resolver.py` | 确定性班级名称解析（regex 提取 + 别名匹配 + 年级展开 + 模糊匹配） |
+
 ### 新增模块（Phase 4）
 
 | 模块 | 文件 | 功能 |
 |------|------|------|
-| Conversation Models | `models/conversation.py` | IntentType + RouterResult + ClarifyOptions + ConversationRequest/Response |
+| Conversation Models | `models/conversation.py` | IntentType + RouterResult + ClarifyOptions + ConversationRequest/Response + resolved_entities |
 | RouterAgent | `agents/router.py` | 双模式意图分类（初始 + 追问）+ 置信度路由 |
 | ChatAgent | `agents/chat.py` | 闲聊 + 知识问答 Agent（chat_smalltalk / chat_qa） |
 | PageChatAgent | `agents/page_chat.py` | 基于页面上下文回答追问 |
 | Clarify Builder | `services/clarify_builder.py` | 交互式反问选项构建（needClassId / needTimeRange 等） |
-| Conversation API | `api/conversation.py` | POST /api/conversation 统一会话端点 |
+| Conversation API | `api/conversation.py` | POST /api/conversation 统一会话端点 + 实体自动解析 |
 | Router Prompt | `config/prompts/router.py` | 初始/追问双模式分类 prompt |
 | Chat Prompt | `config/prompts/chat.py` | ChatAgent system prompt |
 | PageChat Prompt | `config/prompts/page_chat.py` | PageChatAgent system prompt |
@@ -136,7 +143,7 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  Services                                                │   │
-│  │  EntityValidator  — 实体存在性校验 + clarify 降级         │   │
+│  │  EntityResolver   — 自然语言班级名 → classId 自动解析     │   │
 │  │  ClarifyBuilder   — 交互式反问选项构建                    │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
@@ -184,12 +191,13 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 计划新增模块（Phase 4.5 — 健壮性增强）
+### 计划新增模块（Phase 4.5 — 健壮性增强，部分完成）
 
-| 模块 | 文件 | 功能 |
-|------|------|------|
-| Entity Validator | `services/entity_validator.py` | 实体存在性校验 + 降级为 clarify |
-| Custom Exceptions | `errors/exceptions.py` | EntityNotFoundError / DataFetchError / ToolError |
+| 模块 | 文件 | 功能 | 状态 |
+|------|------|------|------|
+| Entity Resolver | `services/entity_resolver.py` | 自然语言班级名 → classId 自动解析 + 降级 clarify | ✅ 已完成 |
+| Entity Models | `models/entity.py` | ResolvedEntity + ResolveResult | ✅ 已完成 |
+| Custom Exceptions | `errors/exceptions.py` | EntityNotFoundError / DataFetchError / ToolError | 🔲 待实现 |
 
 ### 计划新增模块（Phase 5 — Adapter 层）
 
@@ -218,7 +226,7 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 | LLM 接入 | ✅ PydanticAI + LiteLLM | PydanticAI + LiteLLM (streaming + tool_use) |
 | Agent 数量 | ✅ 5 个 Agent (Planner + Executor + Router + Chat + PageChat) | 5+ Agents |
 | 输出模式 | ✅ SSE 流式 (MESSAGE) | SSE 流式 (BLOCK_START / SLOT_DELTA / BLOCK_COMPLETE) |
-| 实体校验 | 无 | EntityValidator 拦截不存在的实体 |
+| 实体解析 | ✅ Entity Resolver 自动匹配班级名 → classId | Entity Resolver + Validator 完整校验 |
 | 数据来源 | Mock 数据 | Java Backend via httpx + Adapter 层 |
 | 前端集成 | 无 | Next.js API Routes proxy |
 | Patch 机制 | 无 | refine 支持 PATCH_LAYOUT / PATCH_COMPOSE / FULL_REBUILD |
@@ -364,6 +372,7 @@ insight-ai-agent/
 │   ├── base.py                 # CamelModel 基类 (camelCase 输出)
 │   ├── blueprint.py            # Blueprint 三层模型
 │   ├── conversation.py        # 意图模型 + Clarify + ConversationRequest/Response ← Phase 4 新增
+│   ├── entity.py              # ResolvedEntity + ResolveResult ← Phase 4.5 新增
 │   └── request.py              # API 请求/响应模型
 │
 ├── tools/                      # FastMCP 工具
@@ -383,6 +392,7 @@ insight-ai-agent/
 │
 ├── services/
 │   ├── llm_service.py          # LiteLLM 封装
+│   ├── entity_resolver.py     # 确定性实体解析（班级名 → classId）← Phase 4.5 新增
 │   ├── clarify_builder.py     # 交互式反问选项构建 ← Phase 4 新增
 │   └── mock_data.py            # 集中 mock 数据
 │
@@ -408,6 +418,7 @@ insight-ai-agent/
 │   ├── test_page_chat.py      # PageChatAgent 测试 ← Phase 4 新增
 │   ├── test_conversation_api.py # 会话端点测试 ← Phase 4 新增
 │   ├── test_e2e_conversation.py # E2E 会话测试 ← Phase 4 新增
+│   ├── test_entity_resolver.py # 实体解析器测试 ← Phase 4.5 新增
 │
 ├── docs/                       # ← 本文档
 │

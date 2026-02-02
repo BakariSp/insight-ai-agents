@@ -194,7 +194,10 @@ Phase 4 统一会话端点。单一入口处理所有用户交互 — 闲聊、�
   "chatResponse": "Generated analysis: Unit 5 考试分析",
   "blueprint": { "id": "bp-...", "name": "...", ... },
   "clarifyOptions": null,
-  "conversationId": null
+  "conversationId": null,
+  "resolvedEntities": [
+    { "classId": "class-hk-f1a", "displayName": "Form 1A", "confidence": 1.0, "matchType": "exact" }
+  ]
 }
 ```
 
@@ -204,11 +207,30 @@ Phase 4 统一会话端点。单一入口处理所有用户交互 — 闲聊、�
 |--------|------|---------|-------------|
 | `chat_smalltalk` | 初始 | ChatAgent 回复 | `chatResponse` |
 | `chat_qa` | 初始 | ChatAgent 回复 | `chatResponse` |
-| `build_workflow` | 初始 | PlannerAgent 生成 | `blueprint` + `chatResponse` |
-| `clarify` | 初始 | 返回反问选项 | `chatResponse` + `clarifyOptions` |
+| `build_workflow` | 初始 | EntityResolver → PlannerAgent 生成 | `blueprint` + `chatResponse` + `resolvedEntities` |
+| `clarify` | 初始 | 返回反问选项（或实体歧义降级） | `chatResponse` + `clarifyOptions` + `resolvedEntities` |
 | `chat` | 追问 | PageChatAgent 回答 | `chatResponse` |
 | `refine` | 追问 | PlannerAgent 微调 | `blueprint` + `chatResponse` |
 | `rebuild` | 追问 | PlannerAgent 重建 | `blueprint` + `chatResponse` |
+
+**`resolvedEntities` 字段 (Phase 4.5 新增):**
+
+当用户消息中包含班级引用（如 "1A班"、"Form 1A"）时，后端自动解析并返回匹配结果。前端可据此显示软确认（如 "将使用 Form 1A，如需更改请说'换成1B'"）。
+
+```json
+"resolvedEntities": [
+  {
+    "classId": "class-hk-f1a",
+    "displayName": "Form 1A",
+    "confidence": 1.0,
+    "matchType": "exact"
+  }
+]
+```
+
+- `matchType`: `"exact"` / `"alias"` / `"grade"` / `"fuzzy"`
+- 高置信度匹配（confidence >= 0.85）→ 自动注入 context，直接 build
+- 低置信度/多匹配歧义 → 降级为 `action="clarify"`，choices 从匹配结果生成
 
 **clarifyOptions 示例 (action=clarify):**
 

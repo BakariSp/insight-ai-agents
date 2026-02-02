@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-02-02 — Phase 4.5.1: 实体解析层（Entity Resolver）
+
+实现确定性实体解析层，自动将自然语言班级引用解析为 classId，替代大部分手动点选场景。
+
+- 新增 `models/entity.py`: ResolvedEntity（class_id, display_name, confidence, match_type）+ ResolveResult（matches, is_ambiguous, scope_mode）
+- 新增 `services/entity_resolver.py`: `resolve_classes(teacher_id, query_text)` 核心解析函数
+  - 四层匹配策略：精确匹配 → 别名匹配 → 年级展开 → 模糊匹配
+  - 支持中英文混合引用：`1A班`、`Form 1A`、`F1A`、`Form 1 全年级`、`1A 和 1B`
+  - Levenshtein 编辑距离模糊匹配（无额外依赖）
+  - 数据获取复用 `execute_mcp_tool("get_teacher_classes")`
+- 更新 `models/conversation.py`: `ConversationResponse` 新增 `resolved_entities` 字段
+- 更新 `api/conversation.py`: `build_workflow` 分支集成实体解析
+  - 高置信度匹配 → 自动注入 classId/classIds 到 context
+  - 歧义匹配 → 降级为 clarify + 匹配结果作为选项
+  - context 已有 classId → 跳过解析
+- 更新 `models/__init__.py`: 导出 ResolvedEntity, ResolveResult
+- 新增 `tests/test_entity_resolver.py`: 15 项单元测试
+- 更新 `tests/test_conversation_api.py`: 4 项集成测试
+- 更新 `tests/test_conversation_models.py`: 2 项序列化测试
+- 209 项测试全部通过（21 项新增 + 188 项已有）
+
+---
+
 ## 2026-02-02 — Roadmap 优化: Phase 4.5 + Phase 5/6 调整
 
 基于 Phase 4 闭环后的稳定性分析，新增/调整以下路线图内容:

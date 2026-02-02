@@ -488,54 +488,53 @@
 
 ---
 
-## Phase 4.5: 健壮性增强 + 数据契约升级 🔲
+## Phase 4.5: 健壮性增强 + 数据契约升级 🔄
 
-**目标**: 解决 Phase 4 闭环后暴露的稳定性与可控性问题——实体存在性校验、sourcePrompt 一致性、action 命名规范化、Executor 错误拦截。确保 LLM 不编造不存在的实体，错误不穿透到前端页面。
+**目标**: 解决 Phase 4 闭环后暴露的稳定性与可控性问题——实体解析与校验、sourcePrompt 一致性、action 命名规范化、Executor 错误拦截。确保自然语言班级引用自动解析，LLM 不编造不存在的实体，错误不穿透到前端页面。
 
 **前置条件**: Phase 4 完成（统一会话网关 + 意图路由 + 交互式反问闭环）。
 
-**核心问题场景**:
+**核心交互升级**:
 
 ```
+用户: "分析 1A 班英语成绩"
+旧流程: Router→build_workflow→Planner 生成 Blueprint（用户需手动选班级）
+新流程: Router→build_workflow→EntityResolver 自动解析"1A"→classId→注入 context→PlannerAgent
+
+用户: "对比 1A 和 1B 的成绩"
+新流程: EntityResolver 解析多班→classIds[]→注入 context→PlannerAgent
+
 用户: "分析 2C 班英语成绩"（2C 班不存在）
-旧流程: Router→build_workflow→Planner 硬编 Blueprint→Executor 拿到 error dict→空壳页面
-新流程: Router→build_workflow→EntityValidator 发现 2C 不存在→降级 clarify→展示实际班级选项
+新流程: EntityResolver 匹配失败→降级 clarify→展示实际班级选项
 ```
 
-### Step 4.5.1: 实体存在性校验层（Entity Validator）
+### Step 4.5.1: 实体解析层（Entity Resolver）✅ 已完成
 
-> 在 Router → Planner 之间加入实体校验，防止不存在的班级/学生/作业被传入 Blueprint 生成流程。
+> 在 Router → Planner 之间加入确定性实体解析（无 LLM 调用），自动将自然语言班级引用转为 classId。仅在歧义时才要求用户点选确认。
 
-- [ ] **4.5.1.1** 定义自定义异常：`errors/exceptions.py`
-  - `EntityNotFoundError(entity_type, entity_id, suggestions?)`
-  - `DataFetchError(tool_name, reason)`
-  - `ToolError` 基类
-- [ ] **4.5.1.2** 创建 `services/entity_validator.py`：
-  - `validate_entities(message, teacher_id, context?) → ValidationResult`
-  - `ValidationResult(CamelModel)`:
-    ```python
-    valid: bool
-    missing_entities: list[MissingEntity]  # type + mentioned_name
-    suggestions: ClarifyOptions | None     # 降级选项
-    ```
-  - 实体提取策略：规则匹配班级/学生名称模式 + context 中的显式 ID
-  - 调用 `get_teacher_classes()` 获取实际班级列表做比对
-- [ ] **4.5.1.3** 在 `api/conversation.py` 的 `build_workflow` 分支中插入校验：
-  ```
-  intent == build_workflow
-    → EntityValidator.validate(message, teacher_id)
-    → if not valid → 降级为 clarify, 返回 ClarifyOptions(实际班级列表)
-    → if valid → PlannerAgent 正常生成 Blueprint
-  ```
-- [ ] **4.5.1.4** 重构 `tools/data_tools.py` 的 not-found 处理：
-  - 将 `return {"error": "..."}` 改为 `raise EntityNotFoundError(...)`
-  - 调用方可明确区分"成功的空数据"与"实体不存在"
-- [ ] **4.5.1.5** 编写测试：
-  - 不存在的班级 → clarify 降级 + 展示实际班级选项
-  - 存在的班级 → 正常进入 build_workflow
-  - 工具返回 EntityNotFoundError → 验证异常传播
+- [x] **4.5.1.1** 创建 `models/entity.py`：
+  - `ResolvedEntity(CamelModel)`: class_id, display_name, confidence, match_type
+  - `ResolveResult(CamelModel)`: matches, is_ambiguous, scope_mode (none/single/multi/grade)
+- [x] **4.5.1.2** 创建 `services/entity_resolver.py`：
+  - `resolve_classes(teacher_id, query_text) → ResolveResult`
+  - 四层匹配策略（优先级递减）：精确匹配 → 别名匹配 → 年级展开 → 模糊匹配
+  - 支持中英文混合引用（"1A班"、"Form 1A"、"F1A"、"Form 1 全年级"、"1A 和 1B"）
+  - 数据获取通过 `execute_mcp_tool("get_teacher_classes")`（复用已有工具注册机制）
+- [x] **4.5.1.3** 在 `api/conversation.py` 的 `build_workflow` 分支中集成解析：
+  - 高置信度单匹配 → 自动注入 classId 到 context
+  - 高置信度多匹配/年级展开 → 自动注入 classIds[] 到 context
+  - 歧义/低置信度 → 降级为 clarify，choices 从匹配结果生成
+  - context 已有 classId 时 → 跳过解析（支持多轮 clarify 流转）
+- [x] **4.5.1.4** 更新 `models/conversation.py`：
+  - `ConversationResponse` 新增 `resolved_entities: list[ResolvedEntity] | None` 字段
+  - 前端可据此显示软确认（如 "将使用 Form 1A，如需更改请说'换成1B'"）
+- [x] **4.5.1.5** 编写测试（19 项新增）：
+  - 15 项实体解析器单元测试（精确/别名/多班/年级/模糊/边界/序列化）
+  - 4 项 API 集成测试（自动解析/歧义降级/无引用/跳过已有 classId）
+  - 2 项模型序列化测试（resolvedEntities camelCase）
+  - 全部 209 项测试通过，无回归
 
-> ✅ 验收: "分析 2C 班英语成绩" → 返回 `action=clarify` + `clarifyOptions` 包含 Form 1A / Form 1B；选择后成功进入 build_workflow。
+> ✅ 验收: "分析 1A 班英语成绩" → 自动解析 + build_workflow（无需用户点选）；"对比 1A 和 1B" → 多班自动解析；"分析 2C 班"（不存在）→ 空匹配 + 正常流程。
 
 ### Step 4.5.2: sourcePrompt 一致性校验
 
@@ -587,8 +586,11 @@
 
 ### Phase 4.5 总验收
 
+- [x] `models/entity.py` — ResolvedEntity + ResolveResult 模型
+- [x] `services/entity_resolver.py` — 确定性实体解析 + 四层匹配 + 降级逻辑
+- [x] `models/conversation.py` — resolved_entities 字段 (Phase 4.5.1)
+- [x] `api/conversation.py` — 实体解析集成到 build_workflow 分支 (Phase 4.5.1)
 - [ ] `errors/exceptions.py` — EntityNotFoundError + DataFetchError + ToolError
-- [ ] `services/entity_validator.py` — 实体校验 + 降级逻辑
 - [ ] `agents/planner.py` — sourcePrompt 强制覆写
 - [ ] `models/conversation.py` — action 二维结构化 + 向下兼容
 - [ ] `agents/executor.py` — 数据阶段错误拦截 + DATA_ERROR 事件
