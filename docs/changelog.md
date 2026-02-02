@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-02-02 — Phase 2: PlannerAgent 完成
+
+- 新增 `pydantic-ai>=1.0` 依赖，引入 PydanticAI Agent 框架
+- 新增 `agents/provider.py`: `create_model()` / `execute_mcp_tool()` / `get_mcp_tool_names()` / `get_mcp_tool_descriptions()`
+- 新增 `config/prompts/planner.py`: PlannerAgent system prompt + `build_planner_prompt()` 动态注入
+- 新增 `agents/planner.py`: PydanticAI Agent (`output_type=Blueprint`, `retries=2`) + `generate_blueprint()` 异步函数
+- 新增 `api/workflow.py`: `POST /api/workflow/generate` 端点 + 502 错误处理
+- 更新 `tools/__init__.py`: 新增 `TOOL_REGISTRY` dict + `get_tool_descriptions()` 辅助函数
+- 更新 `main.py`: 注册 workflow router
+- 新增测试文件: `test_provider.py` (7 项) + `test_planner.py` (5 项) + 3 项新 API 测试
+- 37 项测试全部通过
+
 ## 2026-02-02 — Phase 1: Foundation 完成
 
 - Flask → FastAPI 迁移: `main.py` 入口 + `api/` 路由模块 + CORS 中间件

@@ -44,76 +44,70 @@ PydanticAI Agent 通过 `@agent.tool` 桥接 FastMCP tools，in-process 调用�
 
 ---
 
-## Agent Provider (`agents/provider.py`)
+## Agent Provider (`agents/provider.py`) ✅ 已实现
 
 核心：PydanticAI Agent + LiteLLM model + FastMCP tool 桥接。
 
 ```python
-from pydantic_ai import Agent
-from pydantic_ai.models.litellm import LiteLLMModel
-from fastmcp import Client
-from tools import mcp
 from config.settings import get_settings
+from tools import TOOL_REGISTRY, get_tool_descriptions
 
 
-def create_model(model_name: str | None = None) -> LiteLLMModel:
-    """创建 LiteLLM model 实例。"""
+def create_model(model_name: str | None = None) -> str:
+    """构建 PydanticAI 模型标识符 "litellm:<model>"。"""
     settings = get_settings()
-    return LiteLLMModel(model_name or settings.executor_model)
-
-
-async def execute_mcp_tool(name: str, arguments: dict) -> str:
-    """In-process 调用 FastMCP tool。"""
-    async with Client(mcp) as client:
-        result = await client.call_tool(name, arguments)
-        return "\n".join(
-            item.text if hasattr(item, "text") else str(item)
-            for item in result
-        )
+    name = model_name or settings.default_model
+    return f"litellm:{name}"
 
 
 def get_mcp_tool_names() -> list[str]:
-    """获取所有注册的 FastMCP tool 名称。"""
-    return [tool.name for tool in mcp._tool_manager.list_tools()]
+    """获取所有注册工具名称。"""
+    return list(TOOL_REGISTRY.keys())
+
+
+async def execute_mcp_tool(name: str, arguments: dict) -> Any:
+    """In-process 调用 TOOL_REGISTRY 中的函数（支持 sync/async）。"""
+    fn = TOOL_REGISTRY.get(name)
+    if fn is None:
+        raise ValueError(f"Tool '{name}' not found")
+    if inspect.iscoroutinefunction(fn):
+        return await fn(**arguments)
+    return fn(**arguments)
 ```
 
 ---
 
-## PlannerAgent (`agents/planner.py`)
+## PlannerAgent (`agents/planner.py`) ✅ 已实现
 
-输入 user prompt → 输出 `Blueprint`。PydanticAI 的 `result_type` 确保输出结构合法。
+输入 user prompt → 输出 `Blueprint`。PydanticAI 的 `output_type` 确保输出结构合法。
 
 ```python
 from pydantic_ai import Agent
 from models.blueprint import Blueprint
 from agents.provider import create_model
-from config.prompts.planner import PLANNER_SYSTEM_PROMPT
-from config.component_registry import COMPONENT_REGISTRY
+from config.prompts.planner import build_planner_prompt
 
 
-planner_agent = Agent(
+_planner_agent = Agent(
     model=create_model(),
-    result_type=Blueprint,
-    system_prompt=PLANNER_SYSTEM_PROMPT,
+    output_type=Blueprint,
+    system_prompt=build_planner_prompt(),
+    retries=2,
+    defer_model_check=True,
 )
 
 
-@planner_agent.system_prompt
-async def add_component_registry(ctx):
-    """动态注入组件注册表到 system prompt。"""
-    registry_desc = "\n".join(
-        f"- {name}: {info['description']}"
-        for name, info in COMPONENT_REGISTRY.items()
-    )
-    return f"\n## Available UI Components\n{registry_desc}\n"
-
-
-async def generate_blueprint(user_prompt: str, language: str = "en") -> Blueprint:
+async def generate_blueprint(
+    user_prompt: str, language: str = "en", model: str | None = None,
+) -> Blueprint:
     """用户输入 → Blueprint。"""
-    result = await planner_agent.run(
-        f"User request: {user_prompt}\nLanguage: {language}"
+    result = await _planner_agent.run(
+        f"[Language: {language}]\n\nUser request: {user_prompt}",
+        model=create_model(model) if model else None,
     )
-    return result.data
+    blueprint = result.output
+    # 自动填充 source_prompt, created_at
+    return blueprint
 ```
 
 ---

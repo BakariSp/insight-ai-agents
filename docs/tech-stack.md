@@ -4,7 +4,7 @@
 
 ---
 
-## 当前（Phase 1）
+## 当前（Phase 2）
 
 ```
 # Web framework
@@ -14,6 +14,7 @@ sse-starlette>=2.0      # SSE 响应
 
 # LLM
 litellm>=1.0            # 多模型 LLM 抽象层
+pydantic-ai>=1.0        # Agent 框架 (PlannerAgent) ← Phase 2 新增
 
 # Data validation & settings
 pydantic>=2.0           # 数据验证

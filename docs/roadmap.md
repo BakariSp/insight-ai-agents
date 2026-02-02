@@ -112,7 +112,7 @@
 
 ---
 
-## Phase 2: PlannerAgent (Blueprint 生成) 🔲
+## Phase 2: PlannerAgent (Blueprint 生成) ✅ 已完成
 
 **目标**: 实现 PlannerAgent，接收用户自然语言输入，输出结构化的 Blueprint JSON。这是"用户需求 → 可执行计划"的核心环节。
 
@@ -122,38 +122,41 @@
 
 > 建立 PydanticAI + LiteLLM 的 Agent 通用层。
 
-- [ ] **2.1.1** 安装 `pydantic-ai[litellm]` 依赖
-- [ ] **2.1.2** 创建 `agents/provider.py`：
-  - `create_model(model_name)` → `LiteLLMModel` 实例
-  - `execute_mcp_tool(name, arguments)` → in-process 调用 FastMCP tool
+- [x] **2.1.1** 安装 `pydantic-ai` 依赖，更新 `requirements.txt`
+- [x] **2.1.2** 创建 `agents/provider.py`：
+  - `create_model(model_name)` → `"litellm:<model>"` 标识符（PydanticAI v1.x 格式）
+  - `execute_mcp_tool(name, arguments)` → in-process 调用 TOOL_REGISTRY 中的函数
   - `get_mcp_tool_names()` → 获取已注册工具列表
-- [ ] **2.1.3** 编写 provider 单元测试：mock LLM 和 MCP 调用
+  - `get_mcp_tool_descriptions()` → 获取工具名 + 描述（供 prompt 注入）
+- [x] **2.1.3** 在 `tools/__init__.py` 新增 `TOOL_REGISTRY` dict + `get_tool_descriptions()` 辅助函数
+- [x] **2.1.4** 编写 provider 单元测试（7 项）：model 创建、工具名列表、工具描述、工具执行、工具未找到
 
-> ✅ 验收: `create_model()` 返回可用的 LiteLLMModel，`execute_mcp_tool()` 可调用已注册工具。
+> ✅ 验收: `create_model()` 返回可用的 litellm 模型标识，`execute_mcp_tool()` 可调用已注册工具。
 
 ### Step 2.2: Planner System Prompt
 
 > 设计精确的 system prompt，指导 LLM 生成合法的 Blueprint。
 
-- [ ] **2.2.1** 创建 `config/prompts/planner.py`：定义 `PLANNER_SYSTEM_PROMPT`
+- [x] **2.2.1** 创建 `config/prompts/planner.py`：定义 `PLANNER_SYSTEM_PROMPT`
   - 角色定义：教育数据分析规划师
-  - 输出要求：严格遵循 Blueprint 三层结构
-  - 约束规则：只能使用注册组件、只能引用已有工具
-  - 示例：包含 1-2 个完整 Blueprint 示例
-- [ ] **2.2.2** 实现动态注入：组件注册表 + 工具列表自动追加到 prompt
+  - 输出要求：严格遵循 Blueprint 三层结构 + 路径引用语法
+  - 约束规则：只能使用注册组件、只能引用已有工具（10 条规则）
+  - 示例：包含 1 个完整 Blueprint JSON 示例
+- [x] **2.2.2** 实现 `build_planner_prompt(language)` 动态注入：组件注册表 + 工具列表 + 语言指令
 
-> ✅ 验收: prompt 包含结构指导、组件清单、工具清单、示例。
+> ✅ 验收: prompt 包含结构指导、组件清单、工具清单、示例，约 8000 字符。
 
 ### Step 2.3: PlannerAgent 实现
 
 > 核心 Agent，接收 prompt 输出 Blueprint。
 
-- [ ] **2.3.1** 创建 `agents/planner.py`：
-  - 初始化 `Agent(model, result_type=Blueprint, system_prompt=...)`
-  - 动态 system_prompt 注入组件注册表
-  - `generate_blueprint(user_prompt, language)` → `Blueprint`
-- [ ] **2.3.2** 处理 LLM 输出校验失败的重试逻辑（PydanticAI 内置 retry）
-- [ ] **2.3.3** 编写 PlannerAgent 集成测试：给定 prompt，验证输出 Blueprint 结构完整
+- [x] **2.3.1** 创建 `agents/planner.py`：
+  - 初始化 `Agent(model, output_type=Blueprint, system_prompt=...)`（PydanticAI v1.x API）
+  - 通过 `build_planner_prompt()` 注入完整 system prompt（含组件注册表 + 工具列表）
+  - `generate_blueprint(user_prompt, language, model)` → `Blueprint`
+- [x] **2.3.2** 处理 LLM 输出校验失败的重试逻辑（PydanticAI 内置 `retries=2`）
+- [x] **2.3.3** 自动填充元数据（`source_prompt`, `created_at`）
+- [x] **2.3.4** 编写 PlannerAgent 集成测试（5 项）：使用 PydanticAI `TestModel` 验证结构、三层、元数据、camelCase、语言
 
 > ✅ 验收: `generate_blueprint("分析班级英语成绩")` 返回合法 Blueprint，三层结构完整。
 
@@ -161,14 +164,23 @@
 
 > 暴露 HTTP 接口供前端调用。
 
-- [ ] **2.4.1** 创建 `api/workflow.py`：`POST /api/workflow/generate`
+- [x] **2.4.1** 创建 `api/workflow.py`：`POST /api/workflow/generate`
   - 接收 `WorkflowGenerateRequest`
   - 调用 `generate_blueprint()`
   - 返回 `WorkflowGenerateResponse`（含 blueprint JSON）
-- [ ] **2.4.2** 错误处理：LLM 超时、输出格式错误、模型不可用
-- [ ] **2.4.3** 在 `main.py` 注册 workflow router
+- [x] **2.4.2** 错误处理：LLM 异常统一返回 502 + 错误详情
+- [x] **2.4.3** 在 `main.py` 注册 workflow router
+- [x] **2.4.4** 编写 API 测试（3 项）：成功生成（mock LLM）、缺少参数 422、LLM 失败 502
 
-> ✅ 验收: `curl -X POST /api/workflow/generate -d '{"user_prompt":"分析班级成绩"}'` 返回完整 Blueprint JSON。
+> ✅ 验收: `curl -X POST /api/workflow/generate -d '{"userPrompt":"分析班级成绩"}'` 返回完整 Blueprint JSON。
+
+### Phase 2 总验收
+
+- [x] `agents/provider.py` — create_model / execute_mcp_tool / get_mcp_tool_names 全部可用
+- [x] `config/prompts/planner.py` — system prompt 含结构指导 + 组件清单 + 工具清单 + 示例
+- [x] `agents/planner.py` — PydanticAI Agent + output_type=Blueprint + retries=2
+- [x] `api/workflow.py` — POST /api/workflow/generate 端点 + 错误处理
+- [x] `pytest tests/ -v` 全部通过（37 项测试：7 provider + 5 planner + 7 API + 5 models + 13 tools）
 
 ---
 
@@ -386,7 +398,7 @@
 |--------|-------|---------|
 | **M0: 原型验证** | 0 ✅ | Flask + LLM 工具调用可运行 |
 | **M1: 技术基座** | 1 ✅ | FastAPI + Pydantic Models + FastMCP Tools |
-| **M2: 智能规划** | 2 | 用户 prompt → 结构化 Blueprint |
+| **M2: 智能规划** | 2 ✅ | 用户 prompt → 结构化 Blueprint |
 | **M3: 页面构建** | 3 | Blueprint → SSE 流式页面 |
 | **M4: 多 Agent 闭环** | 4 | 构建 + 追问 + 路由，完整交互循环 |
 | **M5: 真实数据** | 5 | Java 后端对接，mock → 真实教务数据 |

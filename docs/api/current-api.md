@@ -1,6 +1,6 @@
-# 当前 API（Phase 1）
+# 当前 API（Phase 2）
 
-> FastAPI 服务的 4 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
+> FastAPI 服务的 5 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
 
 ---
 
@@ -9,6 +9,7 @@
 | Method | Path | 功能 | 状态 |
 |--------|------|------|------|
 | `GET` | `/api/health` | 健康检查 | ✅ |
+| `POST` | `/api/workflow/generate` | 生成 Blueprint（PlannerAgent） | ✅ Phase 2 新增 |
 | `POST` | `/chat` | 通用对话 (兼容路由, 支持工具调用) | ✅ |
 | `GET` | `/models` | 列出支持的模型 | ✅ |
 | `GET` | `/skills` | 列出可用技能 | ✅ |
@@ -62,6 +63,53 @@ curl -X POST http://localhost:5000/chat \
 ```
 
 **错误处理:** 缺少 `message` 字段返回 `422` (FastAPI Pydantic 校验)。
+
+---
+
+## POST /api/workflow/generate
+
+PlannerAgent 端点，将用户自然语言请求转换为结构化 Blueprint JSON。
+
+**请求 (camelCase):**
+
+```json
+{
+  "userPrompt": "分析 Form 1A 的 Unit 5 考试成绩",
+  "language": "zh-CN",
+  "teacherId": "",
+  "context": null
+}
+```
+
+**响应 (camelCase):**
+
+```json
+{
+  "blueprint": {
+    "id": "bp-unit5-analysis",
+    "name": "Unit 5 考试分析",
+    "description": "...",
+    "capabilityLevel": 1,
+    "dataContract": { "inputs": [...], "bindings": [...] },
+    "computeGraph": { "nodes": [...] },
+    "uiComposition": { "layout": "tabs", "tabs": [...] },
+    "pageSystemPrompt": "..."
+  },
+  "model": ""
+}
+```
+
+**示例:**
+
+```bash
+curl -X POST http://localhost:5000/api/workflow/generate \
+  -H "Content-Type: application/json" \
+  -d '{"userPrompt": "分析班级英语成绩", "language": "zh-CN"}'
+```
+
+**错误处理:**
+- 缺少 `userPrompt` → `422`
+- LLM 超时/输出格式错误 → `502` + `{"detail": "Blueprint generation failed: ..."}`
 
 ---
 
