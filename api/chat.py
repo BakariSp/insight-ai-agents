@@ -1,6 +1,7 @@
-"""Legacy /chat compatibility route — kept for Phase 0 backward compat.
+"""Legacy /chat compatibility route — DEPRECATED.
 
-Will be replaced by /api/page/generate + /api/page/followup in Phase 4.
+Superseded by POST /api/conversation in Phase 4. Kept for backward compatibility
+but should not be used by new clients.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -20,9 +21,9 @@ class ChatRequest(BaseModel):
     model: str | None = None
 
 
-@router.post("/chat")
+@router.post("/chat", deprecated=True)
 async def chat(req: ChatRequest):
-    """Main chat endpoint (compatibility). Accepts a message and returns agent response."""
+    """DEPRECATED: Use POST /api/conversation instead. Kept for backward compatibility."""
     try:
         result = _chat_agent.run(
             req.message,
