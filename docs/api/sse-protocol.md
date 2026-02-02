@@ -94,13 +94,9 @@ data: {"type":"COMPLETE","message":"error","progress":100,"result":{"response":"
 
 前端收到 `DATA_ERROR` 时应展示友好提示和建议选项，而非继续等待页面渲染。非 required binding 的 error dict 不会触发 DATA_ERROR，仅记录 warning 日志并跳过。
 
-### 计划新增事件类型（Phase 6）
+### Block/Slot 粒度事件（Phase 6 ✅ 已实现）
 
-以下事件类型计划在后续 Phase 中引入，现有前端可安全忽略：
-
-#### Phase 6.2: Block/Slot 粒度事件
-
-将 AI 内容填充从单一 `MESSAGE` 升级为 block 级别的增量推送：
+AI 内容填充从单一 `MESSAGE` 升级为 block 级别的增量推送，前端可按 `blockId` 精确定位 AI 内容插入位置：
 
 ```
 # Block 开始填充
@@ -114,11 +110,35 @@ data: {"type":"SLOT_DELTA","blockId":"tab1-slot2","slotKey":"content","deltaText
 data: {"type":"BLOCK_COMPLETE","blockId":"tab1-slot2"}
 ```
 
-- `BLOCK_START`: 通知前端某个 block 开始接收 AI 内容
-- `SLOT_DELTA`: 增量文本，前端按 `blockId + slotKey` 定位到具体 slot 追加
-- `BLOCK_COMPLETE`: 该 block 的 AI 内容已全部生成
+#### 事件详情
 
-**向下兼容**: `MESSAGE` 事件将继续发送（包含所有 AI 文本），旧前端可忽略新事件类型继续工作。
+| 事件 | 字段 | 说明 |
+|------|------|------|
+| `BLOCK_START` | `blockId: string`, `componentType: string` | 通知前端某个 block 开始接收 AI 内容 |
+| `SLOT_DELTA` | `blockId: string`, `slotKey: string`, `deltaText: string` | 增量文本，前端按 `blockId + slotKey` 定位到具体 slot 追加 |
+| `BLOCK_COMPLETE` | `blockId: string` | 该 block 的 AI 内容已全部生成 |
+
+#### slotKey 映射
+
+| componentType | slotKey | deltaText 格式 |
+|---------------|---------|----------------|
+| `markdown` | `content` | Markdown 文本 |
+| `suggestion_list` | `items` | JSON 数组字符串 (`[{title, description, priority, category}]`) |
+| `question_generator` | `questions` | JSON 数组字符串 (`[{id, type, question, answer, ...}]`) |
+
+#### 事件顺序
+
+在 compose 阶段，对每个 `aiContentSlot=true` 的 slot：
+
+```
+BLOCK_START(blockId, componentType)
+  → SLOT_DELTA(blockId, slotKey, deltaText) × 1+
+  → BLOCK_COMPLETE(blockId)
+```
+
+所有 block 事件完成后，发送向下兼容的 `MESSAGE` 事件（拼接所有 AI 文本）。
+
+**向下兼容**: `MESSAGE` 事件继续发送（包含所有 AI 文本的拼接），旧前端可忽略新事件类型继续工作。
 
 ### SSE 流错误处理
 
