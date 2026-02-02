@@ -13,10 +13,17 @@ from datetime import datetime, timezone
 from pydantic_ai import Agent
 
 from agents.provider import create_model
+from config.llm_config import LLMConfig
 from config.prompts.planner import build_planner_prompt
 from models.blueprint import Blueprint
 
 logger = logging.getLogger(__name__)
+
+# Agent-level LLM tuning — structured output, low temperature
+PLANNER_LLM_CONFIG = LLMConfig(
+    temperature=0.2,
+    response_format="json_object",
+)
 
 # Module-level agent — reused across requests.
 # The model can be overridden per-run via generate_blueprint(model=...).
@@ -50,7 +57,9 @@ async def generate_blueprint(
         f"User request: {user_prompt}"
     )
 
-    kwargs: dict = {}
+    kwargs: dict = {
+        "model_settings": PLANNER_LLM_CONFIG.to_litellm_kwargs(),
+    }
     if model:
         kwargs["model"] = create_model(model)
 

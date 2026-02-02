@@ -81,12 +81,21 @@ async def execute_mcp_tool(name: str, arguments: dict) -> Any:
 
 输入 user prompt → 输出 `Blueprint`。PydanticAI 的 `output_type` 确保输出结构合法。
 
+通过 `PLANNER_LLM_CONFIG` 声明 Agent 级 LLM 参数（低温度 + JSON 输出格式），
+并在 `agent.run()` 时通过 `model_settings` 传递给 LiteLLM。
+
 ```python
 from pydantic_ai import Agent
 from models.blueprint import Blueprint
 from agents.provider import create_model
+from config.llm_config import LLMConfig
 from config.prompts.planner import build_planner_prompt
 
+# Agent-level LLM tuning — structured output, low temperature
+PLANNER_LLM_CONFIG = LLMConfig(
+    temperature=0.2,
+    response_format="json_object",
+)
 
 _planner_agent = Agent(
     model=create_model(),
@@ -104,6 +113,7 @@ async def generate_blueprint(
     result = await _planner_agent.run(
         f"[Language: {language}]\n\nUser request: {user_prompt}",
         model=create_model(model) if model else None,
+        model_settings=PLANNER_LLM_CONFIG.to_litellm_kwargs(),
     )
     blueprint = result.output
     # 自动填充 source_prompt, created_at

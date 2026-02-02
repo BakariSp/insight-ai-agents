@@ -1,19 +1,26 @@
 import json
 import uuid
+
+from config.llm_config import LLMConfig
+from config.settings import get_settings
 from services.llm_service import LLMService
 from skills import WebSearchSkill, MemorySkill
-from config.settings import get_settings
 
 SYSTEM_PROMPT = """You are Insight AI, a helpful assistant with access to tools.
 Use the available tools when they would help answer the user's question.
 Be concise and accurate. If you don't know something, say so."""
+
+# Agent-level LLM tuning — conversational style
+CHAT_LLM_CONFIG = LLMConfig(
+    temperature=0.8,
+)
 
 
 class ChatAgent:
     """Orchestrates conversations with LLMs, routing tool calls to skills."""
 
     def __init__(self):
-        self.default_service = LLMService()
+        self.default_service = LLMService(config=CHAT_LLM_CONFIG)
         self.skills = self._load_skills()
         self.conversations: dict[str, list] = {}
 
@@ -48,7 +55,7 @@ class ChatAgent:
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
 
-        service = LLMService(model=model) if model else self.default_service
+        service = LLMService(config=CHAT_LLM_CONFIG, model=model) if model else self.default_service
 
         messages = self.conversations.get(conversation_id, [])
         messages.append({"role": "user", "content": user_message})

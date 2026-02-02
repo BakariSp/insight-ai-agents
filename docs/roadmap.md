@@ -180,7 +180,7 @@
 - [x] `config/prompts/planner.py` — system prompt 含结构指导 + 组件清单 + 工具清单 + 示例
 - [x] `agents/planner.py` — PydanticAI Agent + output_type=Blueprint + retries=2
 - [x] `api/workflow.py` — POST /api/workflow/generate 端点 + 错误处理
-- [x] `pytest tests/ -v` 全部通过（37 项测试：7 provider + 5 planner + 7 API + 5 models + 13 tools）
+- [x] `pytest tests/ -v` 全部通过（52 项测试：15 llm_config + 7 provider + 5 planner + 7 API + 5 models + 13 tools）
 
 ---
 

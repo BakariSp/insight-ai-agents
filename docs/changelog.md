@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-02-02 — LLMConfig: 可复用 LLM 生成参数管理
+
+- 新增 `config/llm_config.py`: `LLMConfig` Pydantic 模型，支持 temperature/top_p/top_k/seed/frequency_penalty/repetition_penalty/response_format/stop
+- `LLMConfig.merge()` 合并配置，`to_litellm_kwargs()` 转换为 litellm 参数
+- 更新 `config/settings.py`: 新增 8 个 LLM 生成参数字段 + `get_default_llm_config()` 方法
+- 重构 `services/llm_service.py`: 构造时接受 `LLMConfig`，三层优先级合并（全局 → Agent → per-call）
+- 更新 `agents/planner.py`: 新增 `PLANNER_LLM_CONFIG`（temperature=0.2, response_format=json_object），通过 `model_settings` 传递
+- 更新 `agents/chat_agent.py`: 新增 `CHAT_LLM_CONFIG`（temperature=0.8），传入 LLMService
+- 新增 `tests/test_llm_config.py`: 15 项测试覆盖构造/验证/merge/to_litellm_kwargs/Settings 集成
+- 52 项测试全部通过
+
 ## 2026-02-02 — Phase 2: PlannerAgent 完成
 
 - 新增 `pydantic-ai>=1.0` 依赖，引入 PydanticAI Agent 框架

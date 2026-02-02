@@ -58,11 +58,20 @@ Client (HTTP)
 | Workflow API | `api/workflow.py` | POST /api/workflow/generate 端点 |
 | Tool Registry | `tools/__init__.py` | `TOOL_REGISTRY` dict + `get_tool_descriptions()` |
 
+### LLM 配置管理（Phase 2 增强）
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| LLMConfig | `config/llm_config.py` | 可复用 LLM 生成参数模型（temperature, top_p, seed 等） |
+
+LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 → per-call 覆盖。
+每个 Agent 声明自己的 `LLMConfig` 实例，通过 `merge()` 与全局默认合并。
+
 ### Phase 1 模块（延续）
 
 | 模块 | 文件 | 功能 |
 |------|------|------|
-| Pydantic Settings | `config/settings.py` | 类型安全配置，`.env` 自动加载 |
+| Pydantic Settings | `config/settings.py` | 类型安全配置，`.env` 自动加载 + `get_default_llm_config()` |
 | Blueprint 模型 | `models/blueprint.py` | 三层可执行蓝图数据模型 |
 | CamelModel 基类 | `models/base.py` | API 输出 camelCase 序列化 |
 | API 请求模型 | `models/request.py` | Workflow / Page 请求响应 |
@@ -207,10 +216,22 @@ LLM 返回 → 有 tool_calls? → 执行工具 → 结果追加历史 → 重�
 - 支持 per-request 模型切换 (`model` 参数)
 - 工具执行带 try/except 错误处理
 
+### LLMConfig (`config/llm_config.py`)
+
+可复用的 LLM 生成参数 Pydantic 模型:
+- 支持 `temperature`, `top_p`, `top_k`, `seed`, `frequency_penalty`, `repetition_penalty`, `response_format`, `stop` 等参数
+- `merge(overrides)` — 返回合并后的新配置（base + overrides 非 None 字段）
+- `to_litellm_kwargs()` — 转换为 `litellm.completion()` 可接受的参数字典
+- 每个 Agent 声明自己的 `LLMConfig`（如 PlannerAgent 用低温度 + json_object，ChatAgent 用高温度）
+
+优先级链: `.env` 全局默认 → Agent 级 LLMConfig → per-call `**overrides`
+
 ### LLMService (`services/llm_service.py`)
 
 LiteLLM 的轻封装:
-- 统一的 `chat()` 接口
+- 构造时接受 `LLMConfig`，与全局默认合并
+- 保留 `model=` 参数向后兼容
+- 统一的 `chat()` 接口，支持 `**overrides` per-call 覆盖
 - 自动处理 system prompt 前置
 - 解析 tool_calls 为标准格式
 - 提取 token 用量统计
@@ -249,7 +270,8 @@ insight-ai-agent/
 │   └── models_routes.py        # GET /models, GET /skills
 │
 ├── config/                     # 配置系统
-│   ├── settings.py             # Pydantic Settings + get_settings()
+│   ├── settings.py             # Pydantic Settings + get_settings() + get_default_llm_config()
+│   ├── llm_config.py           # LLMConfig 可复用生成参数模型 (merge / to_litellm_kwargs)
 │   ├── component_registry.py   # 6 种 UI 组件定义
 │   └── prompts/                # ← Phase 2 新增
 │       └── planner.py          # PlannerAgent system prompt + build_planner_prompt()
@@ -280,6 +302,7 @@ insight-ai-agent/
 │
 ├── tests/
 │   ├── test_api.py             # FastAPI 端点测试 (含 workflow 端点)
+│   ├── test_llm_config.py      # LLMConfig 单元测试 (merge / to_litellm_kwargs / Settings 集成)
 │   ├── test_planner.py         # PlannerAgent 测试 (TestModel) ← Phase 2 新增
 │   ├── test_provider.py        # Provider 单元测试 ← Phase 2 新增
 │   ├── test_models.py          # Blueprint 模型测试
