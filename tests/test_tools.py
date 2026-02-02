@@ -1,6 +1,7 @@
 """Tests for FastMCP tools — data tools and stats tools."""
 
 import pytest
+from unittest.mock import patch
 
 from tools.data_tools import (
     get_assignment_submissions,
@@ -11,60 +12,97 @@ from tools.data_tools import (
 from tools.stats_tools import calculate_stats, compare_performance
 
 
-# ── Data Tools ──────────────────────────────────────────────
+# ── Data Tools (async, tested with USE_MOCK_DATA=True) ─────────────────────
 
 
-def test_get_teacher_classes_found():
-    result = get_teacher_classes("t-001")
+@pytest.mark.asyncio
+async def test_get_teacher_classes_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_teacher_classes("t-001")
     assert result["teacher_id"] == "t-001"
     assert len(result["classes"]) == 2
     assert result["classes"][0]["class_id"] == "class-hk-f1a"
 
 
-def test_get_teacher_classes_not_found():
-    result = get_teacher_classes("t-999")
+@pytest.mark.asyncio
+async def test_get_teacher_classes_not_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_teacher_classes("t-999")
     assert result["teacher_id"] == "t-999"
     assert result["classes"] == []
 
 
-def test_get_class_detail_found():
-    result = get_class_detail("t-001", "class-hk-f1a")
+@pytest.mark.asyncio
+async def test_get_class_detail_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_class_detail("t-001", "class-hk-f1a")
     assert result["class_id"] == "class-hk-f1a"
     assert result["name"] == "Form 1A"
     assert len(result["students"]) == 5
     assert len(result["assignments"]) == 2
 
 
-def test_get_class_detail_not_found():
-    result = get_class_detail("t-001", "class-xxx")
+@pytest.mark.asyncio
+async def test_get_class_detail_not_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_class_detail("t-001", "class-xxx")
     assert "error" in result
 
 
-def test_get_assignment_submissions_found():
-    result = get_assignment_submissions("t-001", "a-001")
+@pytest.mark.asyncio
+async def test_get_assignment_submissions_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_assignment_submissions("t-001", "a-001")
     assert result["assignment_id"] == "a-001"
     assert len(result["submissions"]) == 5
     assert result["scores"] == [58, 85, 72, 91, 65]
 
 
-def test_get_assignment_submissions_not_found():
-    result = get_assignment_submissions("t-001", "a-999")
+@pytest.mark.asyncio
+async def test_get_assignment_submissions_not_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_assignment_submissions("t-001", "a-999")
     assert "error" in result
 
 
-def test_get_student_grades_found():
-    result = get_student_grades("t-001", "s-001")
+@pytest.mark.asyncio
+async def test_get_student_grades_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_student_grades("t-001", "s-001")
     assert result["student_id"] == "s-001"
     assert result["name"] == "Wong Ka Ho"
     assert len(result["grades"]) == 2
 
 
-def test_get_student_grades_not_found():
-    result = get_student_grades("t-001", "s-999")
+@pytest.mark.asyncio
+async def test_get_student_grades_not_found():
+    with patch("tools.data_tools._should_use_mock", return_value=True):
+        result = await get_student_grades("t-001", "s-999")
     assert "error" in result
 
 
-# ── Stats Tools ─────────────────────────────────────────────
+# ── Data Tools: fallback on backend error ──────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_teacher_classes_fallback_on_error():
+    """When USE_MOCK_DATA=False and backend fails, should fallback to mock."""
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", side_effect=RuntimeError("no backend")):
+        result = await get_teacher_classes("t-001")
+    assert result["teacher_id"] == "t-001"
+    assert len(result["classes"]) == 2  # mock data
+
+
+@pytest.mark.asyncio
+async def test_get_class_detail_fallback_on_error():
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", side_effect=RuntimeError("no backend")):
+        result = await get_class_detail("t-001", "class-hk-f1a")
+    assert result["class_id"] == "class-hk-f1a"
+
+
+# ── Stats Tools (sync, unchanged) ─────────────────────────────────────────
 
 
 def test_calculate_stats_all_metrics():
