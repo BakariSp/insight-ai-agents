@@ -1,6 +1,6 @@
-# 目标 API（Phase 3+）
+# 目标 API（Phase 6）
 
-> FastAPI 服务的 4 个端点。详细 SSE 协议和 Block 格式见 [sse-protocol.md](./sse-protocol.md)。
+> FastAPI 服务的端点规划。详细 SSE 协议和 Block 格式见 [sse-protocol.md](./sse-protocol.md)。
 
 ---
 
@@ -8,9 +8,10 @@
 
 | Method | Path | 功能 | Agent | 状态 |
 |--------|------|------|-------|------|
-| `POST` | `/api/workflow/generate` | 生成 Blueprint | PlannerAgent | ✅ |
-| `POST` | `/api/page/generate` | 执行 Blueprint (SSE) | ExecutorAgent | ✅ |
+| `POST` | `/api/workflow/generate` | 生成 Blueprint | PlannerAgent | ✅ Phase 2 |
+| `POST` | `/api/page/generate` | 执行 Blueprint (SSE) | ExecutorAgent | ✅ Phase 3 |
 | `POST` | `/api/conversation` | 统一会话网关 (内部路由) | Router→Chat/PageChat/Planner | ✅ Phase 4 |
+| `POST` | `/api/page/patch` | 增量 Patch 执行 (SSE) | ExecutorAgent | 🔲 Phase 6 |
 | `GET` | `/api/health` | 健康检查 | - | ✅ |
 
 > **设计变更 (2026-02-02)**: 原计划的 `POST /api/intent/classify` 和 `POST /api/page/chat` 合并为统一的 `POST /api/conversation` 端点。RouterAgent 作为内部组件，不再对外暴露。Phase 4 已完成实现。
@@ -178,20 +179,57 @@ curl http://localhost:8000/api/health
 
 ---
 
+## 5. Page Patch (Phase 6 计划) — `POST /api/page/patch` 🔲
+
+增量 Patch 执行端点，接收 PatchPlan 对已有页面进行局部修改，避免每次 refine 都全页重建。
+
+**Request (计划):**
+
+```json
+{
+  "blueprint": { "...": "当前 Blueprint" },
+  "page": { "...": "当前页面结构" },
+  "patchPlan": {
+    "scope": "patch_layout | patch_compose | full_rebuild",
+    "instructions": [
+      { "type": "update_props", "targetBlockId": "tab1-slot2", "changes": { "variant": "warning" } }
+    ],
+    "affectedBlockIds": ["tab1-slot2"]
+  },
+  "context": {},
+  "dataContext": {},
+  "computeResults": {}
+}
+```
+
+**Response:** SSE 事件流（PATCH_LAYOUT 直接返回修改后页面，PATCH_COMPOSE 逐 block 重生成 AI 内容）。
+
+---
+
 ## FastAPI App 入口 (`main.py`)
 
 ```python
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config.settings import get_settings
+from services.java_client import get_java_client
 
 from api.workflow import router as workflow_router
 from api.page import router as page_router
+from api.conversation import router as conversation_router
 from api.health import router as health_router
 
 settings = get_settings()
 
-app = FastAPI(title="Insight AI Agent Service", version="0.2.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    client = get_java_client()
+    await client.start()
+    yield
+    await client.close()
+
+app = FastAPI(title="Insight AI Agent Service", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -201,6 +239,7 @@ app.add_middleware(
 
 app.include_router(workflow_router)
 app.include_router(page_router)
+app.include_router(conversation_router)
 app.include_router(health_router)
 
 if __name__ == "__main__":

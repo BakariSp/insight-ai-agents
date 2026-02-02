@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-02-03 — Phase 6.1 完成: SSE 事件模型 + 前端 Proxy 文档契约
+
+Phase 6 首步，定义 SSE block/slot 粒度事件模型并编写前端对接文档。
+
+**Step 6.1: SSE 事件模型 + Proxy 文档契约**
+- 新增 `models/sse_events.py`: BlockStartEvent, SlotDeltaEvent, BlockCompleteEvent（继承 CamelModel）
+  - `BlockStartEvent`: blockId + componentType
+  - `SlotDeltaEvent`: blockId + slotKey + deltaText
+  - `BlockCompleteEvent`: blockId
+- 新增 `tests/test_sse_events.py`: camelCase 序列化测试（blockId, componentType, slotKey, deltaText）
+- 新增 `docs/integration/nextjs-proxy.md`: 前端 proxy 路由契约文档（SSE 透传、CORS 策略、路由映射）
+- 更新 `docs/api/sse-protocol.md`: Block/Slot 粒度事件从 "planned" 改为 "implemented"，新增事件详情、slotKey 映射表、事件顺序说明
+
+---
+
 ## 2026-02-03 — Phase 5 完成: Java 后端对接
 
 实现 Adapter 抽象层 + HTTP 客户端封装 + 数据工具双源切换 + 重试/熔断/降级机制。

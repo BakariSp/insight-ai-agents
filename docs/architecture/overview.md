@@ -216,11 +216,15 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 | Grade Adapter | `adapters/grade_adapter.py` | Java 成绩 API → GradeData / GradeRecord | ✅ 已完成 |
 | Java Client | `services/java_client.py` | httpx 异步客户端 + 连接池 + 重试(3×) + 熔断器(5次) + Bearer token | ✅ 已完成 |
 
-### 计划新增模块（Phase 6 — SSE 升级 + Patch）
+### 新增模块（Phase 6 — SSE 升级 + Patch）
 
-| 模块 | 文件 | 功能 |
-|------|------|------|
-| Patch Model | `models/patch.py` | PatchInstruction 模型（update_props / reorder / recompose） |
+| 模块 | 文件 | 功能 | 状态 |
+|------|------|------|------|
+| SSE Events | `models/sse_events.py` | BlockStartEvent / SlotDeltaEvent / BlockCompleteEvent | ✅ 已完成 (Step 6.1) |
+| Next.js Proxy 契约 | `docs/integration/nextjs-proxy.md` | 前端 proxy 路由、SSE 透传策略 | ✅ 已完成 (Step 6.1) |
+| Patch Model | `models/patch.py` | PatchInstruction 模型（update_props / reorder / recompose） | 🔲 待实现 |
+| Block Compose Prompt | `config/prompts/block_compose.py` | Per-block AI prompt 构建器 | 🔲 待实现 |
+| Patch Agent | `agents/patch_agent.py` | Patch 分析 agent | 🔲 待实现 |
 
 ### 当前 → 目标的差距
 
@@ -228,11 +232,11 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 |------|------|------|
 | Web 框架 | ✅ FastAPI (异步) | FastAPI (异步) |
 | 工具框架 | ✅ FastMCP 6 工具 + TOOL_REGISTRY | FastMCP `@mcp.tool` + 自动 Schema |
-| 数据模型 | ✅ Blueprint + CamelModel + Conversation + Entity + Internal Data | Blueprint + Conversation + Patch + Internal Data |
+| 数据模型 | ✅ Blueprint + CamelModel + Conversation + Entity + Internal Data + SSE Events | Blueprint + Conversation + Patch + SSE Events + Internal Data |
 | 配置系统 | ✅ Pydantic Settings | Pydantic Settings |
 | LLM 接入 | ✅ PydanticAI + LiteLLM | PydanticAI + LiteLLM (streaming + tool_use) |
 | Agent 数量 | ✅ 5 个 Agent (Planner + Executor + Router + Chat + PageChat) | 5+ Agents |
-| 输出模式 | ✅ SSE 流式 (MESSAGE + DATA_ERROR) | SSE 流式 (BLOCK_START / SLOT_DELTA / BLOCK_COMPLETE) |
+| 输出模式 | ✅ SSE 流式 (MESSAGE + DATA_ERROR)，SSE 事件模型已定义 | SSE 流式 (BLOCK_START / SLOT_DELTA / BLOCK_COMPLETE) — Executor 重构待完成 |
 | 实体解析 | ✅ Entity Resolver 自动匹配班级/学生/作业 → ID | Entity Resolver 完整校验 |
 | 异常体系 | ✅ ToolError → DataFetchError → EntityNotFoundError | 完整异常体系 |
 | Action 命名 | ✅ mode/action/chatKind 三维结构 + legacyAction 兼容 | 结构化 Action |
@@ -383,6 +387,7 @@ insight-ai-agent/
 │   ├── conversation.py        # 意图模型 + Clarify + ConversationRequest/Response
 │   ├── entity.py              # ResolvedEntity + ResolveResult
 │   ├── data.py                # 内部标准数据结构 (ClassInfo, GradeData 等) ← Phase 5 新增
+│   ├── sse_events.py          # SSE block/slot 事件模型 (BlockStartEvent 等) ← Phase 6 新增
 │   └── request.py              # API 请求/响应模型
 │
 ├── adapters/                  # Data Adapter 层 ← Phase 5 新增
@@ -422,7 +427,7 @@ insight-ai-agent/
 │   ├── web_search.py           # Brave Search 技能
 │   └── memory.py               # 持久化记忆技能
 │
-├── tests/                      # 238 项测试
+├── tests/                      # 238+ 项测试
 │   ├── test_api.py             # FastAPI 端点测试
 │   ├── test_e2e_page.py        # E2E 测试 (Blueprint → SSE + 降级)
 │   ├── test_e2e_conversation.py # E2E 会话测试
@@ -441,7 +446,8 @@ insight-ai-agent/
 │   ├── test_clarify_builder.py # ClarifyBuilder 测试
 │   ├── test_page_chat.py      # PageChatAgent 测试
 │   ├── test_conversation_api.py # 会话端点测试
-│   └── test_entity_resolver.py # 实体解析器测试
+│   ├── test_entity_resolver.py # 实体解析器测试
+│   └── test_sse_events.py     # SSE 事件模型测试 ← Phase 6 新增
 │
 ├── docs/                       # 文档
 │

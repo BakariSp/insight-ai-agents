@@ -1,4 +1,4 @@
-# 当前 API（Phase 4）
+# 当前 API（Phase 5 / Phase 6 进行中）
 
 > FastAPI 服务的 7 个 HTTP 端点。启动方式: `python main.py` 或 `uvicorn main:app --reload`
 
@@ -150,7 +150,9 @@ data: {"type":"MESSAGE","content":"**Key Findings**: The class average is 74.2..
 data: {"type":"COMPLETE","message":"completed","progress":100,"result":{"response":"...","chatResponse":"...","page":{...}}}
 ```
 
-**SSE 事件类型:** `PHASE`, `TOOL_CALL`, `TOOL_RESULT`, `MESSAGE`, `COMPLETE`（详见 [SSE 协议](sse-protocol.md)）
+**SSE 事件类型:** `PHASE`, `TOOL_CALL`, `TOOL_RESULT`, `MESSAGE`, `DATA_ERROR`, `COMPLETE`（详见 [SSE 协议](sse-protocol.md)）
+
+> Phase 6 将新增 `BLOCK_START`, `SLOT_DELTA`, `BLOCK_COMPLETE` 事件（模型已定义于 `models/sse_events.py`，Executor 重构待完成）。
 
 **示例:**
 

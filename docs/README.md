@@ -1,7 +1,7 @@
 # Insight AI Agent — 文档中心
 
 > **最后更新**: 2026-02-03
-> **当前阶段**: Phase 4.5 完成 → Phase 5 待开始
+> **当前阶段**: Phase 5 完成 → Phase 6 进行中 (Step 6.1 SSE 事件模型 + Proxy 文档契约 ✅)
 > **一句话概述**: 面向教育场景的 AI Agent 服务，教师用自然语言即可构建结构化的数据分析页面并进行对话式交互。
 
 ---
@@ -35,6 +35,7 @@
 | 统一会话网关 | 意图路由 + 置信度控制 + 交互式反问 | ✅ 已实现 |
 | FastMCP 工具注册 | 用 FastMCP 替代手写 JSON Schema | ✅ 已实现 |
 | Java 后端对接 | 从 Java 后端获取教育真实数据 | ✅ 已实现 |
+| SSE Block 事件流 | BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 逐 block 推送 | 🔄 进行中 |
 | 前端集成 | Next.js 通过 API Routes 代理 | 🔲 待实现 |
 
 ---
@@ -53,7 +54,7 @@
 
 | 文档 | 内容 |
 |------|------|
-| [当前 API](api/current-api.md) | Phase 4 的 7 个 FastAPI 端点（含统一会话网关） |
+| [当前 API](api/current-api.md) | Phase 5 的 7 个 FastAPI 端点（含统一会话网关 + Java 后端对接） |
 | [目标 API](api/target-api.md) | 目标 API 端点，详细请求/响应 Schema |
 | [SSE 协议与 Block 格式](api/sse-protocol.md) | SSE 事件协议、6 种页面 Block 类型、CamelCase 映射 |
 
@@ -71,6 +72,7 @@
 |------|------|
 | [前端集成](integration/frontend-integration.md) | Next.js Proxy、字段映射、前端改动清单、Mock 策略、错误处理 |
 | [Java 后端对接](integration/java-backend.md) | Java API 端点、数据工具映射、对接计划 |
+| [Next.js Proxy 契约](integration/nextjs-proxy.md) | 前端 proxy 路由契约、SSE 透传、CORS 策略 |
 
 ### 测试与用例
 

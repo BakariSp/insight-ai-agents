@@ -25,6 +25,7 @@ docs/testing/
 | 4 | 统一会话网关 | 151 | 59 | [报告](phase4-test-report.md) | [日志](phase4-conversation-log.md) | 7 种 action 路由、置信度边界、闭环流程 |
 | 4.5 | 健壮性增强 | 222→230 | 71→79 | [报告](phase4.5-test-report.md) | [日志](phase4.5-conversation-log.md) | 实体解析 12 种场景、多轮交互流程、错误拦截 |
 | 5 | Java 后端对接 | 238 | 8 | — | — | Adapter 映射、重试/熔断降级、mock fallback |
+| 6 | 前端集成 + SSE 升级 + Patch | 🔄 进行中 | — | — | — | SSE 事件模型序列化 (Step 6.1 ✅) |
 
 ---
 
@@ -104,3 +105,14 @@ docs/testing/phaseX.Y-conversation-log.md   # 子阶段 Live 日志
 | 4 | 连续失败触发熔断 | 5 次失败 → OPEN → 快速 mock |
 | 5 | 熔断恢复 | HALF_OPEN 探测 → CLOSED |
 | 6 | USE_MOCK_DATA=true | 配置开关直接使用 mock |
+
+### Phase 6 — 前端集成 + SSE 升级 + Patch（进行中）
+
+| # | 场景 | 描述 | 状态 |
+|---|------|------|------|
+| 1 | SSE 事件模型序列化 | BlockStartEvent / SlotDeltaEvent / BlockCompleteEvent camelCase 输出 | ✅ Step 6.1 |
+| 2 | Block 事件流 | BLOCK_START → SLOT_DELTA → BLOCK_COMPLETE 顺序 | 🔲 Step 6.2 |
+| 3 | Per-Block AI 生成 | 各 component_type 独立 LLM 生成 | 🔲 Step 6.3 |
+| 4 | Patch Layout | refine "改颜色" → 无 LLM 调用 | 🔲 Step 6.4 |
+| 5 | Patch Compose | refine "缩短分析" → 只重生成 AI blocks | 🔲 Step 6.4 |
+| 6 | E2E 全生命周期 | prompt → Blueprint → BLOCK 事件 → Patch → 降级 | 🔲 Step 6.5 |
