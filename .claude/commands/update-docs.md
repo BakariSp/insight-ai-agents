@@ -1,6 +1,31 @@
 # /update-docs — 项目文档自动更新
 
-你是一个文档维护专家。你的任务是根据项目当前代码和 git 状态，更新 `docs/PROJECT.md` 全景文档，确保文档始终反映项目的真实现状。
+你是一个文档维护专家。你的任务是根据项目当前代码和 git 状态，更新 `docs/` 下的多文件文档体系，确保文档始终反映项目的真实现状。
+
+## 文档结构
+
+```
+docs/
+├── README.md                      # 导航首页 + 项目概览
+├── architecture/
+│   ├── overview.md                # 系统架构、项目结构、核心模块
+│   ├── agents.md                  # 多 Agent 设计
+│   └── blueprint-model.md         # Blueprint 数据模型
+├── api/
+│   ├── current-api.md             # 当前 API 端点
+│   ├── target-api.md              # 目标 API 端点
+│   └── sse-protocol.md            # SSE 协议、Block 格式
+├── guides/
+│   ├── getting-started.md         # 快速开始
+│   ├── adding-skills.md           # 添加技能
+│   └── environment.md             # 环境变量
+├── integration/
+│   ├── frontend-integration.md    # 前端集成
+│   └── java-backend.md            # Java 后端对接
+├── tech-stack.md                  # 技术栈
+├── roadmap.md                     # 实施路线图
+└── changelog.md                   # 变更日志
+```
 
 ## 执行步骤
 
@@ -16,56 +41,49 @@
 - **测试**: 读取测试文件，了解测试覆盖情况
 - **配置**: 读取 `.env.example` 和 `config.py`，了解配置变化
 
-### 2. 分析变更影响
+### 2. 分析变更影响并更新对应文件
 
-对比当前 `docs/PROJECT.md` 的内容和实际代码，识别:
+对比当前文档内容和实际代码，按变更类型更新对应文件:
 
-- 路线图进度: 哪些 Phase/任务已完成、正在进行、新增
-- 架构变化: 是否有新模块、新端点、新技能
-- 技术栈变化: 依赖是否有增删
-- API 变化: 端点是否有新增或修改
-- 项目结构变化: 文件是否有增删重组
+| 变更类型 | 更新文件 |
+|---------|---------|
+| 新增/删除文件或模块 | `docs/architecture/overview.md` (项目结构) |
+| 新增/修改 API 端点 | `docs/api/current-api.md` 或 `docs/api/target-api.md` |
+| 新增/修改技能或工具 | `docs/guides/adding-skills.md` |
+| 路线图进度变化 | `docs/roadmap.md` (`- [ ]` → `- [x]`) |
+| 依赖增删 | `docs/tech-stack.md` |
+| 架构设计调整 | `docs/architecture/` 下对应文件 |
+| Agent 设计变化 | `docs/architecture/agents.md` |
+| Blueprint 模型变化 | `docs/architecture/blueprint-model.md` |
+| SSE/Block 格式变化 | `docs/api/sse-protocol.md` |
+| 前端集成变化 | `docs/integration/frontend-integration.md` |
+| Java 对接变化 | `docs/integration/java-backend.md` |
+| 环境变量变化 | `docs/guides/environment.md` |
 
-### 3. 更新文档
+### 3. 必须更新的文件
 
-按以下规则更新 `docs/PROJECT.md`:
+无论什么变更，以下文件**始终需要检查**:
 
-#### 更新规则
+1. **`docs/README.md`**: 更新"当前阶段"和核心目标状态表
+2. **`docs/roadmap.md`**: 更新路线图 checkbox
+3. **`docs/changelog.md`**: 在最前面（`---` 分隔线之后）追加本次变更条目
 
-1. **最后更新日期**: 更新为今天
-2. **当前阶段**: 根据路线图 checkbox 的完成度判断
-3. **已实现列表 (§2.1)**: 新完成的功能打 ✅
-4. **当前架构图 (§2.2)**: 如果架构有变化则更新
-5. **待解决问题 (§2.4)**: 已解决的打 ✅，新发现的添加
-6. **项目结构 (§5.1)**: 反映实际文件变化
-7. **路线图 (§8)**:
-   - 完成的任务: `- [ ]` → `- [x]`
-   - 新增的任务: 添加到对应 Phase
-   - 完成的 Phase: 标记 ✅
-8. **变更日志 (§11)**: 在最前面添加本次更新的条目
-
-#### 格式要求
+### 4. 格式要求
 
 - 保持中文为主的写作风格
-- 保持现有的 markdown 结构和目录
+- 保持现有的 markdown 结构
 - 代码块保持原格式
 - 表格对齐
-- 变更日志格式: `### YYYY-MM-DD — 简短标题`
-
-### 4. 同步更新其他文档 (如需要)
-
-如果变更涉及:
-- API 契约变化 → 提醒是否需要更新 `docs/frontend-python-integration.md`
-- 架构设计变化 → 提醒是否需要更新 `docs/python-service.md`
+- 变更日志格式: `## YYYY-MM-DD — 简短标题`
 
 ### 5. 输出摘要
 
 更新完成后，输出:
 ```
-📋 文档更新摘要
+文档更新摘要
 ━━━━━━━━━━━━━━━
 更新日期: YYYY-MM-DD
-变更项数: N 处
+修改文件: file1.md, file2.md, ...
 主要变更:
   - ...
   - ...

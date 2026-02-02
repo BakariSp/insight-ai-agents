@@ -4,7 +4,16 @@
 
 教育场景 AI Agent 服务。当前: Flask + LiteLLM 基础原型。目标: FastAPI + FastMCP 多 Agent 系统。
 
-详细文档: `docs/PROJECT.md`（项目全景）, `docs/python-service.md`（目标架构）, `docs/frontend-python-integration.md`（前端对接）。
+文档入口: `docs/README.md`（导航首页，链接到所有子文档）。
+
+主要文档:
+- `docs/architecture/` — 架构设计（总览、多 Agent、Blueprint 模型）
+- `docs/api/` — API 文档（当前端点、目标端点、SSE 协议）
+- `docs/guides/` — 开发指南（快速开始、添加技能、环境变量）
+- `docs/integration/` — 集成规范（前端对接、Java 后端）
+- `docs/roadmap.md` — 实施路线图
+- `docs/changelog.md` — 变更日志
+- `docs/tech-stack.md` — 技术栈
 
 ## 开发规范
 
@@ -17,15 +26,16 @@
 
 ## 文档更新规则
 
-**每次完成功能开发或结构性变更后**，使用 `/update-docs` 命令更新 `docs/PROJECT.md`。
+**每次完成功能开发或结构性变更后**，使用 `/update-docs` 命令更新对应的文档文件。
 
-需要更新文档的场景:
-- 新增或删除文件/模块
-- 新增或修改 API 端点
-- 新增或修改技能/工具
-- 完成路线图中的某个任务
-- 依赖变化 (requirements.txt)
-- 架构调整
+需要更新文档的场景及对应文件:
+- 新增或删除文件/模块 → `docs/architecture/overview.md`
+- 新增或修改 API 端点 → `docs/api/`
+- 新增或修改技能/工具 → `docs/guides/adding-skills.md`
+- 完成路线图中的某个任务 → `docs/roadmap.md`
+- 依赖变化 (requirements.txt) → `docs/tech-stack.md`
+- 架构调整 → `docs/architecture/`
+- 所有变更 → `docs/changelog.md`（追加记录）
 
 ## 常用命令
 
