@@ -18,6 +18,11 @@ from tools.data_tools import (
     get_teacher_classes,
 )
 from tools.stats_tools import calculate_stats, compare_performance
+from tools.assessment_tools import (
+    analyze_student_weakness,
+    get_student_error_patterns,
+    calculate_class_mastery,
+)
 
 mcp = FastMCP("insight-ai-tools")
 
@@ -28,6 +33,10 @@ mcp.tool()(get_assignment_submissions)
 mcp.tool()(get_student_grades)
 mcp.tool()(calculate_stats)
 mcp.tool()(compare_performance)
+# Phase 7: Assessment tools
+mcp.tool()(analyze_student_weakness)
+mcp.tool()(get_student_error_patterns)
+mcp.tool()(calculate_class_mastery)
 
 # In-process tool registry: name → callable
 TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
@@ -37,6 +46,10 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     "get_student_grades": get_student_grades,
     "calculate_stats": calculate_stats,
     "compare_performance": compare_performance,
+    # Phase 7: Assessment tools
+    "analyze_student_weakness": analyze_student_weakness,
+    "get_student_error_patterns": get_student_error_patterns,
+    "calculate_class_mastery": calculate_class_mastery,
 }
 
 
