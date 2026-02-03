@@ -1,7 +1,7 @@
 # Insight AI Agent — 文档中心
 
 > **最后更新**: 2026-02-03
-> **当前阶段**: Phase 5 完成 → Phase 6 进行中 (Step 6.1 SSE 事件模型 + Proxy 文档契约 ✅)
+> **当前阶段**: Phase 6 进行中 (Step 6.1–6.4 完成 ✅，Step 6.5 E2E 测试待完成)
 > **一句话概述**: 面向教育场景的 AI Agent 服务，教师用自然语言即可构建结构化的数据分析页面并进行对话式交互。
 
 ---
@@ -35,7 +35,9 @@
 | 统一会话网关 | 意图路由 + 置信度控制 + 交互式反问 | ✅ 已实现 |
 | FastMCP 工具注册 | 用 FastMCP 替代手写 JSON Schema | ✅ 已实现 |
 | Java 后端对接 | 从 Java 后端获取教育真实数据 | ✅ 已实现 |
-| SSE Block 事件流 | BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 逐 block 推送 | 🔄 进行中 |
+| SSE Block 事件流 | BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 逐 block 推送 | ✅ 已实现 |
+| Per-Block AI 生成 | 每个 ai_content_slot 独立生成，支持多种 output_format | ✅ 已实现 |
+| Patch 机制 | refine 支持 patch_layout/patch_compose/full_rebuild | ✅ 已实现 |
 | 前端集成 | Next.js 通过 API Routes 代理 | 🔲 待实现 |
 
 ---

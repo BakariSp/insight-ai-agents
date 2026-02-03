@@ -757,71 +757,71 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 
 > ✅ 验收: 全部 251 项测试通过（243 existing + 8 new），Phase C 统一使用 BLOCK 事件流。
 
-### Step 6.3: Per-Block AI 生成（Level 2）🔲
+### Step 6.3: Per-Block AI 生成（Level 2）✅ 已完成
 
 > 让每个 ai_content_slot 独立 AI 生成，支持 markdown/suggestion_list/question_generator 等多种内容类型。
 
-- [ ] **6.3.1** 创建 `config/prompts/block_compose.py`：
+- [x] **6.3.1** 创建 `config/prompts/block_compose.py`：
   - `build_block_prompt(slot, blueprint, data_context, compute_results)` → `(prompt, output_format)`
   - `_build_markdown_prompt()` — 分析叙事文本 prompt
   - `_build_suggestion_prompt()` — JSON 结构化建议 prompt（返回 `[{title, description, priority, category}]`）
   - `_build_question_prompt()` — JSON 题目生成 prompt
   - `_build_data_summary()` — 注入 data_context + compute_results
-- [ ] **6.3.2** 编写 prompt 构建器测试（`tests/test_block_compose.py`）：
+- [x] **6.3.2** 编写 prompt 构建器测试（`tests/test_block_compose.py`）：
   - `test_markdown_prompt_contains_data_summary()` — 验证数据注入
   - `test_suggestion_prompt_requests_json_format()` — output_format == "json"
   - `test_question_prompt_includes_slot_props()` — 使用 slot.props
-- [ ] **6.3.3** 升级 `agents/executor.py`：
+- [x] **6.3.3** 升级 `agents/executor.py`：
   - 升级 `_generate_block_content()`：使用 `build_block_prompt()` 生成 per-block prompt
   - 对 JSON output_format：解析 LLM JSON 返回值，失败降级为单项包装
   - 升级 `_fill_single_block()`：处理 list/dict 返回值（suggestion_list items, question_generator questions）
   - 删除旧的 `_generate_ai_narrative()` + `_fill_ai_content()`（未部署，直接移除）
-- [ ] **6.3.4** 编写 Executor 升级测试（`tests/test_executor.py`）：
+- [x] **6.3.4** 编写 Executor 升级测试（`tests/test_executor.py`）：
   - `test_generate_block_content_markdown()` — mock LLM 返回文本，block content 正确
   - `test_generate_block_content_suggestion_list()` — mock LLM 返回 JSON 数组
   - `test_generate_block_content_json_fallback()` — LLM 返回无效 JSON 时降级
   - `test_each_ai_slot_separate_llm_call()` — 每个 ai_content_slot 独立 LLM 调用
 
-> ✅ 验收: per-block AI 生成工作，各 component_type 正确填充。
+> ✅ 验收: per-block AI 生成工作，各 component_type 正确填充。312 项测试通过。
 
-### Step 6.4: Patch 机制 🔲
+### Step 6.4: Patch 机制 ✅ 已完成
 
 > 追问模式的 refine 引入 Patch 指令，按 scope 分流避免每次微调都整页重建。
 
 #### 6.4.1: Patch 数据模型 + Router 扩展
 
-- [ ] **6.4.1.1** 创建 `models/patch.py`：
+- [x] **6.4.1.1** 创建 `models/patch.py`：
   - `PatchType` 枚举：update_props, reorder, add_block, remove_block, recompose
   - `RefineScope` 枚举：patch_layout, patch_compose, full_rebuild
   - `PatchInstruction(CamelModel)`：type, target_block_id, changes
   - `PatchPlan(CamelModel)`：scope, instructions, affected_block_ids
-- [ ] **6.4.1.2** 编写 `tests/test_patch_models.py`：camelCase 序列化测试 + 枚举值测试
-- [ ] **6.4.1.3** 修改 `models/conversation.py`：
+- [x] **6.4.1.2** 编写 `tests/test_patch_models.py`：camelCase 序列化测试 + 枚举值测试
+- [x] **6.4.1.3** 修改 `models/conversation.py`：
   - `RouterResult` 新增 `refine_scope: str | None = None`
   - `ConversationResponse` 新增 `patch_plan: PatchPlan | None = None`
-- [ ] **6.4.1.4** 修改 `config/prompts/router.py`：
+- [x] **6.4.1.4** 修改 `config/prompts/router.py`：
   - `ROUTER_FOLLOWUP_PROMPT` 新增 refine_scope 输出指导：
     - `patch_layout`：UI 修改（颜色/顺序/标题）
     - `patch_compose`：内容修改（缩写/换措辞）
     - `full_rebuild`：结构修改（增删模块）
-- [ ] **6.4.1.5** 编写 `tests/test_router.py` 新增测试：
+- [x] **6.4.1.5** 编写 `tests/test_router.py` 新增测试：
   - `test_followup_refine_scope_in_output()` — RouterResult 含 refine_scope
 
 > ✅ 验收: Patch 模型序列化正确，Router 输出含 refine_scope。
 
 #### 6.4.2: PatchAgent + Executor execute_patch()
 
-- [ ] **6.4.2.1** 创建 `agents/patch_agent.py`：
+- [x] **6.4.2.1** 创建 `agents/patch_agent.py`：
   - `PatchAgent.analyze_refine(message, blueprint, page, refine_scope)` → `PatchPlan`
   - `PATCH_LAYOUT`：确定性 prop 修改（无 LLM）
   - `PATCH_COMPOSE`：识别 ai_content_slot blocks，生成 RECOMPOSE 指令
   - `FULL_REBUILD`：返回空 PatchPlan（调用方走完整 rebuild 路径）
-- [ ] **6.4.2.2** 修改 `agents/executor.py`：
+- [x] **6.4.2.2** 修改 `agents/executor.py`：
   - 新增 `execute_patch(old_page, blueprint, patch_plan, data_context, compute_results)` 异步生成器
   - `PATCH_LAYOUT`：修改 block props，yield COMPLETE（无 LLM）
   - `PATCH_COMPOSE`：只对 affected blocks 重新 AI 生成，yield BLOCK 事件
   - 辅助函数：`_deep_copy_page()`, `_apply_prop_patch()`, `_find_slot()`, `_find_block()`
-- [ ] **6.4.2.3** 创建 `tests/test_patch.py`：
+- [x] **6.4.2.3** 创建 `tests/test_patch.py`：
   - `test_patch_layout_skips_ai()` — PATCH_LAYOUT 不调用 LLM
   - `test_patch_compose_regenerates_ai_only()` — 只重新生成 ai_content_slot
   - `test_patch_compose_preserves_data_blocks()` — kpi/chart/table 不变
@@ -831,19 +831,19 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 
 #### 6.4.3: Conversation API Patch 集成 + Page Patch 端点
 
-- [ ] **6.4.3.1** 修改 `api/conversation.py`：
+- [x] **6.4.3.1** 修改 `api/conversation.py`：
   - refine 分支：检查 `router_result.refine_scope`
   - `patch_layout` / `patch_compose` → `PatchAgent.analyze_refine()` → 返回 ConversationResponse 含 patch_plan
   - `full_rebuild` / None → 保持现有行为（PlannerAgent 生成新 Blueprint）
-- [ ] **6.4.3.2** 修改 `models/request.py`：
+- [x] **6.4.3.2** 修改 `models/request.py`：
   - 新增 `PagePatchRequest(CamelModel)`：blueprint, page, patch_plan, context, data_context, compute_results
-- [ ] **6.4.3.3** 修改 `api/page.py`：
+- [x] **6.4.3.3** 修改 `api/page.py`：
   - 新增 `POST /api/page/patch` 端点：接收 PagePatchRequest → execute_patch() → SSE 流
-- [ ] **6.4.3.4** 编写 `tests/test_conversation_api.py` 新增测试：
+- [x] **6.4.3.4** 编写 `tests/test_conversation_api.py` 新增测试：
   - `test_refine_patch_layout_returns_patch_plan()` — refine_scope=patch_layout 返回 patch_plan
   - `test_refine_full_rebuild_generates_new_blueprint()` — 无 refine_scope 走旧路径
 
-> ✅ 验收: refine 分支按 scope 分流，`/api/page/patch` 端点可用。
+> ✅ 验收: refine 分支按 scope 分流，`/api/page/patch` 端点可用。312 项测试通过。
 
 ### Step 6.5: E2E 测试 🔲
 
@@ -866,16 +866,16 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | 文件 | 操作 | 说明 |
 |------|------|------|
 | `models/sse_events.py` | 新建 ✅ | SSE block/slot 事件模型 |
-| `models/patch.py` | 新建 | PatchInstruction, PatchPlan, RefineScope |
-| `config/prompts/block_compose.py` | 新建 | Per-block AI prompt 构建器 |
-| `agents/patch_agent.py` | 新建 | Patch 分析 agent |
+| `models/patch.py` | 新建 ✅ | PatchInstruction, PatchPlan, RefineScope |
+| `config/prompts/block_compose.py` | 新建 ✅ | Per-block AI prompt 构建器 |
+| `agents/patch_agent.py` | 新建 ✅ | Patch 分析 agent |
 | `docs/integration/nextjs-proxy.md` | 新建 ✅ | 前端 proxy 契约 |
-| `agents/executor.py` | 重构 | Phase C 逐 block 流 + execute_patch() |
-| `api/conversation.py` | 修改 | refine 分支 scope 分流 |
-| `api/page.py` | 修改 | 新增 /api/page/patch 端点 |
-| `models/conversation.py` | 修改 | RouterResult.refine_scope + ConversationResponse.patch_plan |
-| `models/request.py` | 修改 | PagePatchRequest |
-| `config/prompts/router.py` | 修改 | followup prompt 加 refine_scope |
+| `agents/executor.py` | 重构 ✅ | Phase C 逐 block 流 + execute_patch() |
+| `api/conversation.py` | 修改 ✅ | refine 分支 scope 分流 |
+| `api/page.py` | 修改 ✅ | 新增 /api/page/patch 端点 |
+| `models/conversation.py` | 修改 ✅ | RouterResult.refine_scope + ConversationResponse.patch_plan |
+| `models/request.py` | 修改 ✅ | PagePatchRequest |
+| `config/prompts/router.py` | 修改 ✅ | followup prompt 加 refine_scope |
 
 ---
 

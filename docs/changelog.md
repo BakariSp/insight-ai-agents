@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-02-03 — Phase 6.3-6.4 完成: Per-Block AI 生成 + Patch 机制
+
+实现 Per-Block AI 生成（Level 2）和 Patch 机制，支持增量页面修改。
+
+**Step 6.3: Per-Block AI 生成**
+- 新增 `config/prompts/block_compose.py`: Per-block prompt 构建器
+  - `build_block_prompt()` → `(prompt, output_format)` 根据 component_type 选择 prompt
+  - `_build_markdown_prompt()` — 分析叙事文本 prompt (output_format="text")
+  - `_build_suggestion_prompt()` — JSON 建议列表 prompt (output_format="json")
+  - `_build_question_prompt()` — JSON 题目生成 prompt (output_format="json")
+  - `_build_data_summary()` — 注入 data_context + compute_results
+- 新增 `tests/test_block_compose.py`: 15 项 prompt 构建器测试
+- 重构 `agents/executor.py`:
+  - `_generate_block_content()` 使用 `build_block_prompt()` 生成 per-block prompt
+  - `_parse_json_output()` 解析 LLM JSON 返回值（支持 markdown code block 包装）
+  - `_fill_single_block()` 处理 list/dict 返回值
+  - 删除旧的 `_generate_ai_narrative()` + `_fill_ai_content()`
+- 新增 10 项 Executor 测试 (`tests/test_executor.py`)
+
+**Step 6.4: Patch 机制**
+- 新增 `models/patch.py`: Patch 数据模型
+  - `PatchType` 枚举: update_props, reorder, add_block, remove_block, recompose
+  - `RefineScope` 枚举: patch_layout, patch_compose, full_rebuild
+  - `PatchInstruction(CamelModel)`: type, target_block_id, changes
+  - `PatchPlan(CamelModel)`: scope, instructions, affected_block_ids, compose_instruction
+- 新增 `tests/test_patch_models.py`: 10 项 Patch 模型测试
+- 新增 `agents/patch_agent.py`: Patch 分析 agent
+  - `analyze_refine()` 根据 refine_scope 生成 PatchPlan
+  - `_analyze_layout_patch()` 检测颜色/样式修改
+  - `_analyze_compose_patch()` 识别 ai_content_slot blocks
+- 更新 `agents/executor.py`:
+  - 新增 `execute_patch()` 异步生成器执行 PatchPlan
+  - 辅助函数: `_find_slot()`, `_find_block_by_id()`, `_apply_prop_patch()`
+- 新增 `tests/test_patch.py`: 18 项 Patch 执行测试
+- 更新 `models/conversation.py`:
+  - `RouterResult` 新增 `refine_scope: str | None`
+  - `ConversationResponse` 新增 `patch_plan: PatchPlan | None`
+- 更新 `config/prompts/router.py`: followup prompt 新增 refine_scope 输出指导
+- 更新 `models/request.py`: 新增 `PagePatchRequest`
+- 更新 `api/page.py`: 新增 `POST /api/page/patch` 端点
+- 更新 `api/conversation.py`: refine 分支按 scope 分流
+- 新增 4 项 conversation API 测试 + 4 项 Router 测试
+
+- 312 项测试全部通过（74 项新增 + 238 项已有）
+
+---
+
 ## 2026-02-03 — Phase 6.1 完成: SSE 事件模型 + 前端 Proxy 文档契约
 
 Phase 6 首步，定义 SSE block/slot 粒度事件模型并编写前端对接文档。

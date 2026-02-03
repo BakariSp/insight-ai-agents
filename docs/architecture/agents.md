@@ -10,11 +10,12 @@
 |-------|------|------|------|---------|
 | **PlannerAgent** | 理解用户需求，生成 Blueprint | 用户自然语言 | 结构化分析方案 JSON | `POST /api/workflow/generate` |
 | **ExecutorAgent** | 执行分析计划，调用工具，构建页面 | Blueprint + 数据 | SSE 流式页面 | `POST /api/page/generate` |
-| **RouterAgent** | 意图分类 + 置信度路由 | 用户消息 + 可选上下文 | RouterResult (intent + confidence) | **内部组件** |
+| **RouterAgent** | 意图分类 + 置信度路由 | 用户消息 + 可选上下文 | RouterResult (intent + confidence + refine_scope) | **内部组件** |
 | **ChatAgent** | 闲聊 + 知识问答 | 用户消息 + intent_type | Markdown 文本回复 | **内部组件** |
 | **PageChatAgent** | 页面追问对话 | 用户消息 + Blueprint + 页面上下文 | Markdown 文本回复 | **内部组件** |
+| **PatchAgent** | 分析 refine 请求，生成 Patch 指令 | message + blueprint + page + refine_scope | PatchPlan (scope + instructions) | **内部组件** |
 
-> **设计原则**: RouterAgent、ChatAgent、PageChatAgent 不对外暴露独立端点，统一通过 `POST /api/conversation` 内部调度。前端只调一个端点，根据响应中的 `action` 字段做渲染。
+> **设计原则**: RouterAgent、ChatAgent、PageChatAgent、PatchAgent 不对外暴露独立端点，统一通过 `POST /api/conversation` 内部调度。前端只调一个端点，根据响应中的 `action` 字段做渲染。
 
 ---
 
@@ -302,6 +303,44 @@ async def generate_response(
     result = await agent.run(f"[Language: {language}]\n\n{message}")
     return str(result.output)
 ```
+
+---
+
+## PatchAgent (`agents/patch_agent.py`) ✅ 已实现
+
+分析 refine 请求，生成 PatchPlan 指令。**不对外暴露端点**，由 conversation 端点内部调用。
+支持三种 scope：PATCH_LAYOUT（无 LLM）、PATCH_COMPOSE（重生成 AI 块）、FULL_REBUILD（走完整 rebuild）。
+
+```python
+from models.patch import PatchPlan, PatchInstruction, PatchType, RefineScope
+from models.blueprint import Blueprint
+
+async def analyze_refine(
+    message: str,
+    blueprint: Blueprint,
+    page: dict | None,
+    refine_scope: str | None,
+) -> PatchPlan:
+    """分析 refine 请求，生成 PatchPlan。"""
+    if refine_scope == "full_rebuild" or refine_scope is None:
+        return PatchPlan(scope=RefineScope.FULL_REBUILD)
+
+    if refine_scope == "patch_layout":
+        return _analyze_layout_patch(message, blueprint, page)
+
+    if refine_scope == "patch_compose":
+        return _analyze_compose_patch(message, blueprint, page)
+
+    return PatchPlan(scope=RefineScope.FULL_REBUILD)
+```
+
+**Patch 执行流程:**
+
+| Scope | 行为 | LLM 调用 |
+|-------|------|---------|
+| `PATCH_LAYOUT` | 修改 block props（颜色/标题/顺序） | ❌ 无 |
+| `PATCH_COMPOSE` | 重新生成 ai_content_slot 内容 | ✅ 仅 affected blocks |
+| `FULL_REBUILD` | 返回空 PatchPlan，调用方走完整 rebuild | ✅ 完整 PlannerAgent |
 
 ---
 
