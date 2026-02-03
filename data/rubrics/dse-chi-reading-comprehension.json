@@ -1,0 +1,123 @@
+{
+  "id": "DSE-CHI-Reading-Comprehension",
+  "name": "DSE 中國語文 - 閱讀理解評分標準",
+  "subject": "Chinese",
+  "taskType": "reading_comprehension",
+  "level": "DSE",
+  "version": "2024",
+  "totalMarks": 10,
+  "instructions": "本評分標準用於評核香港中學文憑試中國語文科閱讀理解題目。根據題目類型評分。",
+  "criteria": [
+    {
+      "dimension": "content_understanding",
+      "maxMarks": 4,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [4, 4],
+          "descriptor": "準確理解文章內容，能清楚指出文章主旨、段落大意。能找出相關的引文支持答案。",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [3, 3],
+          "descriptor": "大致理解文章內容。能指出主旨，惟表述或有不足。",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [2, 2],
+          "descriptor": "對文章有基本理解。理解或有偏差。",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [1, 1],
+          "descriptor": "對文章理解有限。答案部分正確。",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "未能理解文章內容。答案錯誤或與問題無關。",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "inference_analysis",
+      "maxMarks": 4,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [4, 4],
+          "descriptor": "能準確推斷言外之意、作者態度。分析深入，見解獨到。",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [3, 3],
+          "descriptor": "能作合理推斷。分析恰當，有一定見解。",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [2, 2],
+          "descriptor": "推斷大致正確。分析尚可。",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [1, 1],
+          "descriptor": "推斷有偏差。分析較淺。",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "未能作出合理推斷。分析錯誤或欠缺。",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "expression",
+      "maxMarks": 2,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [2, 2],
+          "descriptor": "表達清晰流暢，用詞準確。文句通順，無錯別字。",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [1, 1],
+          "descriptor": "表達尚清楚。偶有語病或錯別字。",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "表達不清。語病多或錯別字多。",
+          "examples": []
+        }
+      ]
+    }
+  ],
+  "sampleAnswers": [],
+  "commonErrors": [
+    "答非所問",
+    "理解文意有偏差",
+    "未能引用原文作答",
+    "推斷過度或不足",
+    "混淆作者觀點與引述他人觀點",
+    "未能辨識修辭手法",
+    "文言文翻譯不準確",
+    "答案不完整，遺漏要點",
+    "表達含糊不清"
+  ]
+}

@@ -24,6 +24,7 @@ SUBJECT_CODE_MAP: dict[str, str] = {
     "ENG": "English",
     "CHI": "Chinese",
     "MATH": "Math",
+    "ICT": "ICT",
     "BIO": "Biology",
     "CHEM": "Chemistry",
     "PHY": "Physics",
@@ -34,6 +35,7 @@ SUBJECT_CODE_MAP: dict[str, str] = {
 # Error tag → Knowledge point ID mapping
 # This maps common error types to relevant knowledge points
 ERROR_TAG_MAPPING: dict[str, list[str]] = {
+    # ===== English errors =====
     # Grammar errors
     "grammar": ["DSE-ENG-U5-GR-01", "DSE-ENG-U5-GR-02", "DSE-ENG-U5-GR-03"],
     "tense": ["DSE-ENG-U5-GR-01"],
@@ -63,6 +65,98 @@ ERROR_TAG_MAPPING: dict[str, list[str]] = {
     "cohesion": ["DSE-ENG-U5-WR-03"],
     "coherence": ["DSE-ENG-U5-WR-03"],
     "transition": ["DSE-ENG-U5-WR-03"],
+
+    # ===== Math errors =====
+    # Algebra errors
+    "factorization": ["DSE-MATH-C1-QE-01"],
+    "quadratic": ["DSE-MATH-C1-QE-01", "DSE-MATH-C1-QE-02", "DSE-MATH-C1-FN-02"],
+    "quadratic_formula": ["DSE-MATH-C1-QE-02"],
+    "completing_square": ["DSE-MATH-C1-QE-03"],
+    "discriminant": ["DSE-MATH-C1-QE-04"],
+    "function": ["DSE-MATH-C1-FN-01", "DSE-MATH-C1-FN-02"],
+    "exponential": ["DSE-MATH-C1-EX-01"],
+    "logarithm": ["DSE-MATH-C1-LG-01"],
+    "sequence": ["DSE-MATH-C1-SE-01", "DSE-MATH-C1-SE-02"],
+    "arithmetic_sequence": ["DSE-MATH-C1-SE-01"],
+    "geometric_sequence": ["DSE-MATH-C1-SE-02"],
+
+    # Geometry errors
+    "coordinate": ["DSE-MATH-C2-CG-01", "DSE-MATH-C2-CG-02", "DSE-MATH-C2-CG-03"],
+    "slope": ["DSE-MATH-C2-CG-02"],
+    "straight_line": ["DSE-MATH-C2-CG-03"],
+    "circle": ["DSE-MATH-C2-CG-04"],
+    "trigonometry": ["DSE-MATH-C2-TR-01", "DSE-MATH-C2-TR-02"],
+    "trig_ratio": ["DSE-MATH-C2-TR-01"],
+    "trig_identity": ["DSE-MATH-C2-TR-02"],
+
+    # Statistics errors
+    "mean": ["DSE-MATH-C3-ST-01"],
+    "median": ["DSE-MATH-C3-ST-01"],
+    "standard_deviation": ["DSE-MATH-C3-ST-02"],
+    "probability": ["DSE-MATH-C3-PR-01", "DSE-MATH-C3-PR-02"],
+    "conditional_probability": ["DSE-MATH-C3-PR-03"],
+
+    # Calculus errors (M1)
+    "differentiation": ["DSE-MATH-M1-DF-02", "DSE-MATH-M1-DF-03"],
+    "chain_rule": ["DSE-MATH-M1-DF-03"],
+    "integration": ["DSE-MATH-M1-IN-01", "DSE-MATH-M1-IN-02"],
+
+    # ===== Chinese errors =====
+    # 閱讀理解
+    "主旨": ["DSE-CHI-RD-CM-01"],
+    "段落大意": ["DSE-CHI-RD-CM-02"],
+    "推斷": ["DSE-CHI-RD-CM-03"],
+    "文言文": ["DSE-CHI-RD-LT-01", "DSE-CHI-RD-LT-02", "DSE-CHI-RD-LT-03"],
+    "文言字詞": ["DSE-CHI-RD-LT-01"],
+    "文言句式": ["DSE-CHI-RD-LT-02"],
+    "修辭": ["DSE-CHI-RD-RH-01", "DSE-CHI-RD-RH-02"],
+
+    # 寫作
+    "記敘文": ["DSE-CHI-WR-ST-01"],
+    "議論文": ["DSE-CHI-WR-ST-02"],
+    "抒情文": ["DSE-CHI-WR-ST-03"],
+    "用詞": ["DSE-CHI-WR-EX-01"],
+    "句式": ["DSE-CHI-WR-EX-02"],
+    "篇章組織": ["DSE-CHI-WR-OG-01"],
+    "銜接": ["DSE-CHI-WR-OG-02"],
+
+    # 語文基礎
+    "詞彙": ["DSE-CHI-KW-VC-01"],
+    "語法": ["DSE-CHI-KW-GR-01"],
+    "標點": ["DSE-CHI-KW-PU-01"],
+
+    # ===== ICT errors =====
+    # Data representation
+    "number_system": ["DSE-ICT-A-IP-01"],
+    "binary": ["DSE-ICT-A-IP-01"],
+    "hexadecimal": ["DSE-ICT-A-IP-01"],
+    "encoding": ["DSE-ICT-A-IP-02"],
+
+    # Database
+    "database": ["DSE-ICT-A-DB-01", "DSE-ICT-A-DB-02"],
+    "sql": ["DSE-ICT-A-DB-03", "DSE-ICT-A-DB-04"],
+    "erd": ["DSE-ICT-A-DB-02"],
+    "normalization": ["DSE-ICT-A-DB-02"],
+
+    # Network
+    "network": ["DSE-ICT-C-NW-01", "DSE-ICT-C-NW-02"],
+    "tcp_ip": ["DSE-ICT-C-NW-02"],
+    "security": ["DSE-ICT-C-NW-03"],
+
+    # Programming
+    "algorithm": ["DSE-ICT-D-PG-01"],
+    "variable": ["DSE-ICT-D-PG-02"],
+    "selection": ["DSE-ICT-D-PG-03"],
+    "loop": ["DSE-ICT-D-PG-04"],
+    "array": ["DSE-ICT-D-PG-05"],
+    "function_prog": ["DSE-ICT-D-PG-06"],
+    "searching": ["DSE-ICT-D-PG-07"],
+    "sorting": ["DSE-ICT-D-PG-08"],
+
+    # Web
+    "html": ["DSE-ICT-C-WB-01"],
+    "css": ["DSE-ICT-C-WB-02"],
+    "javascript": ["DSE-ICT-C-WB-03"],
 }
 
 

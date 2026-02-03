@@ -1,0 +1,137 @@
+{
+  "id": "DSE-CHI-Writing-Essay",
+  "name": "DSE 中國語文 - 寫作能力評分標準",
+  "subject": "Chinese",
+  "taskType": "essay",
+  "level": "DSE",
+  "version": "2024",
+  "totalMarks": 90,
+  "instructions": "本評分標準用於評核香港中學文憑試中國語文科寫作能力卷。評分分為三個範疇：內容、表達、結構。",
+  "criteria": [
+    {
+      "dimension": "content",
+      "maxMarks": 30,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [25, 30],
+          "descriptor": "立意明確深刻，見解獨到。內容充實豐富，論據充分有力。能緊扣題目，取材恰當。",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [19, 24],
+          "descriptor": "立意清晰，有一定見解。內容充實，論據恰當。能扣緊題目，取材適切。",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [13, 18],
+          "descriptor": "立意尚清楚。內容尚充實。大致能扣題，取材尚可。",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [7, 12],
+          "descriptor": "立意模糊。內容較空泛，論據不足。偶有離題，取材欠佳。",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 6],
+          "descriptor": "立意不明或偏離題旨。內容貧乏，缺乏論據。明顯離題，取材不當。",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "expression",
+      "maxMarks": 30,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [25, 30],
+          "descriptor": "文句流暢優美，詞彙豐富準確。句式靈活多變，修辭恰當有力。標點、錯別字極少。",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [19, 24],
+          "descriptor": "文句通順，詞彙恰當。句式較多變化，偶有修辭。標點、錯別字少。",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [13, 18],
+          "descriptor": "文句大致通順，詞彙尚可。句式變化不多。標點、錯別字數量一般。",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [7, 12],
+          "descriptor": "文句欠通順，詞彙有限。句式單調，間有語病。標點、錯別字較多。",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 6],
+          "descriptor": "文句不通，詞不達意。語病甚多。標點、錯別字甚多。",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "organization",
+      "maxMarks": 30,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [25, 30],
+          "descriptor": "結構嚴謹，層次分明。段落安排合理，過渡自然。首尾呼應，一氣呵成。",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [19, 24],
+          "descriptor": "結構完整，層次清晰。段落安排恰當，過渡尚可。有首有尾，條理分明。",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [13, 18],
+          "descriptor": "結構尚完整。段落安排尚可，過渡一般。基本有條理。",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [7, 12],
+          "descriptor": "結構鬆散。段落欠當，過渡生硬。條理欠清晰。",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 6],
+          "descriptor": "結構混亂，缺乏層次。段落不分明或不當。欠缺條理。",
+          "examples": []
+        }
+      ]
+    }
+  ],
+  "sampleAnswers": [],
+  "commonErrors": [
+    "離題或偏題",
+    "論點不明確",
+    "論據不足或不恰當",
+    "用詞不當或詞彙貧乏",
+    "句式單調，缺乏變化",
+    "段落安排不當",
+    "過渡生硬或缺乏過渡",
+    "錯別字過多",
+    "標點符號使用不當",
+    "首尾不相呼應",
+    "引用不當或缺乏出處"
+  ]
+}

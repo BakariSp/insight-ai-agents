@@ -1,0 +1,263 @@
+{
+  "subject": "Math",
+  "level": "DSE",
+  "version": "2024",
+  "units": [
+    {
+      "id": "DSE-MATH-C1",
+      "name": "Compulsory Part - Algebra",
+      "knowledgePoints": [
+        {
+          "id": "DSE-MATH-C1-QE-01",
+          "name": "Quadratic Equations - Factorization",
+          "description": "Solve quadratic equations by factorization method",
+          "skillTags": ["algebra", "equations", "factorization"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C1-QE-02",
+          "name": "Quadratic Equations - Formula",
+          "description": "Solve quadratic equations using the quadratic formula",
+          "skillTags": ["algebra", "equations", "formula"],
+          "prerequisites": ["DSE-MATH-C1-QE-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C1-QE-03",
+          "name": "Quadratic Equations - Completing Square",
+          "description": "Solve quadratic equations by completing the square",
+          "skillTags": ["algebra", "equations", "completing_square"],
+          "prerequisites": ["DSE-MATH-C1-QE-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-MATH-C1-QE-04",
+          "name": "Nature of Roots",
+          "description": "Determine the nature of roots using discriminant",
+          "skillTags": ["algebra", "equations", "discriminant"],
+          "prerequisites": ["DSE-MATH-C1-QE-02"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C1-FN-01",
+          "name": "Functions - Basic Concepts",
+          "description": "Understand function notation, domain and range",
+          "skillTags": ["algebra", "functions", "notation"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-MATH-C1-FN-02",
+          "name": "Quadratic Functions",
+          "description": "Graph and analyze quadratic functions",
+          "skillTags": ["algebra", "functions", "graphing"],
+          "prerequisites": ["DSE-MATH-C1-FN-01", "DSE-MATH-C1-QE-03"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C1-EX-01",
+          "name": "Exponential Functions",
+          "description": "Understand and apply exponential functions",
+          "skillTags": ["algebra", "functions", "exponential"],
+          "prerequisites": ["DSE-MATH-C1-FN-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C1-LG-01",
+          "name": "Logarithmic Functions",
+          "description": "Understand logarithms and their properties",
+          "skillTags": ["algebra", "functions", "logarithm"],
+          "prerequisites": ["DSE-MATH-C1-EX-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-MATH-C1-SE-01",
+          "name": "Sequences - Arithmetic",
+          "description": "Identify and work with arithmetic sequences",
+          "skillTags": ["algebra", "sequences", "arithmetic"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-MATH-C1-SE-02",
+          "name": "Sequences - Geometric",
+          "description": "Identify and work with geometric sequences",
+          "skillTags": ["algebra", "sequences", "geometric"],
+          "prerequisites": ["DSE-MATH-C1-SE-01"],
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "id": "DSE-MATH-C2",
+      "name": "Compulsory Part - Geometry",
+      "knowledgePoints": [
+        {
+          "id": "DSE-MATH-C2-CG-01",
+          "name": "Coordinate Geometry - Distance Formula",
+          "description": "Calculate distance between two points",
+          "skillTags": ["geometry", "coordinate", "distance"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-MATH-C2-CG-02",
+          "name": "Coordinate Geometry - Slope",
+          "description": "Calculate and interpret slope of lines",
+          "skillTags": ["geometry", "coordinate", "slope"],
+          "prerequisites": ["DSE-MATH-C2-CG-01"],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-MATH-C2-CG-03",
+          "name": "Equations of Straight Lines",
+          "description": "Write and interpret equations of lines",
+          "skillTags": ["geometry", "coordinate", "equations"],
+          "prerequisites": ["DSE-MATH-C2-CG-02"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C2-CG-04",
+          "name": "Circles in Coordinate Geometry",
+          "description": "Write and analyze equations of circles",
+          "skillTags": ["geometry", "coordinate", "circles"],
+          "prerequisites": ["DSE-MATH-C2-CG-03"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-MATH-C2-TR-01",
+          "name": "Trigonometric Ratios",
+          "description": "Understand and apply sine, cosine, tangent ratios",
+          "skillTags": ["geometry", "trigonometry", "ratios"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C2-TR-02",
+          "name": "Trigonometric Identities",
+          "description": "Apply trigonometric identities",
+          "skillTags": ["geometry", "trigonometry", "identities"],
+          "prerequisites": ["DSE-MATH-C2-TR-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-MATH-C2-TR-03",
+          "name": "Solving Triangles",
+          "description": "Use sine rule and cosine rule to solve triangles",
+          "skillTags": ["geometry", "trigonometry", "triangles"],
+          "prerequisites": ["DSE-MATH-C2-TR-01"],
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "id": "DSE-MATH-C3",
+      "name": "Compulsory Part - Statistics and Probability",
+      "knowledgePoints": [
+        {
+          "id": "DSE-MATH-C3-ST-01",
+          "name": "Measures of Central Tendency",
+          "description": "Calculate and interpret mean, median, mode",
+          "skillTags": ["statistics", "central_tendency", "calculation"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-MATH-C3-ST-02",
+          "name": "Measures of Dispersion",
+          "description": "Calculate and interpret range, variance, standard deviation",
+          "skillTags": ["statistics", "dispersion", "calculation"],
+          "prerequisites": ["DSE-MATH-C3-ST-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C3-ST-03",
+          "name": "Standard Scores",
+          "description": "Calculate and interpret z-scores and percentiles",
+          "skillTags": ["statistics", "standard_score", "interpretation"],
+          "prerequisites": ["DSE-MATH-C3-ST-02"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C3-PR-01",
+          "name": "Basic Probability",
+          "description": "Calculate probability of simple events",
+          "skillTags": ["probability", "basic", "calculation"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-MATH-C3-PR-02",
+          "name": "Compound Events",
+          "description": "Calculate probability of compound events",
+          "skillTags": ["probability", "compound", "calculation"],
+          "prerequisites": ["DSE-MATH-C3-PR-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-C3-PR-03",
+          "name": "Conditional Probability",
+          "description": "Calculate and apply conditional probability",
+          "skillTags": ["probability", "conditional", "calculation"],
+          "prerequisites": ["DSE-MATH-C3-PR-02"],
+          "difficulty": "hard"
+        }
+      ]
+    },
+    {
+      "id": "DSE-MATH-M1",
+      "name": "Extended Part Module 1 - Calculus",
+      "knowledgePoints": [
+        {
+          "id": "DSE-MATH-M1-DF-01",
+          "name": "Limits",
+          "description": "Understand and evaluate limits of functions",
+          "skillTags": ["calculus", "limits", "evaluation"],
+          "prerequisites": ["DSE-MATH-C1-FN-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-M1-DF-02",
+          "name": "Differentiation - Basic Rules",
+          "description": "Apply power rule, sum rule for differentiation",
+          "skillTags": ["calculus", "differentiation", "rules"],
+          "prerequisites": ["DSE-MATH-M1-DF-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-M1-DF-03",
+          "name": "Differentiation - Chain Rule",
+          "description": "Apply chain rule for composite functions",
+          "skillTags": ["calculus", "differentiation", "chain_rule"],
+          "prerequisites": ["DSE-MATH-M1-DF-02"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-MATH-M1-DF-04",
+          "name": "Applications of Differentiation",
+          "description": "Find maxima, minima, and rate of change",
+          "skillTags": ["calculus", "differentiation", "applications"],
+          "prerequisites": ["DSE-MATH-M1-DF-02"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-MATH-M1-IN-01",
+          "name": "Integration - Basic Rules",
+          "description": "Apply basic integration rules",
+          "skillTags": ["calculus", "integration", "rules"],
+          "prerequisites": ["DSE-MATH-M1-DF-02"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-MATH-M1-IN-02",
+          "name": "Definite Integrals",
+          "description": "Evaluate definite integrals and find areas",
+          "skillTags": ["calculus", "integration", "definite"],
+          "prerequisites": ["DSE-MATH-M1-IN-01"],
+          "difficulty": "medium"
+        }
+      ]
+    }
+  ]
+}

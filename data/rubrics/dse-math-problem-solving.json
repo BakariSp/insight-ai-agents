@@ -1,0 +1,136 @@
+{
+  "id": "DSE-MATH-Problem-Solving",
+  "name": "DSE Mathematics - Problem Solving",
+  "subject": "Math",
+  "taskType": "problem_solving",
+  "level": "DSE",
+  "version": "2024",
+  "totalMarks": 15,
+  "instructions": "This rubric is used to assess mathematical problem-solving questions in HKDSE Mathematics. Evaluate across three dimensions: Mathematical Understanding, Problem-Solving Process, and Communication.",
+  "criteria": [
+    {
+      "dimension": "mathematical_understanding",
+      "maxMarks": 5,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [5, 5],
+          "descriptor": "Demonstrates complete understanding of mathematical concepts. Correctly identifies all relevant formulas and theorems. Shows deep insight into the problem structure.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [4, 4],
+          "descriptor": "Demonstrates good understanding with minor gaps. Identifies most relevant mathematical concepts correctly.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [3, 3],
+          "descriptor": "Demonstrates adequate understanding. Some concepts may be applied incorrectly or incompletely.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [2, 2],
+          "descriptor": "Limited understanding demonstrated. Major misconceptions in applying mathematical concepts.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 1],
+          "descriptor": "Little or no understanding demonstrated. Fails to identify relevant mathematical concepts.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "problem_solving_process",
+      "maxMarks": 6,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [5, 6],
+          "descriptor": "Solution is complete and logically structured. All steps are clearly shown with correct calculations. Efficient problem-solving strategy employed.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [4, 4],
+          "descriptor": "Solution is mostly complete with clear logical flow. Minor computational errors that do not significantly affect the answer.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [3, 3],
+          "descriptor": "Solution shows reasonable approach but may be incomplete. Some steps missing or computational errors present.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [2, 2],
+          "descriptor": "Partial solution with significant errors or missing steps. Problem-solving approach is unclear.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 1],
+          "descriptor": "Little progress toward solution. Major errors in approach or calculations.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "communication",
+      "maxMarks": 4,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [4, 4],
+          "descriptor": "Mathematical notation and terminology used correctly and precisely. Working is well-organized and easy to follow. Units and significant figures handled correctly.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [3, 3],
+          "descriptor": "Good use of mathematical notation with minor errors. Working is organized. Mostly correct handling of units.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [2, 2],
+          "descriptor": "Adequate use of notation. Some disorganization in working. Occasional errors in units or significant figures.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [1, 1],
+          "descriptor": "Limited use of mathematical notation. Working is difficult to follow.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "Poor or no mathematical notation. Working is disorganized or absent.",
+          "examples": []
+        }
+      ]
+    }
+  ],
+  "sampleAnswers": [],
+  "commonErrors": [
+    "Forgetting to write units in final answer",
+    "Sign errors in algebraic manipulation",
+    "Forgetting to check solutions in the original equation",
+    "Misreading the question or missing constraints",
+    "Incorrect formula substitution",
+    "Calculation errors in arithmetic operations",
+    "Not showing sufficient working steps",
+    "Rounding errors in intermediate steps",
+    "Confusing similar formulas (e.g., area vs perimeter)",
+    "Not considering all cases in conditional problems"
+  ]
+}

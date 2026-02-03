@@ -1,0 +1,207 @@
+{
+  "subject": "Chinese",
+  "level": "DSE",
+  "version": "2024",
+  "units": [
+    {
+      "id": "DSE-CHI-RD",
+      "name": "閱讀能力",
+      "knowledgePoints": [
+        {
+          "id": "DSE-CHI-RD-CM-01",
+          "name": "理解篇章主旨",
+          "description": "掌握文章的中心思想和主題",
+          "skillTags": ["閱讀", "理解", "主旨"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-RD-CM-02",
+          "name": "理解段落大意",
+          "description": "歸納段落要點，理解段落之間的關係",
+          "skillTags": ["閱讀", "理解", "段落"],
+          "prerequisites": ["DSE-CHI-RD-CM-01"],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-CHI-RD-CM-03",
+          "name": "推斷隱含意義",
+          "description": "從字裏行間推斷作者的言外之意",
+          "skillTags": ["閱讀", "推斷", "分析"],
+          "prerequisites": ["DSE-CHI-RD-CM-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-CHI-RD-LT-01",
+          "name": "文言文基礎字詞",
+          "description": "理解常見文言虛詞和實詞的用法",
+          "skillTags": ["閱讀", "文言文", "字詞"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-RD-LT-02",
+          "name": "文言文句式結構",
+          "description": "掌握常見文言句式，如判斷句、被動句等",
+          "skillTags": ["閱讀", "文言文", "句式"],
+          "prerequisites": ["DSE-CHI-RD-LT-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-CHI-RD-LT-03",
+          "name": "文言文翻譯",
+          "description": "將文言文準確翻譯成白話文",
+          "skillTags": ["閱讀", "文言文", "翻譯"],
+          "prerequisites": ["DSE-CHI-RD-LT-01", "DSE-CHI-RD-LT-02"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-CHI-RD-RH-01",
+          "name": "修辭手法識別",
+          "description": "識別比喻、擬人、排比等修辭手法",
+          "skillTags": ["閱讀", "修辭", "識別"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-CHI-RD-RH-02",
+          "name": "修辭手法作用分析",
+          "description": "分析修辭手法在文章中的表達效果",
+          "skillTags": ["閱讀", "修辭", "分析"],
+          "prerequisites": ["DSE-CHI-RD-RH-01"],
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "id": "DSE-CHI-WR",
+      "name": "寫作能力",
+      "knowledgePoints": [
+        {
+          "id": "DSE-CHI-WR-ST-01",
+          "name": "記敘文寫作",
+          "description": "掌握記敘文的結構和寫作技巧",
+          "skillTags": ["寫作", "記敘文", "結構"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-WR-ST-02",
+          "name": "議論文寫作",
+          "description": "掌握議論文的論點、論據、論證方法",
+          "skillTags": ["寫作", "議論文", "論證"],
+          "prerequisites": [],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-CHI-WR-ST-03",
+          "name": "抒情文寫作",
+          "description": "運用描寫手法表達情感",
+          "skillTags": ["寫作", "抒情文", "描寫"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-WR-EX-01",
+          "name": "詞語運用",
+          "description": "準確運用詞語，避免用詞不當",
+          "skillTags": ["寫作", "詞語", "準確性"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-CHI-WR-EX-02",
+          "name": "句式運用",
+          "description": "運用多樣句式增強表達效果",
+          "skillTags": ["寫作", "句式", "多樣性"],
+          "prerequisites": ["DSE-CHI-WR-EX-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-WR-OG-01",
+          "name": "篇章組織",
+          "description": "合理安排段落，保持文章結構完整",
+          "skillTags": ["寫作", "組織", "結構"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-WR-OG-02",
+          "name": "過渡銜接",
+          "description": "運用適當的過渡詞和銜接手法",
+          "skillTags": ["寫作", "銜接", "連貫"],
+          "prerequisites": ["DSE-CHI-WR-OG-01"],
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "id": "DSE-CHI-LS",
+      "name": "聆聽及說話能力",
+      "knowledgePoints": [
+        {
+          "id": "DSE-CHI-LS-LN-01",
+          "name": "聆聽理解",
+          "description": "理解聆聽材料的主要內容和觀點",
+          "skillTags": ["聆聽", "理解", "內容"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-LS-LN-02",
+          "name": "聆聽分析",
+          "description": "分析說話者的態度和言外之意",
+          "skillTags": ["聆聽", "分析", "推斷"],
+          "prerequisites": ["DSE-CHI-LS-LN-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-CHI-LS-SP-01",
+          "name": "口語表達",
+          "description": "清晰準確地表達觀點",
+          "skillTags": ["說話", "表達", "清晰"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-LS-SP-02",
+          "name": "小組討論",
+          "description": "有效參與小組討論，回應他人觀點",
+          "skillTags": ["說話", "討論", "互動"],
+          "prerequisites": ["DSE-CHI-LS-SP-01"],
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "id": "DSE-CHI-KW",
+      "name": "語文基礎知識",
+      "knowledgePoints": [
+        {
+          "id": "DSE-CHI-KW-VC-01",
+          "name": "詞彙積累",
+          "description": "擴大詞彙量，理解詞語含義",
+          "skillTags": ["詞彙", "積累", "理解"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-CHI-KW-GR-01",
+          "name": "語法知識",
+          "description": "掌握基本語法規則，避免語病",
+          "skillTags": ["語法", "規則", "正確性"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-CHI-KW-PU-01",
+          "name": "標點符號",
+          "description": "正確使用各種標點符號",
+          "skillTags": ["標點", "規範", "運用"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "id": "DSE-ICT-Database",
+  "name": "DSE ICT - Database Assessment",
+  "subject": "ICT",
+  "taskType": "database",
+  "level": "DSE",
+  "version": "2024",
+  "totalMarks": 12,
+  "instructions": "This rubric is used to assess database-related questions in HKDSE ICT, including SQL queries, ERD design, and normalization.",
+  "criteria": [
+    {
+      "dimension": "sql_syntax",
+      "maxMarks": 4,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [4, 4],
+          "descriptor": "SQL syntax is completely correct. All keywords, clauses, and operators used appropriately. Query would execute without errors.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [3, 3],
+          "descriptor": "SQL syntax is mostly correct. Minor errors that would not prevent query execution.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [2, 2],
+          "descriptor": "SQL syntax has some errors. Query may not execute correctly but shows understanding.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [1, 1],
+          "descriptor": "SQL syntax has significant errors. Limited understanding demonstrated.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "SQL syntax is largely incorrect or missing.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "query_logic",
+      "maxMarks": 4,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [4, 4],
+          "descriptor": "Query logic correctly addresses the requirement. Appropriate use of JOINs, WHERE clauses, GROUP BY, etc. Returns correct result set.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [3, 3],
+          "descriptor": "Query logic is mostly correct. May have minor issues with result set.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [2, 2],
+          "descriptor": "Query logic partially addresses requirement. Some issues with JOINs or filtering.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [1, 1],
+          "descriptor": "Query logic has significant issues. Does not produce correct results.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "Query logic is fundamentally flawed or missing.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "design_quality",
+      "maxMarks": 4,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [4, 4],
+          "descriptor": "Database design follows normalization principles. Appropriate use of primary and foreign keys. Relationships correctly identified. ERD notation is correct.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [3, 3],
+          "descriptor": "Database design is mostly normalized. Keys identified correctly. Minor issues with relationships.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [2, 2],
+          "descriptor": "Database design shows some normalization. Some issues with keys or relationships.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [1, 1],
+          "descriptor": "Database design has significant normalization issues. Keys or relationships incorrect.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "Database design is poor or missing.",
+          "examples": []
+        }
+      ]
+    }
+  ],
+  "sampleAnswers": [],
+  "commonErrors": [
+    "Missing or incorrect JOIN condition",
+    "Confusing INNER JOIN with OUTER JOIN",
+    "Incorrect GROUP BY column list",
+    "Using WHERE instead of HAVING with aggregates",
+    "Missing semicolon at end of query",
+    "Incorrect primary key selection",
+    "Missing foreign key relationships",
+    "Data redundancy in design",
+    "Incorrect cardinality in ERD",
+    "Confusing entity with attribute"
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "id": "DSE-MATH-Multiple-Choice",
+  "name": "DSE Mathematics - Multiple Choice",
+  "subject": "Math",
+  "taskType": "multiple_choice",
+  "level": "DSE",
+  "version": "2024",
+  "totalMarks": 1,
+  "instructions": "This rubric defines the quality criteria for DSE Mathematics multiple choice questions. Each question should test specific knowledge points with clear, unambiguous options.",
+  "criteria": [
+    {
+      "dimension": "stem_clarity",
+      "maxMarks": 1,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [1, 1],
+          "descriptor": "Question stem is clear, concise, and tests a specific mathematical concept. All necessary information is provided. No ambiguity.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [0, 0],
+          "descriptor": "Question stem is somewhat unclear or missing important information. May have minor ambiguities.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "Question stem is confusing, incomplete, or contains errors.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "distractors",
+      "maxMarks": 1,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [1, 1],
+          "descriptor": "All distractors are plausible and represent common misconceptions or calculation errors. No obviously wrong answers.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [0, 0],
+          "descriptor": "Some distractors are implausible or too easily eliminated. May include obviously wrong answers.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "Distractors are poor quality, easily eliminated, or multiple correct answers possible.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "difficulty_alignment",
+      "maxMarks": 1,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [1, 1],
+          "descriptor": "Difficulty level matches the target specification. Question appropriately challenges students at the intended level.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [0, 0],
+          "descriptor": "Difficulty level somewhat misaligned with target specification.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "Difficulty level significantly misaligned with target specification.",
+          "examples": []
+        }
+      ]
+    }
+  ],
+  "sampleAnswers": [],
+  "commonErrors": [
+    "Multiple correct answers exist",
+    "Correct answer can be guessed without calculation",
+    "Distractors are implausible",
+    "Question tests multiple concepts simultaneously",
+    "Negative phrasing causes confusion",
+    "Options not in logical order",
+    "Answer pattern is predictable"
+  ]
+}

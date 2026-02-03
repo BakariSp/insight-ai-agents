@@ -1,0 +1,136 @@
+{
+  "id": "DSE-ICT-Programming",
+  "name": "DSE ICT - Programming Assessment",
+  "subject": "ICT",
+  "taskType": "programming",
+  "level": "DSE",
+  "version": "2024",
+  "totalMarks": 15,
+  "instructions": "This rubric is used to assess programming questions in HKDSE ICT. Evaluate across three dimensions: Program Logic, Code Quality, and Output Correctness.",
+  "criteria": [
+    {
+      "dimension": "program_logic",
+      "maxMarks": 6,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [5, 6],
+          "descriptor": "Algorithm is correct and efficient. Logic is clear and well-structured. Handles all cases including edge cases. Control structures used appropriately.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [4, 4],
+          "descriptor": "Algorithm is mostly correct. Logic is clear. May miss some edge cases. Good use of control structures.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [3, 3],
+          "descriptor": "Algorithm has minor logical errors. Basic structure is correct. Some cases not handled properly.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [2, 2],
+          "descriptor": "Algorithm has significant logical errors. Structure is unclear. Many cases not handled.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 1],
+          "descriptor": "Algorithm is fundamentally flawed or missing. Little understanding of problem requirements.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "code_quality",
+      "maxMarks": 5,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [5, 5],
+          "descriptor": "Code is well-organized with meaningful variable names. Proper indentation and formatting. Good use of comments where needed. No syntax errors.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [4, 4],
+          "descriptor": "Code is organized with reasonable variable names. Mostly proper formatting. Minor syntax issues.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [3, 3],
+          "descriptor": "Code is somewhat organized. Variable names could be improved. Some formatting issues. Few syntax errors.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [2, 2],
+          "descriptor": "Code is disorganized. Poor variable names. Many formatting issues. Several syntax errors.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 1],
+          "descriptor": "Code is very disorganized or largely incomplete. Major syntax errors that prevent execution.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "output_correctness",
+      "maxMarks": 4,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [4, 4],
+          "descriptor": "Output is completely correct for all test cases. Format matches requirements exactly.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [3, 3],
+          "descriptor": "Output is correct for most test cases. Minor formatting differences.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [2, 2],
+          "descriptor": "Output is partially correct. Some test cases fail.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [1, 1],
+          "descriptor": "Output is mostly incorrect. Few test cases pass.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 0],
+          "descriptor": "No correct output or program does not run.",
+          "examples": []
+        }
+      ]
+    }
+  ],
+  "sampleAnswers": [],
+  "commonErrors": [
+    "Off-by-one errors in loops",
+    "Array index out of bounds",
+    "Incorrect loop termination condition",
+    "Uninitialized variables",
+    "Missing return statement",
+    "Incorrect operator precedence",
+    "Integer division when decimal needed",
+    "Forgetting to handle empty input",
+    "Infinite loops",
+    "Incorrect comparison operators"
+  ]
+}

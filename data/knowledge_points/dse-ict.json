@@ -1,0 +1,277 @@
+{
+  "subject": "ICT",
+  "level": "DSE",
+  "version": "2024",
+  "units": [
+    {
+      "id": "DSE-ICT-A",
+      "name": "Compulsory Part - Information Processing",
+      "knowledgePoints": [
+        {
+          "id": "DSE-ICT-A-IP-01",
+          "name": "Data Representation - Number Systems",
+          "description": "Convert between binary, decimal, and hexadecimal",
+          "skillTags": ["data", "number_systems", "conversion"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-A-IP-02",
+          "name": "Data Representation - Text and Images",
+          "description": "Understand ASCII, Unicode, and image representation",
+          "skillTags": ["data", "encoding", "representation"],
+          "prerequisites": ["DSE-ICT-A-IP-01"],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-A-IP-03",
+          "name": "Data Representation - Sound and Video",
+          "description": "Understand digitization of sound and video",
+          "skillTags": ["data", "multimedia", "digitization"],
+          "prerequisites": ["DSE-ICT-A-IP-02"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-A-DB-01",
+          "name": "Database - Basic Concepts",
+          "description": "Understand tables, fields, records, and keys",
+          "skillTags": ["database", "concepts", "structure"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-A-DB-02",
+          "name": "Database - Data Modeling",
+          "description": "Design ERD and normalize database schema",
+          "skillTags": ["database", "modeling", "ERD"],
+          "prerequisites": ["DSE-ICT-A-DB-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-A-DB-03",
+          "name": "Database - SQL Queries",
+          "description": "Write SELECT, INSERT, UPDATE, DELETE queries",
+          "skillTags": ["database", "SQL", "queries"],
+          "prerequisites": ["DSE-ICT-A-DB-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-A-DB-04",
+          "name": "Database - Advanced SQL",
+          "description": "Use JOIN, GROUP BY, aggregate functions",
+          "skillTags": ["database", "SQL", "advanced"],
+          "prerequisites": ["DSE-ICT-A-DB-03"],
+          "difficulty": "hard"
+        }
+      ]
+    },
+    {
+      "id": "DSE-ICT-B",
+      "name": "Compulsory Part - Computer System",
+      "knowledgePoints": [
+        {
+          "id": "DSE-ICT-B-HW-01",
+          "name": "Computer Architecture",
+          "description": "Understand CPU, memory, and bus architecture",
+          "skillTags": ["hardware", "architecture", "components"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-B-HW-02",
+          "name": "Input/Output Devices",
+          "description": "Understand various I/O devices and their functions",
+          "skillTags": ["hardware", "IO", "devices"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-B-HW-03",
+          "name": "Storage Devices",
+          "description": "Compare different storage technologies",
+          "skillTags": ["hardware", "storage", "comparison"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-B-SW-01",
+          "name": "Operating Systems",
+          "description": "Understand OS functions and types",
+          "skillTags": ["software", "OS", "concepts"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-B-SW-02",
+          "name": "Application Software",
+          "description": "Understand different types of application software",
+          "skillTags": ["software", "applications", "types"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        }
+      ]
+    },
+    {
+      "id": "DSE-ICT-C",
+      "name": "Compulsory Part - Internet and Web",
+      "knowledgePoints": [
+        {
+          "id": "DSE-ICT-C-NW-01",
+          "name": "Network Fundamentals",
+          "description": "Understand LAN, WAN, and network topologies",
+          "skillTags": ["network", "fundamentals", "topology"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-C-NW-02",
+          "name": "Network Protocols - TCP/IP",
+          "description": "Understand TCP/IP protocol stack and addressing",
+          "skillTags": ["network", "protocols", "TCP_IP"],
+          "prerequisites": ["DSE-ICT-C-NW-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-ICT-C-NW-03",
+          "name": "Network Security",
+          "description": "Understand firewalls, encryption, and security measures",
+          "skillTags": ["network", "security", "encryption"],
+          "prerequisites": ["DSE-ICT-C-NW-02"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-ICT-C-WB-01",
+          "name": "Web Technologies - HTML",
+          "description": "Create web pages using HTML",
+          "skillTags": ["web", "HTML", "markup"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-C-WB-02",
+          "name": "Web Technologies - CSS",
+          "description": "Style web pages using CSS",
+          "skillTags": ["web", "CSS", "styling"],
+          "prerequisites": ["DSE-ICT-C-WB-01"],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-C-WB-03",
+          "name": "Web Technologies - JavaScript",
+          "description": "Add interactivity using JavaScript",
+          "skillTags": ["web", "JavaScript", "programming"],
+          "prerequisites": ["DSE-ICT-C-WB-01"],
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "id": "DSE-ICT-D",
+      "name": "Compulsory Part - Programming",
+      "knowledgePoints": [
+        {
+          "id": "DSE-ICT-D-PG-01",
+          "name": "Algorithm Design",
+          "description": "Design algorithms using flowcharts and pseudocode",
+          "skillTags": ["programming", "algorithm", "design"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-D-PG-02",
+          "name": "Variables and Data Types",
+          "description": "Understand variables, constants, and data types",
+          "skillTags": ["programming", "variables", "data_types"],
+          "prerequisites": ["DSE-ICT-D-PG-01"],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-D-PG-03",
+          "name": "Control Structures - Selection",
+          "description": "Use if-then-else and case statements",
+          "skillTags": ["programming", "control", "selection"],
+          "prerequisites": ["DSE-ICT-D-PG-02"],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-D-PG-04",
+          "name": "Control Structures - Iteration",
+          "description": "Use for, while, and do-while loops",
+          "skillTags": ["programming", "control", "loops"],
+          "prerequisites": ["DSE-ICT-D-PG-03"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-D-PG-05",
+          "name": "Arrays",
+          "description": "Declare and manipulate one-dimensional arrays",
+          "skillTags": ["programming", "arrays", "data_structures"],
+          "prerequisites": ["DSE-ICT-D-PG-04"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-D-PG-06",
+          "name": "Functions and Procedures",
+          "description": "Define and call functions with parameters",
+          "skillTags": ["programming", "functions", "modular"],
+          "prerequisites": ["DSE-ICT-D-PG-04"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-D-PG-07",
+          "name": "Searching Algorithms",
+          "description": "Implement linear and binary search",
+          "skillTags": ["programming", "algorithm", "searching"],
+          "prerequisites": ["DSE-ICT-D-PG-05"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-D-PG-08",
+          "name": "Sorting Algorithms",
+          "description": "Implement bubble sort and insertion sort",
+          "skillTags": ["programming", "algorithm", "sorting"],
+          "prerequisites": ["DSE-ICT-D-PG-05"],
+          "difficulty": "hard"
+        }
+      ]
+    },
+    {
+      "id": "DSE-ICT-E",
+      "name": "Compulsory Part - Social Implications",
+      "knowledgePoints": [
+        {
+          "id": "DSE-ICT-E-SI-01",
+          "name": "Intellectual Property",
+          "description": "Understand copyright, patents, and licensing",
+          "skillTags": ["social", "IP", "legal"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ICT-E-SI-02",
+          "name": "Privacy and Data Protection",
+          "description": "Understand data privacy laws and practices",
+          "skillTags": ["social", "privacy", "data_protection"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-E-SI-03",
+          "name": "Computer Crime and Security",
+          "description": "Understand types of computer crimes and prevention",
+          "skillTags": ["social", "security", "crime"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ICT-E-SI-04",
+          "name": "Health and Ergonomics",
+          "description": "Understand health issues and ergonomic practices",
+          "skillTags": ["social", "health", "ergonomics"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        }
+      ]
+    }
+  ]
+}
