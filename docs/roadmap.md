@@ -710,7 +710,7 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 
 ---
 
-## Phase 6: 前端集成 + Level 2 + SSE 升级 + Patch 机制 🔄 进行中
+## Phase 6: 前端集成 + Level 2 + SSE 升级 + Patch 机制 ✅ 已完成
 
 **目标**: 将 Executor Phase C 从单次 AI 生成升级为逐 block 流式生成，新增 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE SSE 事件，实现 Per-Block AI 内容生成（Level 2），引入 Patch 机制支持增量修改（避免每次微调都全页重建），编写完整 E2E 测试。
 
@@ -845,11 +845,11 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 
 > ✅ 验收: refine 分支按 scope 分流，`/api/page/patch` 端点可用。312 项测试通过。
 
-### Step 6.5: E2E 测试 🔲
+### Step 6.5: E2E 测试 ✅ 已完成
 
 > 全链路质量保障，覆盖正常流程、Patch 流程、降级流程。
 
-- [ ] **6.5.1** 创建 `tests/test_e2e_phase6.py`：
+- [x] **6.5.1** 创建 `tests/test_e2e_phase6.py`：
   - `test_e2e_full_lifecycle_with_block_events()` — prompt → Blueprint → page SSE → 验证 BLOCK 事件
   - `test_e2e_refine_patch_layout()` — 生成 → refine "改颜色" → patch_plan 不含新 blueprint
   - `test_e2e_refine_patch_compose()` — 生成 → refine "缩短分析" → 只重生成 AI blocks
@@ -857,7 +857,8 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
   - `test_e2e_java_timeout_with_block_events()` — Java 超时降级 + BLOCK 事件仍正常
   - `test_e2e_llm_failure_error_complete()` — LLM 失败 → error COMPLETE
   - `test_e2e_nonexistent_entity_data_error()` — 实体不存在 → DATA_ERROR
-- [ ] **6.5.2** 全量测试验证：`pytest tests/ -v` 全部通过
+  - `test_e2e_http_page_patch_endpoint()` — HTTP /api/page/patch SSE 端点
+- [x] **6.5.2** 全量测试验证：`pytest tests/ -v` 全部通过（320 项测试）
 
 > ✅ 验收: 全部 E2E 测试通过，Phase 6 功能完整可用。
 
@@ -876,6 +877,18 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | `models/conversation.py` | 修改 ✅ | RouterResult.refine_scope + ConversationResponse.patch_plan |
 | `models/request.py` | 修改 ✅ | PagePatchRequest |
 | `config/prompts/router.py` | 修改 ✅ | followup prompt 加 refine_scope |
+| `tests/test_e2e_phase6.py` | 新建 ✅ | Phase 6 E2E 测试 (8 项) |
+
+### Phase 6 总验收
+
+- [x] `models/sse_events.py` — BlockStartEvent/SlotDeltaEvent/BlockCompleteEvent camelCase 序列化
+- [x] `agents/executor.py` — Phase C 逐 block 流式输出 + execute_patch() 增量修改
+- [x] `config/prompts/block_compose.py` — Per-block AI prompt 构建 (markdown/suggestion/question)
+- [x] `agents/patch_agent.py` — PatchAgent 分析 refine scope + 生成 PatchPlan
+- [x] `api/page.py` — POST /api/page/patch SSE 端点
+- [x] `api/conversation.py` — refine 分支按 scope 分流 (patch_layout/patch_compose/full_rebuild)
+- [x] `tests/test_e2e_phase6.py` — 8 项 E2E 测试全部通过
+- [x] `pytest tests/ -v` 全部通过（320 项测试）
 
 ---
 
@@ -890,7 +903,7 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | **M4: 会话网关** | 4 ✅ | 统一会话入口 + 意图路由 + 交互式反问，完整交互闭环 |
 | **M4.5: 健壮性增强** | 4.5 ✅ | 实体校验 + sourcePrompt 防篡改 + action 规范化 + 错误拦截 |
 | **M5: 真实数据** | 5 ✅ | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
-| **M6: 产品上线** | 6 🔄 | 前端集成 + Level 2 Per-Block AI + SSE Block 事件流 + Patch 机制 |
+| **M6: 产品上线** | 6 ✅ | 前端集成 + Level 2 Per-Block AI + SSE Block 事件流 + Patch 机制 + E2E 测试 |
 
 ---
 
