@@ -1,0 +1,109 @@
+{
+  "subject": "English",
+  "level": "DSE",
+  "version": "2024",
+  "units": [
+    {
+      "id": "DSE-ENG-U5",
+      "name": "Unit 5 - Reading and Writing Skills",
+      "knowledgePoints": [
+        {
+          "id": "DSE-ENG-U5-RC-01",
+          "name": "Reading Comprehension - Main Idea",
+          "description": "Identify the main idea and central theme of a passage",
+          "skillTags": ["reading", "comprehension", "inference"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ENG-U5-RC-02",
+          "name": "Reading Comprehension - Supporting Details",
+          "description": "Identify supporting details, examples, and evidence in a passage",
+          "skillTags": ["reading", "comprehension", "detail"],
+          "prerequisites": ["DSE-ENG-U5-RC-01"],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ENG-U5-RC-03",
+          "name": "Reading Comprehension - Inference",
+          "description": "Make inferences and draw conclusions from implied information",
+          "skillTags": ["reading", "inference", "critical_thinking"],
+          "prerequisites": ["DSE-ENG-U5-RC-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-ENG-U5-RC-04",
+          "name": "Reading Comprehension - Author's Purpose",
+          "description": "Identify author's purpose, tone, and attitude",
+          "skillTags": ["reading", "comprehension", "analysis"],
+          "prerequisites": ["DSE-ENG-U5-RC-01"],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ENG-U5-GR-01",
+          "name": "Grammar - Verb Tenses",
+          "description": "Correct use of present, past, and future tenses",
+          "skillTags": ["grammar", "writing", "tenses"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ENG-U5-GR-02",
+          "name": "Grammar - Subject-Verb Agreement",
+          "description": "Ensure subject and verb agree in number",
+          "skillTags": ["grammar", "writing"],
+          "prerequisites": [],
+          "difficulty": "easy"
+        },
+        {
+          "id": "DSE-ENG-U5-GR-03",
+          "name": "Grammar - Conditional Sentences",
+          "description": "Use conditional sentences correctly (if clauses)",
+          "skillTags": ["grammar", "writing", "conditionals"],
+          "prerequisites": ["DSE-ENG-U5-GR-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-ENG-U5-VC-01",
+          "name": "Vocabulary - Academic Words",
+          "description": "Use academic vocabulary appropriately",
+          "skillTags": ["vocabulary", "writing", "academic"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ENG-U5-VC-02",
+          "name": "Vocabulary - Context Clues",
+          "description": "Determine word meaning from context",
+          "skillTags": ["vocabulary", "reading"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ENG-U5-WR-01",
+          "name": "Writing - Essay Structure",
+          "description": "Organize essays with clear introduction, body, and conclusion",
+          "skillTags": ["writing", "organization", "essay"],
+          "prerequisites": [],
+          "difficulty": "medium"
+        },
+        {
+          "id": "DSE-ENG-U5-WR-02",
+          "name": "Writing - Argumentative Essay",
+          "description": "Write argumentative essays with thesis and supporting evidence",
+          "skillTags": ["writing", "argumentation", "essay"],
+          "prerequisites": ["DSE-ENG-U5-WR-01"],
+          "difficulty": "hard"
+        },
+        {
+          "id": "DSE-ENG-U5-WR-03",
+          "name": "Writing - Cohesion and Coherence",
+          "description": "Use cohesive devices and maintain coherent flow of ideas",
+          "skillTags": ["writing", "cohesion", "organization"],
+          "prerequisites": ["DSE-ENG-U5-WR-01"],
+          "difficulty": "medium"
+        }
+      ]
+    }
+  ]
+}
