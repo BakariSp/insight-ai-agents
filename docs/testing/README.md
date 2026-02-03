@@ -26,7 +26,8 @@ docs/testing/
 | 4.5 | 健壮性增强 | 222→230 | 71→79 | [报告](phase4.5-test-report.md) | [日志](phase4.5-conversation-log.md) | 实体解析 12 种场景、多轮交互流程、错误拦截 |
 | 5 | Java 后端对接 | 238 | 8 | — | — | Adapter 映射、重试/熔断降级、mock fallback |
 | 6 | 前端集成 + SSE 升级 + Patch | 320 | 82 | — | — | SSE Block 事件、Per-Block AI、Patch 机制 |
-| Live | 上线前真实 API 测试 | 10 | 10 | [报告](live-integration-test-report.md) | [结果](live-integration-results.json) | 真实 LLM 调用、Router/Blueprint/Page 全链路、Java 后端 E2E |
+| 7 | 智能题目生成 | 445 | 86 | [报告](phase7-test-report.md) | — | RAG 服务、知识点字典、Question Pipeline、学情分析 |
+| Live | 上线前真实 API 测试 | 10+ | 10+ | [报告](live-integration-test-report.md) | [结果](live-integration-results.json) | 真实 LLM 调用、Router/Blueprint/Page 全链路、Java 后端 E2E |
 
 ---
 
@@ -117,6 +118,22 @@ docs/testing/phaseX.Y-conversation-log.md   # 子阶段 Live 日志
 | 4 | Patch Layout | refine "改颜色" → 无 LLM 调用 | ✅ |
 | 5 | Patch Compose | refine "缩短分析" → 只重生成 AI blocks | ✅ |
 | 6 | E2E 全生命周期 | prompt → Blueprint → BLOCK 事件 → Patch → 降级 | ✅ |
+
+### Phase 7 — 智能题目生成与学情分析
+
+| # | 场景 | 类型 | 描述 |
+|---|------|------|------|
+| E1 | RAG Rubric 加载 | 数据层 | data/rubrics/ → official_corpus 自动加载 |
+| E2 | RAG 查询 | 数据层 | "argumentative essay" → 相关 rubric 检索 |
+| E3 | 知识点加载 | 数据层 | English 16+ 知识点正确加载 |
+| E4 | 多科目知识点 | 数据层 | English/Math/Chinese/ICT 全部加载 |
+| E5 | 错误映射 | 数据层 | grammar/tense/inference → 5 个知识点 ID |
+| E6 | Rubric 上下文 | 服务层 | criteriaText + commonErrors 格式化 |
+| F1 | Draft 生成 | Pipeline | GenerationSpec → QuestionDraft[] (LLM) |
+| F2 | Judge 评估 | Pipeline | QuestionDraft → JudgeResult (score/issues) |
+| F3 | 完整 Pipeline | Pipeline | Draft → Judge → Repair → QuestionFinal |
+| F4 | 弱项定向生成 | Pipeline | error_tags → 知识点 → 针对性题目 |
+| G1 | 班级弱项分析 | 工具 | submissions → weakPoints + recommendedFocus |
 
 ### Live Integration — 上线前真实 API 测试
 

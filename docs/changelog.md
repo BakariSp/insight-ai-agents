@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-02-04 — Phase 7 测试完成: 测试基础设施 + Live 测试
+
+完成 Phase 7 全量测试，新增 live-test skill 和 Live 集成测试。
+
+**测试工具**
+- 新增 `.claude/skills/live-test/SKILL.md`: 真实后端数据 + AI 集成测试 skill
+- 更新 `pytest.ini`: 新增 live/live_llm/integration/e2e 标记
+
+**Live 集成测试 (`tests/test_live_integration.py`)**
+- E1-E6: Phase 7 RAG/Knowledge/Rubric 服务测试 (无需 LLM)
+- F1-F4: Question Pipeline 测试 (需要 LLM API Key)
+- G1: Assessment Tools 弱项分析测试
+
+**文档**
+- 新增 `docs/testing/phase7-test-report.md`: Phase 7 测试报告 (445 项测试全部通过)
+- 更新 `docs/testing/README.md`: 新增 Phase 7 Use Cases 索引
+
+**测试结果**
+- 单元测试: 438 项通过
+- Phase 7 专项测试: 79 项通过
+- Live 集成测试 (非 LLM): 7 项通过
+- 总计: 445 项测试，100% 通过率
+
+---
+
 ## 2026-02-03 — Phase 7 P1 完成: HKDSE Math, Chinese, ICT 知识库
 
 基于官方 HKDSE 课纲，补充数学、中文、ICT 的知识点和评分标准，完善 RAG 向量库。

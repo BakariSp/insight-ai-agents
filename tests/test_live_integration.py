@@ -773,6 +773,421 @@ async def test_live_critical_path_e2e(client):
 
 
 # ══════════════════════════════════════════════════════════════
+# Category E: Phase 7 — RAG & Knowledge Services (Live Data)
+# ══════════════════════════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_live_rag_rubrics_loaded():
+    """E1: Verify RAG service loads rubrics from data/rubrics/."""
+    from services.rag_service import get_rag_service
+
+    start = time.perf_counter()
+    rag = get_rag_service()
+    stats = rag.get_stats()
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_rag_rubrics_loaded",
+        category="E. Phase 7 RAG",
+        input_data={},
+        output_data={
+            "official_corpus_docs": stats["official_corpus"]["doc_count"],
+            "school_assets_docs": stats["school_assets"]["doc_count"],
+            "question_bank_docs": stats["question_bank"]["doc_count"],
+        },
+        duration_ms=duration,
+    )
+
+    assert stats["official_corpus"]["doc_count"] > 0, "No rubrics loaded into RAG"
+
+
+@pytest.mark.asyncio
+async def test_live_rag_query_rubrics():
+    """E2: Query RAG for rubric content."""
+    from services.rag_service import get_rag_service
+
+    rag = get_rag_service()
+    start = time.perf_counter()
+    results = rag.query("official_corpus", "argumentative essay writing criteria", n_results=3)
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_rag_query_rubrics",
+        category="E. Phase 7 RAG",
+        input_data={"query": "argumentative essay writing criteria"},
+        output_data={
+            "results_count": len(results),
+            "top_result_preview": results[0]["content"][:200] if results else None,
+        },
+        duration_ms=duration,
+    )
+
+    assert len(results) > 0, "No results for rubric query"
+
+
+@pytest.mark.asyncio
+async def test_live_knowledge_english():
+    """E3: List English knowledge points from data files."""
+    from services.knowledge_service import list_knowledge_points
+
+    start = time.perf_counter()
+    kps = list_knowledge_points("English")
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_knowledge_english",
+        category="E. Phase 7 Knowledge",
+        input_data={"subject": "English"},
+        output_data={
+            "count": len(kps),
+            "sample_ids": [kp.id for kp in kps[:5]] if kps else [],
+        },
+        duration_ms=duration,
+    )
+
+    assert len(kps) > 0, "No English knowledge points found"
+
+
+@pytest.mark.asyncio
+async def test_live_knowledge_all_subjects():
+    """E4: Load knowledge points for all subjects."""
+    from services.knowledge_service import list_knowledge_points
+
+    subjects = ["English", "Math", "Chinese", "ICT"]
+    results = {}
+
+    start = time.perf_counter()
+    for subj in subjects:
+        kps = list_knowledge_points(subj)
+        results[subj] = len(kps)
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_knowledge_all_subjects",
+        category="E. Phase 7 Knowledge",
+        input_data={"subjects": subjects},
+        output_data=results,
+        duration_ms=duration,
+    )
+
+    for subj, count in results.items():
+        assert count > 0, f"No knowledge points for {subj}"
+
+
+@pytest.mark.asyncio
+async def test_live_error_to_knowledge_mapping():
+    """E5: Map error tags to knowledge points."""
+    from services.knowledge_service import map_error_to_knowledge_points
+
+    error_tags = ["grammar", "tense", "inference"]
+    start = time.perf_counter()
+    kp_ids = map_error_to_knowledge_points(error_tags, "English")
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_error_to_knowledge_mapping",
+        category="E. Phase 7 Knowledge",
+        input_data={"error_tags": error_tags},
+        output_data={"mapped_kp_ids": kp_ids},
+        duration_ms=duration,
+    )
+
+    assert len(kp_ids) > 0, "No knowledge points mapped for error tags"
+
+
+@pytest.mark.asyncio
+async def test_live_rubric_service():
+    """E6: Load and format rubric for LLM context."""
+    from services.rubric_service import get_rubric_for_task, get_rubric_context
+
+    start = time.perf_counter()
+    rubric = get_rubric_for_task("English", "essay")
+    context = get_rubric_context(rubric) if rubric else None
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_rubric_service",
+        category="E. Phase 7 Rubric",
+        input_data={"subject": "English", "task_type": "essay"},
+        output_data={
+            "rubric_id": rubric.id if rubric else None,
+            "rubric_name": rubric.name if rubric else None,
+            "criteria_count": len(rubric.criteria) if rubric else 0,
+            "context_has_criteria": "criteriaText" in context if context else False,
+            "context_has_errors": "commonErrors" in context if context else False,
+        },
+        duration_ms=duration,
+    )
+
+    assert rubric is not None, "No English essay rubric found"
+    assert context is not None, "Failed to generate rubric context"
+
+
+# ══════════════════════════════════════════════════════════════
+# Category F: Phase 7 — Question Pipeline (Live LLM)
+# ══════════════════════════════════════════════════════════════
+
+@SKIP_NO_API_KEY
+@pytest.mark.asyncio
+async def test_live_question_draft_generation():
+    """F1: Generate question drafts using real LLM."""
+    from agents.question_pipeline import QuestionPipeline
+    from models.question_pipeline import GenerationSpec, QuestionType, Difficulty
+
+    pipeline = QuestionPipeline()
+    spec = GenerationSpec(
+        subject="English",
+        topic="Reading Comprehension",
+        count=2,
+        question_types=[QuestionType.MULTIPLE_CHOICE],
+        difficulty=Difficulty.MEDIUM,
+        knowledge_points=["DSE-ENG-U5-RC-01"],
+    )
+
+    start = time.perf_counter()
+    drafts = await pipeline.generate_draft(spec)
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_question_draft_generation",
+        category="F. Phase 7 Question Pipeline",
+        input_data={
+            "subject": spec.subject,
+            "topic": spec.topic,
+            "count": spec.count,
+            "question_types": [qt.value for qt in spec.question_types],
+        },
+        output_data={
+            "drafts_count": len(drafts),
+            "draft_previews": [
+                {"id": d.id, "type": d.question_type.value, "text_preview": d.question_text[:100]}
+                for d in drafts
+            ] if drafts else [],
+        },
+        duration_ms=duration,
+    )
+
+    assert len(drafts) > 0, "No drafts generated"
+
+
+@SKIP_NO_API_KEY
+@pytest.mark.asyncio
+async def test_live_question_judge():
+    """F2: Judge question quality using real LLM."""
+    from agents.question_pipeline import QuestionPipeline
+    from models.question_pipeline import GenerationSpec, QuestionType, Difficulty
+
+    pipeline = QuestionPipeline()
+
+    # First generate a draft
+    spec = GenerationSpec(
+        subject="English",
+        topic="Grammar",
+        count=1,
+        question_types=[QuestionType.MULTIPLE_CHOICE],
+        difficulty=Difficulty.EASY,
+    )
+    drafts = await pipeline.generate_draft(spec)
+    assert len(drafts) > 0
+
+    # Then judge it
+    start = time.perf_counter()
+    result = await pipeline.judge_question(drafts[0])
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_question_judge",
+        category="F. Phase 7 Question Pipeline",
+        input_data={"question_preview": drafts[0].question_text[:100]},
+        output_data={
+            "passed": result.passed,
+            "score": result.score,
+            "issues_count": len(result.issues),
+            "issues": [{"type": i.issue_type.value, "severity": i.severity.value} for i in result.issues],
+        },
+        duration_ms=duration,
+    )
+
+    assert 0.0 <= result.score <= 1.0
+
+
+@SKIP_NO_API_KEY
+@pytest.mark.asyncio
+async def test_live_question_full_pipeline():
+    """F3: Run full question generation pipeline with real LLM."""
+    from agents.question_pipeline import QuestionPipeline
+    from models.question_pipeline import GenerationSpec, QuestionType, Difficulty
+    from services.rubric_service import get_rubric_for_task, get_rubric_context
+
+    # Get rubric context
+    rubric = get_rubric_for_task("English", "multiple_choice")
+    rubric_context = get_rubric_context(rubric) if rubric else None
+
+    pipeline = QuestionPipeline()
+    spec = GenerationSpec(
+        subject="English",
+        topic="Vocabulary",
+        count=2,
+        question_types=[QuestionType.MULTIPLE_CHOICE],
+        difficulty=Difficulty.MEDIUM,
+        knowledge_points=["DSE-ENG-U5-VOC-01"],
+    )
+
+    start = time.perf_counter()
+    result = await pipeline.run_pipeline(spec, rubric_context=rubric_context)
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_question_full_pipeline",
+        category="F. Phase 7 Question Pipeline",
+        input_data={
+            "subject": spec.subject,
+            "topic": spec.topic,
+            "count": spec.count,
+            "with_rubric": rubric_context is not None,
+        },
+        output_data={
+            "total_questions": len(result.questions),
+            "passed": result.total_passed,
+            "repaired": result.total_repaired,
+            "failed": result.total_failed,
+            "average_quality": round(result.average_quality_score, 3),
+            "questions": [
+                {
+                    "type": q.question_type.value,
+                    "quality": q.quality_score,
+                    "text_preview": q.question_text[:80],
+                }
+                for q in result.questions
+            ],
+        },
+        duration_ms=duration,
+    )
+
+    assert len(result.questions) > 0, "No questions generated"
+    logger.info("Question Pipeline: %d questions, avg quality %.2f", len(result.questions), result.average_quality_score)
+
+
+@SKIP_NO_API_KEY
+@pytest.mark.asyncio
+async def test_live_question_with_weakness_context():
+    """F4: Generate questions targeting student weaknesses."""
+    from agents.question_pipeline import QuestionPipeline
+    from models.question_pipeline import GenerationSpec, QuestionType, Difficulty
+    from services.knowledge_service import map_error_to_knowledge_points
+
+    # Simulate student weakness detection
+    error_tags = ["grammar", "tense"]
+    weak_kps = map_error_to_knowledge_points(error_tags, "English")
+
+    pipeline = QuestionPipeline()
+    spec = GenerationSpec(
+        subject="English",
+        topic="Grammar Practice",
+        count=2,
+        question_types=[QuestionType.MULTIPLE_CHOICE, QuestionType.SHORT_ANSWER],
+        difficulty=Difficulty.EASY,
+        knowledge_points=weak_kps,
+    )
+
+    # Add weakness context
+    weakness_context = {
+        "error_tags": error_tags,
+        "weak_knowledge_points": weak_kps,
+        "focus_areas": ["tense agreement", "past tense forms"],
+    }
+
+    start = time.perf_counter()
+    result = await pipeline.run_pipeline(spec, weakness_context=weakness_context)
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_question_with_weakness_context",
+        category="F. Phase 7 Question Pipeline",
+        input_data={
+            "error_tags": error_tags,
+            "weak_kps": weak_kps,
+            "count": spec.count,
+        },
+        output_data={
+            "total_questions": len(result.questions),
+            "average_quality": round(result.average_quality_score, 3),
+        },
+        duration_ms=duration,
+    )
+
+    assert len(result.questions) > 0
+
+
+# ══════════════════════════════════════════════════════════════
+# Category G: Phase 7 — Assessment Tools (Live)
+# ══════════════════════════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_live_assess_student_weakness():
+    """G1: Analyze student weakness from submission data."""
+    from tools.assessment_tools import analyze_student_weakness
+
+    # Sample submission data with error patterns
+    # Note: fields use snake_case as per SubmissionRecord and QuestionItem models
+    sample_submissions = [
+        {
+            "student_id": "s-001",
+            "name": "Student A",
+            "score": 65,
+            "items": [
+                {"question_id": "q1", "correct": False, "error_tags": ["grammar", "tense"], "knowledge_point_ids": ["DSE-ENG-U5-GR-01"]},
+                {"question_id": "q2", "correct": True, "error_tags": [], "knowledge_point_ids": ["DSE-ENG-U5-RC-01"]},
+                {"question_id": "q3", "correct": False, "error_tags": ["grammar"], "knowledge_point_ids": ["DSE-ENG-U5-GR-02"]},
+            ],
+        },
+        {
+            "student_id": "s-002",
+            "name": "Student B",
+            "score": 75,
+            "items": [
+                {"question_id": "q1", "correct": True, "error_tags": [], "knowledge_point_ids": ["DSE-ENG-U5-GR-01"]},
+                {"question_id": "q2", "correct": False, "error_tags": ["inference"], "knowledge_point_ids": ["DSE-ENG-U5-RC-01"]},
+                {"question_id": "q3", "correct": True, "error_tags": [], "knowledge_point_ids": ["DSE-ENG-U5-GR-02"]},
+            ],
+        },
+        {
+            "student_id": "s-003",
+            "name": "Student C",
+            "score": 55,
+            "items": [
+                {"question_id": "q1", "correct": False, "error_tags": ["grammar", "tense"], "knowledge_point_ids": ["DSE-ENG-U5-GR-01"]},
+                {"question_id": "q2", "correct": False, "error_tags": ["inference"], "knowledge_point_ids": ["DSE-ENG-U5-RC-01"]},
+                {"question_id": "q3", "correct": False, "error_tags": ["grammar", "vocabulary"], "knowledge_point_ids": ["DSE-ENG-U5-GR-02"]},
+            ],
+        },
+    ]
+
+    start = time.perf_counter()
+    result = await analyze_student_weakness(
+        teacher_id="t-test",
+        class_id="class-1a",
+        submissions=sample_submissions,
+    )
+    duration = (time.perf_counter() - start) * 1000
+
+    _record_result(
+        test_name="test_live_assess_student_weakness",
+        category="G. Phase 7 Assessment",
+        input_data={"submission_count": len(sample_submissions)},
+        output_data={
+            "weak_points": result.get("weakPoints", []),
+            "recommended_focus": result.get("recommendedFocus", []),
+            "total_students": result.get("summary", {}).get("totalStudents"),
+        },
+        duration_ms=duration,
+    )
+
+    assert "weakPoints" in result
+    assert "recommendedFocus" in result
+
+
+# ══════════════════════════════════════════════════════════════
 # Test Summary Report
 # ══════════════════════════════════════════════════════════════
 
