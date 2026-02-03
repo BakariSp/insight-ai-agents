@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 
 from agents.chat import generate_response as chat_response
 from agents.page_chat import generate_response as page_chat_response
+from agents.patch_agent import analyze_refine
 from agents.planner import generate_blueprint
 from agents.router import classify_intent
 from models.conversation import (
@@ -283,7 +284,26 @@ async def _handle_followup(
         )
 
     if intent == "refine":
-        # Refine — PlannerAgent adjusts existing Blueprint
+        refine_scope = router_result.refine_scope
+
+        # Check if we can use Patch mechanism
+        if refine_scope and refine_scope != "full_rebuild":
+            # Generate PatchPlan instead of new Blueprint
+            patch_plan = await analyze_refine(
+                message=req.message,
+                blueprint=req.blueprint,
+                page=req.page_context,
+                refine_scope=refine_scope,
+            )
+            return ConversationResponse(
+                mode="followup",
+                action="refine",
+                chat_response=f"Prepared patch: {patch_plan.scope.value}",
+                patch_plan=patch_plan,
+                conversation_id=req.conversation_id,
+            )
+
+        # Full rebuild path (original behavior)
         refine_prompt = (
             f"Refine the existing analysis '{req.blueprint.name}': {req.message}\n\n"
             f"Original blueprint description: {req.blueprint.description}"

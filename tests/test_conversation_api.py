@@ -551,3 +551,179 @@ async def test_conversation_build_skips_resolve_when_context_has_class(client):
     data = resp.json()
     assert data["action"] == "build"
     mock_resolve_fn.assert_not_called()
+
+
+# ── Patch mechanism tests (Phase 6.4) ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_refine_patch_layout_returns_patch_plan(client):
+    """refine with patch_layout scope returns patch_plan instead of blueprint."""
+    from models.patch import PatchPlan, RefineScope
+
+    mock_router = RouterResult(
+        intent="refine",
+        confidence=0.9,
+        should_build=True,
+        refine_scope="patch_layout",
+    )
+    bp_json = _sample_blueprint_args()
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.analyze_refine",
+            new_callable=AsyncMock,
+            return_value=PatchPlan(scope=RefineScope.PATCH_LAYOUT),
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={
+                "message": "Change colors to blue",
+                "blueprint": bp_json,
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "refine"
+    assert data["patchPlan"] is not None
+    assert data["patchPlan"]["scope"] == "patch_layout"
+    assert data["blueprint"] is None  # No new blueprint for patch
+
+
+@pytest.mark.asyncio
+async def test_refine_patch_compose_returns_patch_plan(client):
+    """refine with patch_compose scope returns patch_plan."""
+    from models.patch import PatchPlan, PatchInstruction, PatchType, RefineScope
+
+    mock_router = RouterResult(
+        intent="refine",
+        confidence=0.85,
+        should_build=True,
+        refine_scope="patch_compose",
+    )
+    bp_json = _sample_blueprint_args()
+
+    patch_plan = PatchPlan(
+        scope=RefineScope.PATCH_COMPOSE,
+        instructions=[
+            PatchInstruction(
+                type=PatchType.RECOMPOSE,
+                target_block_id="insight",
+                changes={},
+            )
+        ],
+        affected_block_ids=["insight"],
+        compose_instruction="Make it shorter",
+    )
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.analyze_refine",
+            new_callable=AsyncMock,
+            return_value=patch_plan,
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={
+                "message": "缩短分析内容",
+                "blueprint": bp_json,
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "refine"
+    assert data["patchPlan"] is not None
+    assert data["patchPlan"]["scope"] == "patch_compose"
+    assert len(data["patchPlan"]["instructions"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_refine_full_rebuild_generates_new_blueprint(client):
+    """refine without refine_scope uses original blueprint path."""
+    mock_router = RouterResult(
+        intent="refine",
+        confidence=0.9,
+        should_build=True,
+        refine_scope=None,  # No scope = full rebuild
+    )
+    mock_bp = Blueprint(**_sample_blueprint_args())
+    bp_json = _sample_blueprint_args()
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.generate_blueprint",
+            new_callable=AsyncMock,
+            return_value=(mock_bp, "test-model"),
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={
+                "message": "Add new section",
+                "blueprint": bp_json,
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "refine"
+    assert data["blueprint"] is not None
+    assert data["patchPlan"] is None  # Full rebuild, no patch
+
+
+@pytest.mark.asyncio
+async def test_refine_full_rebuild_scope_generates_new_blueprint(client):
+    """refine with full_rebuild scope uses original blueprint path."""
+    mock_router = RouterResult(
+        intent="refine",
+        confidence=0.9,
+        should_build=True,
+        refine_scope="full_rebuild",
+    )
+    mock_bp = Blueprint(**_sample_blueprint_args())
+    bp_json = _sample_blueprint_args()
+
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.generate_blueprint",
+            new_callable=AsyncMock,
+            return_value=(mock_bp, "test-model"),
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation",
+            json={
+                "message": "Completely redesign the page",
+                "blueprint": bp_json,
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "refine"
+    assert data["blueprint"] is not None
+    assert data["patchPlan"] is None

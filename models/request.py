@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from models.base import CamelModel
 from models.blueprint import Blueprint
+from models.patch import PatchPlan
 
 
 class WorkflowGenerateRequest(CamelModel):
@@ -43,3 +44,15 @@ class PageChatResponse(CamelModel):
 
     response: str
     conversation_id: str
+
+
+class PagePatchRequest(CamelModel):
+    """POST /api/page/patch — incremental page modification request."""
+
+    blueprint: Blueprint
+    page: dict
+    patch_plan: PatchPlan
+    teacher_id: str = ""
+    context: dict | None = None
+    data_context: dict | None = None
+    compute_results: dict | None = None
