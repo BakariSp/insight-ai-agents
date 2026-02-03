@@ -9,7 +9,9 @@ Yields SSE-compatible event dicts throughout execution.
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 
@@ -17,7 +19,7 @@ from pydantic_ai import Agent
 
 from agents.provider import create_model, execute_mcp_tool
 from agents.resolver import resolve_ref, resolve_refs
-from config.prompts.executor import build_compose_prompt
+from config.prompts.block_compose import build_block_prompt
 from config.settings import get_settings
 from errors.exceptions import DataFetchError
 from models.blueprint import (
@@ -371,7 +373,7 @@ class ExecutorAgent:
                         }
                     ]
 
-    # ── Phase C: Per-block streaming (Phase 6.2) ─────────────
+    # ── Phase C: Per-block streaming (Phase 6.3) ─────────────
 
     async def _generate_block_content(
         self,
@@ -379,13 +381,17 @@ class ExecutorAgent:
         blueprint: Blueprint,
         data_context: dict[str, Any],
         compute_results: dict[str, Any],
-    ) -> str:
-        """Generate AI content for a single block.
+    ) -> str | list | dict:
+        """Generate AI content for a single block using per-block prompt.
 
-        In Phase 6.2 this uses the same compose prompt for all blocks.
-        Phase 6.3 upgrades to per-block prompts via build_block_prompt().
+        Returns:
+            For markdown: str (the narrative text)
+            For suggestion_list/question_generator: parsed JSON (list/dict)
+            Falls back to str if JSON parsing fails.
         """
-        prompt = build_compose_prompt(blueprint, data_context, compute_results)
+        prompt, output_format = build_block_prompt(
+            slot, blueprint, data_context, compute_results
+        )
 
         agent = Agent(
             model=self.model,
@@ -395,7 +401,12 @@ class ExecutorAgent:
         )
 
         result = await agent.run(prompt)
-        return str(result.output)
+        raw_output = str(result.output)
+
+        if output_format == "json":
+            return _parse_json_output(raw_output)
+
+        return raw_output
 
     async def _stream_ai_content(
         self,
@@ -422,18 +433,25 @@ class ExecutorAgent:
                     "componentType": component,
                 }
 
-                ai_text = await self._generate_block_content(
+                ai_content = await self._generate_block_content(
                     slot, blueprint, data_context, compute_results
+                )
+
+                # For SLOT_DELTA, convert list/dict to JSON string
+                delta_text = (
+                    json.dumps(ai_content, ensure_ascii=False)
+                    if isinstance(ai_content, (list, dict))
+                    else str(ai_content)
                 )
 
                 yield {
                     "type": "SLOT_DELTA",
                     "blockId": block_id,
                     "slotKey": slot_key,
-                    "deltaText": ai_text,
+                    "deltaText": delta_text,
                 }
 
-                _fill_single_block(block, component, ai_text)
+                _fill_single_block(block, component, ai_content)
 
                 yield {
                     "type": "BLOCK_COMPLETE",
@@ -595,29 +613,62 @@ def _get_slot_key(component_type: str) -> str:
 def _fill_single_block(
     block: dict[str, Any],
     component_type: str,
-    ai_text: str,
+    ai_content: str | list | dict,
 ) -> None:
-    """Fill a single AI content block with generated text."""
+    """Fill a single AI content block with generated content.
+
+    Args:
+        block: The page block dict to fill.
+        component_type: The component type (markdown, suggestion_list, etc.).
+        ai_content: The AI-generated content (str, list, or dict).
+    """
     if component_type == "markdown":
-        block["content"] = ai_text
+        block["content"] = str(ai_content) if ai_content else ""
     elif component_type == "suggestion_list":
-        block["items"] = [
-            {
-                "title": "AI Analysis",
-                "description": ai_text,
-                "priority": "medium",
-                "category": "insight",
-            }
-        ]
+        if isinstance(ai_content, list):
+            block["items"] = ai_content
+        else:
+            # Fallback: wrap as single item
+            block["items"] = [
+                {
+                    "title": "AI Analysis",
+                    "description": str(ai_content),
+                    "priority": "medium",
+                    "category": "insight",
+                }
+            ]
     elif component_type == "question_generator":
-        block["questions"] = [
-            {
-                "id": "q1",
-                "type": "short_answer",
-                "question": ai_text,
-                "answer": "",
-            }
-        ]
+        if isinstance(ai_content, list):
+            block["questions"] = ai_content
+        else:
+            # Fallback: wrap as single question
+            block["questions"] = [
+                {
+                    "id": "q1",
+                    "type": "short_answer",
+                    "question": str(ai_content),
+                    "answer": "",
+                }
+            ]
+
+
+def _parse_json_output(raw_output: str) -> list | dict | str:
+    """Parse JSON from LLM output, with fallback to raw string.
+
+    Handles common LLM quirks like markdown code blocks around JSON.
+    """
+    text = raw_output.strip()
+
+    # Remove markdown code blocks if present
+    code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+    if code_block_match:
+        text = code_block_match.group(1).strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse JSON output, using raw text: %s", text[:100])
+        return raw_output
 
 
 # ── Topological sort ─────────────────────────────────────────

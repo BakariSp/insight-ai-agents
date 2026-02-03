@@ -619,3 +619,165 @@ def test_data_fetch_error_attributes():
     assert err.suggestions == ["class-hk-f1a", "class-hk-f1b"]
     assert "get_class_detail" in str(err)
     assert "Class 2C not found" in str(err)
+
+
+# ── Per-block AI generation tests (Phase 6.3) ────────────────
+
+
+def test_parse_json_output_valid():
+    """_parse_json_output parses valid JSON."""
+    from agents.executor import _parse_json_output
+
+    json_output = '[{"title": "Focus A", "description": "Do X", "priority": "high"}]'
+    result = _parse_json_output(json_output)
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["title"] == "Focus A"
+
+
+def test_parse_json_output_with_code_block():
+    """_parse_json_output handles markdown code blocks."""
+    from agents.executor import _parse_json_output
+
+    raw = '```json\n[{"key": "value"}]\n```'
+    result = _parse_json_output(raw)
+
+    assert isinstance(result, list)
+    assert result[0]["key"] == "value"
+
+
+def test_parse_json_output_code_block_no_lang():
+    """_parse_json_output handles code blocks without language tag."""
+    from agents.executor import _parse_json_output
+
+    raw = '```\n{"key": "value"}\n```'
+    result = _parse_json_output(raw)
+
+    assert isinstance(result, dict)
+    assert result["key"] == "value"
+
+
+def test_parse_json_output_fallback():
+    """_parse_json_output falls back to raw string on invalid JSON."""
+    from agents.executor import _parse_json_output
+
+    raw = "This is not JSON at all"
+    result = _parse_json_output(raw)
+
+    assert result == raw
+
+
+def test_fill_single_block_with_list():
+    """_fill_single_block handles list input for suggestion_list."""
+    block = {"type": "suggestion_list", "title": "Tips", "items": []}
+    items = [
+        {"title": "Tip 1", "description": "Do this", "priority": "high", "category": "action"},
+        {"title": "Tip 2", "description": "Do that", "priority": "low", "category": "info"},
+    ]
+
+    _fill_single_block(block, "suggestion_list", items)
+
+    assert len(block["items"]) == 2
+    assert block["items"][0]["title"] == "Tip 1"
+    assert block["items"][1]["priority"] == "low"
+
+
+def test_fill_single_block_suggestion_fallback():
+    """_fill_single_block wraps string as single item for suggestion_list."""
+    block = {"type": "suggestion_list", "title": "Tips", "items": []}
+
+    _fill_single_block(block, "suggestion_list", "Plain text suggestion")
+
+    assert len(block["items"]) == 1
+    assert block["items"][0]["description"] == "Plain text suggestion"
+
+
+def test_fill_single_block_question_generator_list():
+    """_fill_single_block handles list input for question_generator."""
+    block = {"type": "question_generator", "title": "Quiz", "questions": []}
+    questions = [
+        {"id": "q1", "type": "multiple_choice", "question": "What is 2+2?", "answer": "4"},
+    ]
+
+    _fill_single_block(block, "question_generator", questions)
+
+    assert len(block["questions"]) == 1
+    assert block["questions"][0]["question"] == "What is 2+2?"
+
+
+def test_fill_single_block_question_fallback():
+    """_fill_single_block wraps string as single question for question_generator."""
+    block = {"type": "question_generator", "title": "Quiz", "questions": []}
+
+    _fill_single_block(block, "question_generator", "What is the capital?")
+
+    assert len(block["questions"]) == 1
+    assert block["questions"][0]["question"] == "What is the capital?"
+
+
+@pytest.mark.asyncio
+async def test_each_ai_slot_uses_per_block_prompt():
+    """Each ai_content_slot triggers _generate_block_content call."""
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+
+    call_count = 0
+
+    async def mock_generate(slot, blueprint, data_ctx, compute_res):
+        nonlocal call_count
+        call_count += 1
+        return f"Content for {slot.id}"
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=_mock_tool_dispatch,
+    ), patch.object(
+        ExecutorAgent,
+        "_generate_block_content",
+        side_effect=mock_generate,
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp, context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    # One AI slot in sample blueprint = one call
+    assert call_count == 1
+
+    # SLOT_DELTA contains the generated content
+    deltas = [e for e in events if e["type"] == "SLOT_DELTA"]
+    assert len(deltas) == 1
+    assert "Content for insight" in deltas[0]["deltaText"]
+
+
+@pytest.mark.asyncio
+async def test_slot_delta_serializes_list_as_json():
+    """SLOT_DELTA converts list/dict content to JSON string."""
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+
+    # Return a list to simulate JSON output from suggestion_list
+    mock_list = [{"title": "Test", "priority": "high"}]
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=_mock_tool_dispatch,
+    ), patch.object(
+        ExecutorAgent,
+        "_generate_block_content",
+        new_callable=AsyncMock,
+        return_value=mock_list,
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp, context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    deltas = [e for e in events if e["type"] == "SLOT_DELTA"]
+    assert len(deltas) == 1
+    # Should be JSON string, not Python repr
+    assert '"title"' in deltas[0]["deltaText"]
+    assert '"Test"' in deltas[0]["deltaText"]
