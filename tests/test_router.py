@@ -219,3 +219,78 @@ async def test_followup_rebuild():
     r = result.output
     assert r.intent == "rebuild"
     assert r.should_build is True
+
+
+# ── refine_scope tests (Phase 6.4) ────────────────────────────
+
+
+def test_router_result_refine_scope_serialization():
+    """RouterResult.refine_scope serializes to camelCase."""
+    result = RouterResult(
+        intent="refine",
+        confidence=0.85,
+        should_build=True,
+        refine_scope="patch_layout",
+    )
+
+    data = result.model_dump(by_alias=True)
+
+    assert "refineScope" in data
+    assert data["refineScope"] == "patch_layout"
+
+
+def test_router_result_refine_scope_optional():
+    """RouterResult.refine_scope is optional (None by default)."""
+    result = RouterResult(
+        intent="chat",
+        confidence=0.9,
+    )
+
+    assert result.refine_scope is None
+    data = result.model_dump(by_alias=True)
+    assert data.get("refineScope") is None
+
+
+def test_router_result_refine_scope_patch_compose():
+    """RouterResult accepts patch_compose scope."""
+    result = RouterResult(
+        intent="refine",
+        confidence=0.8,
+        should_build=True,
+        refine_scope="patch_compose",
+    )
+
+    assert result.refine_scope == "patch_compose"
+
+
+@pytest.mark.asyncio
+async def test_followup_refine_with_scope():
+    """Follow-up refine intent includes refine_scope."""
+    bp = Blueprint(**_sample_blueprint_args())
+    test_model = TestModel(
+        custom_output_args={
+            "intent": "refine",
+            "confidence": 0.85,
+            "should_build": True,
+            "clarifying_question": None,
+            "route_hint": None,
+            "refine_scope": "patch_layout",
+        },
+    )
+    from pydantic_ai import Agent
+    from config.prompts.router import build_router_prompt
+
+    followup_agent = Agent(
+        model=test_model,
+        output_type=RouterResult,
+        system_prompt=build_router_prompt(
+            blueprint_name=bp.name,
+            blueprint_description=bp.description,
+        ),
+        retries=1,
+        defer_model_check=True,
+    )
+    result = await followup_agent.run("把图表颜色换成蓝色")
+    r = result.output
+    assert r.intent == "refine"
+    assert r.refine_scope == "patch_layout"

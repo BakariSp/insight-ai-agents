@@ -74,13 +74,26 @@ Page summary: {page_summary}
    They want a text answer, not a page modification.
    Examples: "哪些学生需要关注？", "平均分是多少？", "这个趋势说明什么？"
 
-2. **refine** — The user wants a minor modification to the current page
-   (e.g., change colors, add a filter, adjust display format).
-   Examples: "把图表颜色换成蓝色", "只显示不及格的学生", "加一个排名列"
+2. **refine** — The user wants a modification to the current page.
+   This can be a minor tweak or a content change.
+   Examples: "把图表颜色换成蓝色", "只显示不及格的学生", "缩短分析内容"
 
 3. **rebuild** — The user wants a structural change that requires regenerating
    the Blueprint (e.g., add a new analysis section, change the analysis scope).
    Examples: "加一个语法分析板块", "也分析一下阅读成绩", "改成对比两个班"
+
+## Refine Scope (for intent="refine" only)
+
+When intent is "refine", also determine the refine_scope:
+
+- **patch_layout** — UI-only changes that don't need AI regeneration.
+  Examples: change colors, reorder blocks, rename titles, adjust display format.
+
+- **patch_compose** — Need to regenerate AI content for some blocks.
+  Examples: "缩短分析", "换一种措辞", "更详细地解释这个趋势".
+
+- **full_rebuild** — Structural changes that need a new Blueprint.
+  (In this case, use intent="rebuild" instead.)
 
 ## Output Format
 
@@ -90,13 +103,15 @@ Return a JSON object with these fields:
 - `should_build`: true when intent is "refine" or "rebuild"
 - `clarifying_question`: null (follow-up mode rarely needs clarification)
 - `route_hint`: null
+- `refine_scope`: one of "patch_layout", "patch_compose", or null (only for intent="refine")
 
 ## Rules
 
 1. If the user asks about existing data/results → `chat`.
-2. If the user wants a small tweak to the current page → `refine`.
+2. If the user wants a small tweak to the current page → `refine` with appropriate scope.
 3. If the user wants to add new sections or change the analysis scope → `rebuild`.
 4. When in doubt, prefer `chat` — it's the safest default in follow-up mode.
+5. For `refine`, prefer `patch_layout` when no AI regeneration is needed.
 """
 
 

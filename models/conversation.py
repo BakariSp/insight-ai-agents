@@ -16,6 +16,7 @@ from pydantic import Field, computed_field
 from models.base import CamelModel
 from models.blueprint import Blueprint
 from models.entity import ResolvedEntity
+from models.patch import PatchPlan
 
 
 # ── Intent enums ──────────────────────────────────────────────
@@ -49,6 +50,7 @@ class RouterResult(CamelModel):
     should_build: bool = False
     clarifying_question: str | None = None
     route_hint: str | None = None
+    refine_scope: str | None = None  # Phase 6.4: "patch_layout", "patch_compose", or "full_rebuild"
 
 
 # ── Clarify interaction ───────────────────────────────────────
@@ -111,6 +113,7 @@ class ConversationResponse(CamelModel):
     clarify_options: ClarifyOptions | None = None
     conversation_id: str | None = None
     resolved_entities: list[ResolvedEntity] | None = None
+    patch_plan: PatchPlan | None = None  # Phase 6.4: for refine with scope != full_rebuild
 
     @computed_field  # type: ignore[prop-decorator]
     @property
