@@ -32,10 +32,13 @@ def test_create_model_custom():
 def test_get_mcp_tool_names():
     names = get_mcp_tool_names()
     assert isinstance(names, list)
-    assert len(names) == 6
+    # Core tools should always be present
     assert "get_teacher_classes" in names
     assert "calculate_stats" in names
     assert "compare_performance" in names
+    # Phase 7 tools should also be present
+    assert "analyze_student_weakness" in names
+    assert "get_rubric" in names
 
 
 # ── get_mcp_tool_descriptions ─────────────────────────────────
@@ -44,7 +47,7 @@ def test_get_mcp_tool_names():
 def test_get_mcp_tool_descriptions():
     descs = get_mcp_tool_descriptions()
     assert isinstance(descs, list)
-    assert len(descs) == 6
+    assert len(descs) >= 6  # At least core tools, more with Phase 7
     for item in descs:
         assert "name" in item
         assert "description" in item
