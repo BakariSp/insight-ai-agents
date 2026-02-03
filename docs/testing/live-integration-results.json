@@ -1,0 +1,248 @@
+[
+  {
+    "test_name": "test_live_router_smalltalk",
+    "category": "A. Router",
+    "timestamp": "2026-02-03T17:40:28.685169",
+    "duration_ms": 1783.34,
+    "status": "pass",
+    "input": {
+      "message": "你好"
+    },
+    "output": {
+      "intent": "chat_smalltalk",
+      "confidence": 0.9,
+      "should_build": false
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_router_build_workflow",
+    "category": "A. Router",
+    "timestamp": "2026-02-03T17:40:31.645811",
+    "duration_ms": 2957.69,
+    "status": "pass",
+    "input": {
+      "message": "分析高一数学班的期末考试成绩"
+    },
+    "output": {
+      "intent": "build_workflow",
+      "confidence": 0.85,
+      "should_build": true
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_router_clarify",
+    "category": "A. Router",
+    "timestamp": "2026-02-03T17:40:34.327094",
+    "duration_ms": 2679.86,
+    "status": "pass",
+    "input": {
+      "message": "分析一下英语表现"
+    },
+    "output": {
+      "intent": "clarify",
+      "confidence": 0.5,
+      "clarifying_question": "您想分析哪个班级的英语表现？",
+      "route_hint": "needClassId"
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_blueprint_generation",
+    "category": "B. Blueprint",
+    "timestamp": "2026-02-03T17:40:50.855188",
+    "duration_ms": 16519.95,
+    "status": "pass",
+    "input": {
+      "user_prompt": "分析高一数学班的期末考试成绩，显示成绩分布和各题得分情况",
+      "language": "zh-CN"
+    },
+    "output": {
+      "id": "bp-final-exam-analysis",
+      "name": "Final Exam Analysis for Grade 10 Math Class",
+      "description": "Analyzes the final exam scores of a Grade 10 math class, showing score distribution and performance on each question.",
+      "capability_level": 1,
+      "model": "dashscope/qwen-max",
+      "data_bindings_count": 1,
+      "compute_nodes_count": 2,
+      "ui_tabs_count": 2
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_blueprint_english",
+    "category": "B. Blueprint",
+    "timestamp": "2026-02-03T17:41:08.571565",
+    "duration_ms": 17714.27,
+    "status": "pass",
+    "input": {
+      "user_prompt": "Analyze Form 1A English test scores, show score distribution and performance by question",
+      "language": "en"
+    },
+    "output": {
+      "id": "bp-english-test-analysis",
+      "name": "English Test Analysis",
+      "description": "Analyze Form 1A English test scores, showing score distribution and performance by question.",
+      "model": "dashscope/qwen-max"
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_conversation_chat",
+    "category": "C. Conversation",
+    "timestamp": "2026-02-03T17:41:14.257339",
+    "duration_ms": 5551.34,
+    "status": "pass",
+    "input": {
+      "message": "你好，介绍一下你自己"
+    },
+    "output": {
+      "status_code": 200,
+      "action": "chat",
+      "mode": "entry",
+      "chat_response_preview": "你好！我是Insight AI的数据分析助手。我的主要任务是帮助老师们分析学生数据，生成学情报告，以及提供一些教学上的支持。如果你有任何关于学生数据分析的需求，或者想了解如何使用我们的平台，请随时告诉我！"
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_conversation_build",
+    "category": "C. Conversation",
+    "timestamp": "2026-02-03T17:41:17.413785",
+    "duration_ms": 3153.3,
+    "status": "pass",
+    "input": {
+      "message": "分析高一数学班的作业成绩",
+      "teacherId": "t-001"
+    },
+    "output": {
+      "status_code": 200,
+      "action": "clarify",
+      "mode": "entry",
+      "clarify_type": "single_select",
+      "clarify_choices_count": 0
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_page_generation",
+    "category": "D. Page Generation",
+    "timestamp": "2026-02-03T17:41:44.862016",
+    "duration_ms": 27445.15,
+    "status": "pass",
+    "input": {
+      "user_prompt": "分析作业提交情况，显示统计数据和分析结论",
+      "blueprint_id": "bp-assignment-submission-analysis"
+    },
+    "output": {
+      "blueprint_duration_ms": 12809.35,
+      "page_duration_ms": 14635.81,
+      "total_duration_ms": 27445.15,
+      "event_count": 11,
+      "event_types": [
+        "COMPLETE",
+        "PHASE",
+        "SLOT_DELTA",
+        "TOOL_RESULT",
+        "BLOCK_COMPLETE",
+        "TOOL_CALL",
+        "BLOCK_START"
+      ],
+      "phases": [
+        "data",
+        "compute",
+        "compose"
+      ],
+      "block_starts_count": 1,
+      "complete_status": "completed",
+      "page_title": "Assignment Submission Analysis"
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_full_e2e_flow",
+    "category": "D. Page Generation",
+    "timestamp": "2026-02-03T17:41:47.594997",
+    "duration_ms": 2729.15,
+    "status": "pass",
+    "input": {
+      "message": "分析学生的作业完成情况"
+    },
+    "output": {
+      "conversation_action": "clarify",
+      "conversation_duration_ms": 2729.15,
+      "note": "Stopped at clarify step - would need user selection"
+    },
+    "error": null
+  },
+  {
+    "test_name": "test_live_critical_path_e2e",
+    "category": "D. Critical Path",
+    "timestamp": "2026-02-03T17:42:15.068429",
+    "duration_ms": 27445.95,
+    "status": "pass",
+    "input": {
+      "user_prompt": "分析高一英语班的'测试一'作业成绩，显示平均分和成绩分布"
+    },
+    "output": {
+      "user_prompt": "分析高一英语班的'测试一'作业成绩，显示平均分和成绩分布",
+      "teacher_id": "2fe869fb-4a2d-4aa1-a173-c263235dc62b",
+      "class_id": "1e4fd110-0d58-4daa-a048-ee691fc7bef4",
+      "assignment_id": "assign-87174785-e2a9-462b-97e1-008554ea1f5c",
+      "use_mock_data": false,
+      "steps": [
+        {
+          "step": "1. Conversation API",
+          "duration_ms": 17411.82,
+          "status_code": 200,
+          "action": "build",
+          "mode": "entry",
+          "blueprint": {
+            "id": "bp-english-test1-analysis",
+            "name": "高一英语班'测试一'成绩分析",
+            "description": "对高一英语班级的'测试一'作业成绩进行统计分析，展示平均分和成绩分布。",
+            "capability_level": 1,
+            "data_bindings": 1,
+            "compute_nodes": 1,
+            "ui_tabs": 1
+          }
+        },
+        {
+          "step": "2. Page Generation (SSE)",
+          "duration_ms": 10034.13,
+          "status_code": 200,
+          "event_summary": {
+            "total_events": 11,
+            "phases": [
+              "data",
+              "compute",
+              "compose"
+            ],
+            "tool_calls": 2,
+            "tool_results": 2,
+            "block_starts": 1,
+            "slot_deltas": 1,
+            "block_completes": 1,
+            "error_events": 0
+          },
+          "complete_status": "completed",
+          "page": {
+            "title": "高一英语班'测试一'成绩分析",
+            "layout": "tabs",
+            "tabs_count": 1,
+            "blocks_per_tab": [
+              {
+                "tab": "概览",
+                "blocks": 3
+              }
+            ]
+          },
+          "ai_content_sample": "## 测试一成绩分析\n\n### 关键发现\n- **提交情况**：共有5名学生未提交本次测试，分别是student1、student2、student3、student4和student5。\n- **分数统计**：由于没有学生提交作业，因此无法计算平均分、最高分或最低分等统计数据。\n\n### 模式与趋势\n- **未提交作业**：所有学生均未提交本次测试，这可能表明存在某些普遍的问题，如时间管理、理解困难或技术问题。\n\n### 需要额外支持的学生\n- **所有学生**：由于所有学生都未能按时提交作业，建议对全班进行进一步的调查和支持。特别关注那些平时表现不佳或有其他学习障碍的学生。\n\n### 教学"
+        }
+      ],
+      "total_duration_ms": 27445.95,
+      "final_status": "completed"
+    },
+    "error": null
+  }
+]

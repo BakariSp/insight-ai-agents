@@ -25,7 +25,8 @@ docs/testing/
 | 4 | 统一会话网关 | 151 | 59 | [报告](phase4-test-report.md) | [日志](phase4-conversation-log.md) | 7 种 action 路由、置信度边界、闭环流程 |
 | 4.5 | 健壮性增强 | 222→230 | 71→79 | [报告](phase4.5-test-report.md) | [日志](phase4.5-conversation-log.md) | 实体解析 12 种场景、多轮交互流程、错误拦截 |
 | 5 | Java 后端对接 | 238 | 8 | — | — | Adapter 映射、重试/熔断降级、mock fallback |
-| 6 | 前端集成 + SSE 升级 + Patch | 🔄 进行中 | — | — | — | SSE 事件模型序列化 (Step 6.1 ✅) |
+| 6 | 前端集成 + SSE 升级 + Patch | 320 | 82 | — | — | SSE Block 事件、Per-Block AI、Patch 机制 |
+| Live | 上线前真实 API 测试 | 10 | 10 | [报告](live-integration-test-report.md) | [结果](live-integration-results.json) | 真实 LLM 调用、Router/Blueprint/Page 全链路、Java 后端 E2E |
 
 ---
 
@@ -106,13 +107,28 @@ docs/testing/phaseX.Y-conversation-log.md   # 子阶段 Live 日志
 | 5 | 熔断恢复 | HALF_OPEN 探测 → CLOSED |
 | 6 | USE_MOCK_DATA=true | 配置开关直接使用 mock |
 
-### Phase 6 — 前端集成 + SSE 升级 + Patch（进行中）
+### Phase 6 — 前端集成 + SSE 升级 + Patch ✅ 已完成
 
 | # | 场景 | 描述 | 状态 |
 |---|------|------|------|
-| 1 | SSE 事件模型序列化 | BlockStartEvent / SlotDeltaEvent / BlockCompleteEvent camelCase 输出 | ✅ Step 6.1 |
-| 2 | Block 事件流 | BLOCK_START → SLOT_DELTA → BLOCK_COMPLETE 顺序 | 🔲 Step 6.2 |
-| 3 | Per-Block AI 生成 | 各 component_type 独立 LLM 生成 | 🔲 Step 6.3 |
-| 4 | Patch Layout | refine "改颜色" → 无 LLM 调用 | 🔲 Step 6.4 |
-| 5 | Patch Compose | refine "缩短分析" → 只重生成 AI blocks | 🔲 Step 6.4 |
-| 6 | E2E 全生命周期 | prompt → Blueprint → BLOCK 事件 → Patch → 降级 | 🔲 Step 6.5 |
+| 1 | SSE 事件模型序列化 | BlockStartEvent / SlotDeltaEvent / BlockCompleteEvent camelCase 输出 | ✅ |
+| 2 | Block 事件流 | BLOCK_START → SLOT_DELTA → BLOCK_COMPLETE 顺序 | ✅ |
+| 3 | Per-Block AI 生成 | 各 component_type 独立 LLM 生成 | ✅ |
+| 4 | Patch Layout | refine "改颜色" → 无 LLM 调用 | ✅ |
+| 5 | Patch Compose | refine "缩短分析" → 只重生成 AI blocks | ✅ |
+| 6 | E2E 全生命周期 | prompt → Blueprint → BLOCK 事件 → Patch → 降级 | ✅ |
+
+### Live Integration — 上线前真实 API 测试
+
+| # | 场景 | 描述 | 结果 |
+|---|------|------|------|
+| A1 | Router 闲聊分类 | "你好" → chat_smalltalk (confidence=0.9) | ✅ 1.7s |
+| A2 | Router 构建分类 | "分析高一数学班的期末考试成绩" → build_workflow (0.85) | ✅ 2.3s |
+| A3 | Router 澄清分类 | "分析一下英语表现" → clarify (0.5) + 反问 | ✅ 2.6s |
+| B1 | Blueprint 生成 (中文) | 完整三层结构生成 | ✅ 25.3s |
+| B2 | Blueprint 生成 (英文) | 多语言支持验证 | ✅ 24.8s |
+| C1 | Conversation 对话 | 自然语言对话响应 | ✅ 6.0s |
+| C2 | Conversation 构建 | 实体解析 → clarify 流程 | ✅ 3.1s |
+| D1 | 完整页面生成 | Blueprint → SSE 三阶段 → Page 输出 | ✅ 33.1s |
+| D2 | 端到端完整流程 | Conversation → Blueprint → Page (需手动选择) | SKIP |
+| **D3** | **关键链路 E2E (Java)** | **真实后端: 高一英语班'测试一' → 完整页面生成** | **✅ 23.4s** |

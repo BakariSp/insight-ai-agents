@@ -191,19 +191,26 @@ async def _handle_initial(
         enriched_context = dict(req.context or {})
         context_parts: list[str] = []
 
+        # Initialize input dict for Blueprint $input.* references
+        enriched_context.setdefault("input", {})
+
         for entity in resolved_entities:
             if entity.entity_type == EntityType.CLASS:
                 if "classIds" not in enriched_context:
                     enriched_context.setdefault("classIds", [])
                 enriched_context["classIds"].append(entity.entity_id)
+                # Also populate input.class for Blueprint compatibility
+                enriched_context["input"]["class"] = entity.entity_id
                 context_parts.append(f"classId={entity.entity_id}")
             elif entity.entity_type == EntityType.STUDENT:
                 enriched_context["studentId"] = entity.entity_id
+                enriched_context["input"]["student"] = entity.entity_id
                 context_parts.append(
                     f"studentId={entity.entity_id} ({entity.display_name})"
                 )
             elif entity.entity_type == EntityType.ASSIGNMENT:
                 enriched_context["assignmentId"] = entity.entity_id
+                enriched_context["input"]["assignment"] = entity.entity_id
                 context_parts.append(
                     f"assignmentId={entity.entity_id} ({entity.display_name})"
                 )

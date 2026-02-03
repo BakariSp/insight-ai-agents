@@ -159,9 +159,23 @@ class ExecutorAgent:
         data_context: dict[str, Any],
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Resolve data bindings in dependency order."""
+        # Build input dict from context if not explicitly provided
+        # This provides backward compatibility when context has classId/assignmentId
+        # but not the nested input dict structure
+        input_ctx = context.get("input", {})
+        if not input_ctx:
+            # Fallback: extract input values from context keys
+            input_ctx = {}
+            if context.get("classId"):
+                input_ctx["class"] = context["classId"]
+            if context.get("assignmentId"):
+                input_ctx["assignment"] = context["assignmentId"]
+            if context.get("studentId"):
+                input_ctx["student"] = context["studentId"]
+
         all_contexts = {
             "context": context,
-            "input": context.get("input", {}),
+            "input": input_ctx,
             "data": data_context,
         }
 
