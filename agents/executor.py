@@ -13,9 +13,12 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from pydantic_ai import Agent
+
+if TYPE_CHECKING:
+    from models.patch import PatchPlan
 
 from agents.provider import create_model, execute_mcp_tool
 from agents.resolver import resolve_ref, resolve_refs
@@ -458,6 +461,144 @@ class ExecutorAgent:
                     "blockId": block_id,
                 }
 
+    # ── Patch execution (Phase 6.4) ─────────────────────────────
+
+    async def execute_patch(
+        self,
+        old_page: dict[str, Any],
+        blueprint: Blueprint,
+        patch_plan: "PatchPlan",
+        data_context: dict[str, Any] | None = None,
+        compute_results: dict[str, Any] | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Execute a PatchPlan to incrementally modify a page.
+
+        Args:
+            old_page: The existing page to modify.
+            blueprint: The Blueprint (for context).
+            patch_plan: The PatchPlan with instructions.
+            data_context: Data from Phase A (for PATCH_COMPOSE).
+            compute_results: Results from Phase B (for PATCH_COMPOSE).
+
+        Yields:
+            SSE events: BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE for AI regeneration,
+            or just COMPLETE for layout-only changes.
+        """
+        from copy import deepcopy
+        from models.patch import PatchType, RefineScope
+
+        page = deepcopy(old_page)
+
+        try:
+            if patch_plan.scope == RefineScope.PATCH_LAYOUT:
+                # Layout-only: apply prop changes directly
+                yield {"type": "PHASE", "phase": "patch", "message": "Applying layout changes..."}
+
+                for instruction in patch_plan.instructions:
+                    block = _find_block_by_id(page, blueprint, instruction.target_block_id)
+                    if block and instruction.type == PatchType.UPDATE_PROPS:
+                        _apply_prop_patch(block, instruction.changes)
+
+                yield {
+                    "type": "COMPLETE",
+                    "message": "completed",
+                    "progress": 100,
+                    "result": {
+                        "response": "Layout updated",
+                        "chatResponse": "Layout updated",
+                        "page": page,
+                    },
+                }
+
+            elif patch_plan.scope == RefineScope.PATCH_COMPOSE:
+                # Compose: regenerate AI content for affected blocks
+                yield {"type": "PHASE", "phase": "patch", "message": "Regenerating content..."}
+
+                data_ctx = data_context or {}
+                compute_res = compute_results or {}
+
+                for instruction in patch_plan.instructions:
+                    if instruction.type != PatchType.RECOMPOSE:
+                        continue
+
+                    block_id = instruction.target_block_id
+                    slot = _find_slot(blueprint, block_id)
+                    block = _find_block_by_id(page, blueprint, block_id)
+
+                    if not slot or not block:
+                        continue
+
+                    component = slot.component_type.value
+                    slot_key = _get_slot_key(component)
+
+                    yield {
+                        "type": "BLOCK_START",
+                        "blockId": block_id,
+                        "componentType": component,
+                    }
+
+                    # Generate new content with patch instruction context
+                    ai_content = await self._generate_block_content(
+                        slot, blueprint, data_ctx, compute_res
+                    )
+
+                    delta_text = (
+                        json.dumps(ai_content, ensure_ascii=False)
+                        if isinstance(ai_content, (list, dict))
+                        else str(ai_content)
+                    )
+
+                    yield {
+                        "type": "SLOT_DELTA",
+                        "blockId": block_id,
+                        "slotKey": slot_key,
+                        "deltaText": delta_text,
+                    }
+
+                    _fill_single_block(block, component, ai_content)
+
+                    yield {
+                        "type": "BLOCK_COMPLETE",
+                        "blockId": block_id,
+                    }
+
+                yield {
+                    "type": "COMPLETE",
+                    "message": "completed",
+                    "progress": 100,
+                    "result": {
+                        "response": "Content regenerated",
+                        "chatResponse": "Content regenerated",
+                        "page": page,
+                    },
+                }
+
+            else:
+                # FULL_REBUILD: caller should use execute_blueprint_stream instead
+                yield {
+                    "type": "COMPLETE",
+                    "message": "error",
+                    "progress": 100,
+                    "result": {
+                        "response": "",
+                        "chatResponse": "Full rebuild required — use execute_blueprint_stream",
+                        "page": None,
+                    },
+                }
+
+        except Exception as exc:
+            logger.exception("Patch execution failed")
+            yield {
+                "type": "COMPLETE",
+                "message": "error",
+                "progress": 100,
+                "result": {
+                    "response": "",
+                    "chatResponse": f"Patch failed: {exc}",
+                    "page": None,
+                },
+            }
+
 
 # ── Block builders ───────────────────────────────────────────
 
@@ -669,6 +810,40 @@ def _parse_json_output(raw_output: str) -> list | dict | str:
     except json.JSONDecodeError:
         logger.warning("Failed to parse JSON output, using raw text: %s", text[:100])
         return raw_output
+
+
+# ── Patch helpers (Phase 6.4) ─────────────────────────────────
+
+
+def _find_slot(blueprint: Blueprint, slot_id: str) -> ComponentSlot | None:
+    """Find a ComponentSlot in the Blueprint by ID."""
+    for tab in blueprint.ui_composition.tabs:
+        for slot in tab.slots:
+            if slot.id == slot_id:
+                return slot
+    return None
+
+
+def _find_block_by_id(
+    page: dict[str, Any],
+    blueprint: Blueprint,
+    block_id: str,
+) -> dict[str, Any] | None:
+    """Find a block in the page by matching slot ID from Blueprint."""
+    for tab_idx, tab in enumerate(blueprint.ui_composition.tabs):
+        for slot_idx, slot in enumerate(tab.slots):
+            if slot.id == block_id:
+                try:
+                    return page["tabs"][tab_idx]["blocks"][slot_idx]
+                except (IndexError, KeyError):
+                    return None
+    return None
+
+
+def _apply_prop_patch(block: dict[str, Any], changes: dict[str, Any]) -> None:
+    """Apply property changes to a block."""
+    for key, value in changes.items():
+        block[key] = value
 
 
 # ── Topological sort ─────────────────────────────────────────
