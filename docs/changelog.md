@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-02-03 — Phase 6.5 完成: E2E 测试 + Phase 6 全量验收
+
+完成 Phase 6 最后一步，编写全链路 E2E 测试，验证 BLOCK 事件、Patch 机制和错误处理。
+
+**Step 6.5: E2E 测试**
+- 新增 `tests/test_e2e_phase6.py`: 8 项 E2E 测试
+  - `test_e2e_full_lifecycle_with_block_events()` — 完整生命周期 + BLOCK 事件验证
+  - `test_e2e_refine_patch_layout()` — 布局 patch (无 LLM 调用)
+  - `test_e2e_refine_patch_compose()` — 内容 patch (只重生成 AI blocks)
+  - `test_e2e_refine_full_rebuild()` — 完整重建 (新 blueprint)
+  - `test_e2e_java_timeout_with_block_events()` — Java 超时降级 + BLOCK 事件
+  - `test_e2e_llm_failure_error_complete()` — LLM 失败 → error COMPLETE
+  - `test_e2e_nonexistent_entity_data_error()` — 实体不存在 → DATA_ERROR
+  - `test_e2e_http_page_patch_endpoint()` — HTTP /api/page/patch SSE 端点
+
+**Phase 6 总验收**
+- 320 项测试全部通过（8 项新增 + 312 项已有）
+- Phase 6 所有功能完成: SSE 事件模型、Per-Block AI、Patch 机制、E2E 测试
+
+---
+
 ## 2026-02-03 — Phase 6.3-6.4 完成: Per-Block AI 生成 + Patch 机制
 
 实现 Per-Block AI 生成（Level 2）和 Patch 机制，支持增量页面修改。
