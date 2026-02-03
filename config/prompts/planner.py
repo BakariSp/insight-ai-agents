@@ -94,6 +94,15 @@ Declares **how to arrange UI components** for the final page.
    AI-generated narrative/insights.
 10. The `page_system_prompt` should instruct the ExecutorAgent about the analysis
     goal, desired tone, and output language.
+11. For `kpi_grid` component, use `data_binding` pointing to data with a `summary`
+    field. The `calculate_stats` tool returns a `summary` field suitable for
+    kpi_grid display. Example: `"data_binding": "$compute.scoreStats.summary"`.
+12. Before specifying `data_binding` paths, verify the target tool's output
+    structure. Available output fields from `calculate_stats`:
+    - count, mean, median, stddev, min, max
+    - percentiles: {p25, p50, p75, p90}
+    - distribution: {labels, counts}
+    - summary: [{label, value, unit}, ...]
 
 ## Example
 
@@ -149,8 +158,8 @@ For the prompt "Analyze Form 1A Unit 5 Test results":
           {
             "id": "kpi_overview",
             "component_type": "kpi_grid",
-            "data_binding": "$compute.scoreStats",
-            "props": {}
+            "data_binding": "$compute.scoreStats.summary",
+            "props": {"title": "成绩概览"}
           },
           {
             "id": "score_distribution",

@@ -54,6 +54,16 @@ def calculate_stats(data: list[float | int], metrics: list[str] | None = None) -
             "counts": [int(c) for c in counts],
         }
 
+    # Phase 7: Add summary field for kpi_grid component compatibility
+    if "summary" in all_metrics or "mean" in all_metrics:
+        result["summary"] = [
+            {"label": "平均分", "value": result.get("mean", 0), "unit": "分"},
+            {"label": "最高分", "value": result.get("max", 0), "unit": "分"},
+            {"label": "最低分", "value": result.get("min", 0), "unit": "分"},
+            {"label": "标准差", "value": result.get("stddev", 0), "unit": ""},
+            {"label": "样本数", "value": result.get("count", 0), "unit": "人"},
+        ]
+
     return result
 
 
