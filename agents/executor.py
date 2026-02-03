@@ -331,51 +331,6 @@ class ExecutorAgent:
             "tabs": tabs,
         }
 
-    async def _generate_ai_narrative(
-        self,
-        blueprint: Blueprint,
-        data_context: dict[str, Any],
-        compute_results: dict[str, Any],
-    ) -> str:
-        """Generate AI narrative text for ai_content_slots."""
-        prompt = build_compose_prompt(blueprint, data_context, compute_results)
-
-        agent = Agent(
-            model=self.model,
-            system_prompt=blueprint.page_system_prompt
-            or "You are an educational data analyst.",
-            defer_model_check=True,
-        )
-
-        result = await agent.run(prompt)
-        return str(result.output)
-
-    @staticmethod
-    def _fill_ai_content(
-        page: dict[str, Any],
-        blueprint: Blueprint,
-        ai_text: str,
-    ) -> None:
-        """Fill AI-generated text into ai_content_slot blocks in the page."""
-        for tab_spec, tab_data in zip(
-            blueprint.ui_composition.tabs, page["tabs"]
-        ):
-            for slot, block in zip(tab_spec.slots, tab_data["blocks"]):
-                if not slot.ai_content_slot:
-                    continue
-                component = slot.component_type.value
-                if component == "markdown":
-                    block["content"] = ai_text
-                elif component == "suggestion_list":
-                    block["items"] = [
-                        {
-                            "title": "AI Analysis",
-                            "description": ai_text,
-                            "priority": "medium",
-                            "category": "insight",
-                        }
-                    ]
-
     # ── Phase C: Per-block streaming (Phase 6.3) ─────────────
 
     async def _generate_block_content(
