@@ -1,0 +1,106 @@
+{
+  "id": "bp-assignment-analysis",
+  "name": "Assignment Score Analysis",
+  "description": "Analyze the scores of a specific assignment in a class, showing average, highest, and lowest scores, as well as a score distribution chart. Provide an analysis summary and teaching suggestions.",
+  "icon": "chart",
+  "category": "analytics",
+  "version": 1,
+  "capabilityLevel": 1,
+  "sourcePrompt": "分析某个班级某次作业的成绩：显示平均分、最高分、最低分、成绩分布图表，给出分析总结和教学建议。让我先选择班级，再选择作业。",
+  "createdAt": "2026-02-03T10:02:36.595096+00:00",
+  "dataContract": {
+    "inputs": [
+      {
+        "id": "class",
+        "type": "class",
+        "label": "Class",
+        "required": true,
+        "dependsOn": null
+      },
+      {
+        "id": "assignment",
+        "type": "assignment",
+        "label": "Assignment",
+        "required": true,
+        "dependsOn": "class"
+      }
+    ],
+    "bindings": [
+      {
+        "id": "submissions",
+        "sourceType": "tool",
+        "toolName": "get_assignment_submissions",
+        "apiPath": null,
+        "paramMapping": {
+          "teacher_id": "$context.teacherId",
+          "assignment_id": "$input.assignment"
+        },
+        "description": "Fetch all student submissions for the selected assignment.",
+        "required": true,
+        "dependsOn": []
+      }
+    ]
+  },
+  "computeGraph": {
+    "nodes": [
+      {
+        "id": "score_stats",
+        "type": "tool",
+        "toolName": "calculate_stats",
+        "toolArgs": {
+          "data": "$data.submissions.scores"
+        },
+        "promptTemplate": null,
+        "dependsOn": [],
+        "outputKey": "scoreStats"
+      }
+    ]
+  },
+  "uiComposition": {
+    "layout": "tabs",
+    "tabs": [
+      {
+        "id": "overview",
+        "label": "Overview",
+        "slots": [
+          {
+            "id": "kpi_overview",
+            "componentType": "kpi_grid",
+            "dataBinding": "$compute.scoreStats.summary",
+            "props": {},
+            "aiContentSlot": false
+          },
+          {
+            "id": "score_distribution_chart",
+            "componentType": "chart",
+            "dataBinding": "$compute.scoreStats.distribution",
+            "props": {
+              "variant": "bar",
+              "title": "Score Distribution Chart"
+            },
+            "aiContentSlot": false
+          },
+          {
+            "id": "analysis_summary",
+            "componentType": "markdown",
+            "dataBinding": null,
+            "props": {
+              "variant": "insight"
+            },
+            "aiContentSlot": true
+          },
+          {
+            "id": "teaching_suggestions",
+            "componentType": "suggestion_list",
+            "dataBinding": null,
+            "props": {
+              "title": "Teaching Suggestions"
+            },
+            "aiContentSlot": true
+          }
+        ]
+      }
+    ]
+  },
+  "pageSystemPrompt": "You are an educational data analyst. Analyze the test scores and provide insights about class performance, identify students who may need support, and suggest teaching strategies. Be concise and data-driven. The output should be in Chinese."
+}

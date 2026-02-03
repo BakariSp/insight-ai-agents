@@ -2,8 +2,8 @@
   {
     "test_name": "test_live_router_smalltalk",
     "category": "A. Router",
-    "timestamp": "2026-02-03T17:40:28.685169",
-    "duration_ms": 1783.34,
+    "timestamp": "2026-02-03T21:34:15.315070",
+    "duration_ms": 4254.5,
     "status": "pass",
     "input": {
       "message": "你好"
@@ -18,8 +18,8 @@
   {
     "test_name": "test_live_router_build_workflow",
     "category": "A. Router",
-    "timestamp": "2026-02-03T17:40:31.645811",
-    "duration_ms": 2957.69,
+    "timestamp": "2026-02-03T21:34:17.433371",
+    "duration_ms": 2114.33,
     "status": "pass",
     "input": {
       "message": "分析高一数学班的期末考试成绩"
@@ -34,8 +34,8 @@
   {
     "test_name": "test_live_router_clarify",
     "category": "A. Router",
-    "timestamp": "2026-02-03T17:40:34.327094",
-    "duration_ms": 2679.86,
+    "timestamp": "2026-02-03T21:34:19.938137",
+    "duration_ms": 2501.27,
     "status": "pass",
     "input": {
       "message": "分析一下英语表现"
@@ -43,7 +43,7 @@
     "output": {
       "intent": "clarify",
       "confidence": 0.5,
-      "clarifying_question": "您想分析哪个班级的英语表现？",
+      "clarifying_question": "请问您想分析哪个班级的英语表现？",
       "route_hint": "needClassId"
     },
     "error": null
@@ -51,8 +51,8 @@
   {
     "test_name": "test_live_blueprint_generation",
     "category": "B. Blueprint",
-    "timestamp": "2026-02-03T17:40:50.855188",
-    "duration_ms": 16519.95,
+    "timestamp": "2026-02-03T21:34:53.680121",
+    "duration_ms": 33739.76,
     "status": "pass",
     "input": {
       "user_prompt": "分析高一数学班的期末考试成绩，显示成绩分布和各题得分情况",
@@ -60,8 +60,8 @@
     },
     "output": {
       "id": "bp-final-exam-analysis",
-      "name": "Final Exam Analysis for Grade 10 Math Class",
-      "description": "Analyzes the final exam scores of a Grade 10 math class, showing score distribution and performance on each question.",
+      "name": "Final Exam Analysis",
+      "description": "Analyzes the final exam scores of a high school math class, showing score distribution and question-wise performance.",
       "capability_level": 1,
       "model": "dashscope/qwen-max",
       "data_bindings_count": 1,
@@ -73,8 +73,8 @@
   {
     "test_name": "test_live_blueprint_english",
     "category": "B. Blueprint",
-    "timestamp": "2026-02-03T17:41:08.571565",
-    "duration_ms": 17714.27,
+    "timestamp": "2026-02-03T21:35:17.262273",
+    "duration_ms": 23578.08,
     "status": "pass",
     "input": {
       "user_prompt": "Analyze Form 1A English test scores, show score distribution and performance by question",
@@ -91,8 +91,8 @@
   {
     "test_name": "test_live_conversation_chat",
     "category": "C. Conversation",
-    "timestamp": "2026-02-03T17:41:14.257339",
-    "duration_ms": 5551.34,
+    "timestamp": "2026-02-03T21:35:23.931018",
+    "duration_ms": 6664.86,
     "status": "pass",
     "input": {
       "message": "你好，介绍一下你自己"
@@ -101,15 +101,15 @@
       "status_code": 200,
       "action": "chat",
       "mode": "entry",
-      "chat_response_preview": "你好！我是Insight AI的数据分析助手。我的主要任务是帮助老师们分析学生数据，生成学情报告，以及提供一些教学上的支持。如果你有任何关于学生数据分析的需求，或者想了解如何使用我们的平台，请随时告诉我！"
+      "chat_response_preview": "你好！我是 Insight AI 数据分析助手。我在这里帮助老师们分析学生数据、生成学情报告以及提供其他教育相关的支持。如果你有任何关于学生数据分析的需求，或者想了解如何使用我们的平台，请随时告诉我！有什么我可以帮你的吗？"
     },
     "error": null
   },
   {
     "test_name": "test_live_conversation_build",
     "category": "C. Conversation",
-    "timestamp": "2026-02-03T17:41:17.413785",
-    "duration_ms": 3153.3,
+    "timestamp": "2026-02-03T21:35:27.322662",
+    "duration_ms": 3386.73,
     "status": "pass",
     "input": {
       "message": "分析高一数学班的作业成绩",
@@ -120,33 +120,33 @@
       "action": "clarify",
       "mode": "entry",
       "clarify_type": "single_select",
-      "clarify_choices_count": 0
+      "clarify_choices_count": 2
     },
     "error": null
   },
   {
     "test_name": "test_live_page_generation",
     "category": "D. Page Generation",
-    "timestamp": "2026-02-03T17:41:44.862016",
-    "duration_ms": 27445.15,
+    "timestamp": "2026-02-03T21:35:59.187141",
+    "duration_ms": 31860.81,
     "status": "pass",
     "input": {
       "user_prompt": "分析作业提交情况，显示统计数据和分析结论",
       "blueprint_id": "bp-assignment-submission-analysis"
     },
     "output": {
-      "blueprint_duration_ms": 12809.35,
-      "page_duration_ms": 14635.81,
-      "total_duration_ms": 27445.15,
+      "blueprint_duration_ms": 11751.39,
+      "page_duration_ms": 20109.41,
+      "total_duration_ms": 31860.81,
       "event_count": 11,
       "event_types": [
-        "COMPLETE",
         "PHASE",
-        "SLOT_DELTA",
-        "TOOL_RESULT",
+        "BLOCK_START",
+        "COMPLETE",
         "BLOCK_COMPLETE",
         "TOOL_CALL",
-        "BLOCK_START"
+        "TOOL_RESULT",
+        "SLOT_DELTA"
       ],
       "phases": [
         "data",
@@ -162,15 +162,15 @@
   {
     "test_name": "test_live_full_e2e_flow",
     "category": "D. Page Generation",
-    "timestamp": "2026-02-03T17:41:47.594997",
-    "duration_ms": 2729.15,
+    "timestamp": "2026-02-03T21:36:02.691681",
+    "duration_ms": 3499.74,
     "status": "pass",
     "input": {
       "message": "分析学生的作业完成情况"
     },
     "output": {
       "conversation_action": "clarify",
-      "conversation_duration_ms": 2729.15,
+      "conversation_duration_ms": 3499.74,
       "note": "Stopped at clarify step - would need user selection"
     },
     "error": null
@@ -178,8 +178,8 @@
   {
     "test_name": "test_live_critical_path_e2e",
     "category": "D. Critical Path",
-    "timestamp": "2026-02-03T17:42:15.068429",
-    "duration_ms": 27445.95,
+    "timestamp": "2026-02-03T21:36:35.568642",
+    "duration_ms": 32870.94,
     "status": "pass",
     "input": {
       "user_prompt": "分析高一英语班的'测试一'作业成绩，显示平均分和成绩分布"
@@ -193,14 +193,14 @@
       "steps": [
         {
           "step": "1. Conversation API",
-          "duration_ms": 17411.82,
+          "duration_ms": 32233.52,
           "status_code": 200,
           "action": "build",
           "mode": "entry",
           "blueprint": {
             "id": "bp-english-test1-analysis",
-            "name": "高一英语班'测试一'成绩分析",
-            "description": "对高一英语班级的'测试一'作业成绩进行统计分析，展示平均分和成绩分布。",
+            "name": "English Test 1 Analysis",
+            "description": "Analyzes the scores of 'Test 1' assignment for a high school first-year English class, displaying the average score and score distribution.",
             "capability_level": 1,
             "data_bindings": 1,
             "compute_nodes": 1,
@@ -209,39 +209,35 @@
         },
         {
           "step": "2. Page Generation (SSE)",
-          "duration_ms": 10034.13,
+          "duration_ms": 637.41,
           "status_code": 200,
           "event_summary": {
-            "total_events": 11,
+            "total_events": 4,
             "phases": [
-              "data",
-              "compute",
-              "compose"
+              "data"
             ],
-            "tool_calls": 2,
-            "tool_results": 2,
-            "block_starts": 1,
-            "slot_deltas": 1,
-            "block_completes": 1,
-            "error_events": 0
+            "tool_calls": 1,
+            "tool_results": 0,
+            "block_starts": 0,
+            "slot_deltas": 0,
+            "block_completes": 0,
+            "error_events": 1
           },
-          "complete_status": "completed",
-          "page": {
-            "title": "高一英语班'测试一'成绩分析",
-            "layout": "tabs",
-            "tabs_count": 1,
-            "blocks_per_tab": [
-              {
-                "tab": "概览",
-                "blocks": 3
-              }
-            ]
-          },
-          "ai_content_sample": "## 测试一成绩分析\n\n### 关键发现\n- **提交情况**：共有5名学生未提交本次测试，分别是student1、student2、student3、student4和student5。\n- **分数统计**：由于没有学生提交作业，因此无法计算平均分、最高分或最低分等统计数据。\n\n### 模式与趋势\n- **未提交作业**：所有学生均未提交本次测试，这可能表明存在某些普遍的问题，如时间管理、理解困难或技术问题。\n\n### 需要额外支持的学生\n- **所有学生**：由于所有学生都未能按时提交作业，建议对全班进行进一步的调查和支持。特别关注那些平时表现不佳或有其他学习障碍的学生。\n\n### 教学"
+          "complete_status": "error",
+          "errors": [
+            {
+              "type": "DATA_ERROR",
+              "message": "Assignment assign-87174785-e2a9-462b-97e1-008554ea1f5c not found"
+            }
+          ],
+          "error_detail": {
+            "chat_response": "Tool 'get_assignment_submissions' failed: Assignment assign-87174785-e2a9-462b-97e1-008554ea1f5c not found",
+            "error_type": "data_error"
+          }
         }
       ],
-      "total_duration_ms": 27445.95,
-      "final_status": "completed"
+      "total_duration_ms": 32870.94,
+      "final_status": "error"
     },
     "error": null
   }

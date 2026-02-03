@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "pageTitle": "Assignment Score Analysis",
+    "summary": "Analyze the scores of a specific assignment in a class, showing average, highest, and lowest scores, as well as a score distribution chart. Provide an analysis summary and teaching suggestions.",
+    "generatedAt": "2026-02-03T10:02:36.601454+00:00",
+    "dataSource": "tool"
+  },
+  "layout": "tabs",
+  "tabs": [
+    {
+      "id": "overview",
+      "label": "Overview",
+      "blocks": [
+        {
+          "type": "kpi_grid",
+          "data": []
+        },
+        {
+          "type": "chart",
+          "variant": "bar",
+          "title": "Score Distribution Chart",
+          "xAxis": [
+            "0-39",
+            "40-49",
+            "50-59",
+            "60-69",
+            "70-79",
+            "80-89",
+            "90-100"
+          ],
+          "series": [
+            {
+              "name": "Count",
+              "data": [
+                0,
+                0,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "type": "markdown",
+          "content": "## 分析总结\n\n### 关键发现\n- **平均分**: 74.2 分\n- **中位数**: 72.0 分\n- **标准差**: 13.7 分\n- **最低分**: 58.0 分\n- **最高分**: 91.0 分\n- **四分位数**:\n  - 第25百分位: 65.0 分\n  - 第50百分位 (中位数): 72.0 分\n  - 第75百分位: 85.0 分\n  - 第90百分位: 88.6 分\n- **分数分布**:\n  - 50-59: 1人\n  - 60-69: 1人\n  - 70-79: 1人\n  - 80-89: 1人\n  - 90-100: 1人\n\n### 主要模式和趋势\n- **整体表现**: 学生的整体平均分为74.2分，中位数为72.0分，表明大多数学生的表现处于中等水平。\n- **成绩分布**: 成绩分布较为均匀，从50-59到90-100每个分数段都有一个学生。这表明学生的成绩差异较大。\n- **高分与低分**: 最高分是91分，而最低分是58分，标准差为13.7分，说明成绩的波动性较大。\n\n### 需要关注的学生\n- **Wong Ka Ho**: 得分58分，低于及格线，需要特别关注和支持。\n- **Lam Wai Yin**: 得分65分，虽然及格但接近及格线，也需要额外的支持。\n\n### 教学建议\n- **个性化辅导**: 对于得分较低的学生（如Wong Ka Ho和Lam Wai Yin），提供一对一或小组辅导，帮助他们掌握薄弱的知识点。\n- **强化基础**: 针对全班学生的基础知识进行巩固，特别是对于得分在60-69分的学生，确保他们能够牢固掌握基础知识。\n- **提高高分段学生的能力**: 对于已经取得较高分数的学生（如Cheung Siu Ming），可以提供更具挑战性的题目，进一步提升他们的能力。\n- **定期反馈**: 定期向学生提供反馈，帮助他们了解自己的进步和不足，并制定改进计划。\n\n通过这些措施，可以帮助学生更好地掌握知识，提高整体成绩。",
+          "variant": "insight"
+        },
+        {
+          "type": "suggestion_list",
+          "title": "Teaching Suggestions",
+          "items": [
+            {
+              "title": "加强低分学生辅导",
+              "description": "王家豪和林慧妍的分数低于70分，需要额外的辅导和支持以提高成绩。",
+              "priority": "high",
+              "category": "improvement"
+            },
+            {
+              "title": "巩固中等水平学生的知识",
+              "description": "陈大文的成绩处于中等水平，可以提供一些额外的练习来帮助他进一步提高。",
+              "priority": "medium",
+              "category": "improvement"
+            },
+            {
+              "title": "保持高分学生的优秀表现",
+              "description": "李梅和张小明的成绩优异，继续保持他们的学习方法，并鼓励他们帮助其他同学。",
+              "priority": "low",
+              "category": "strength"
+            },
+            {
+              "title": "增加课堂互动",
+              "description": "通过小组讨论和互动活动，帮助所有学生更好地理解和掌握课程内容。",
+              "priority": "medium",
+              "category": "action"
+            },
+            {
+              "title": "定期进行复习测试",
+              "description": "定期进行小测验，以便及时发现并解决学生在学习中的问题。",
+              "priority": "high",
+              "category": "action"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
