@@ -904,6 +904,72 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | **M4.5: 健壮性增强** | 4.5 ✅ | 实体校验 + sourcePrompt 防篡改 + action 规范化 + 错误拦截 |
 | **M5: 真实数据** | 5 ✅ | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
 | **M6: 产品上线** | 6 ✅ | 前端集成 + Level 2 Per-Block AI + SSE Block 事件流 + Patch 机制 + E2E 测试 |
+| **M7: 智能题目生成** | 7 🔄 | RAG 知识库 + 知识点字典 + 题目生成流水线 + 学情分析 |
+
+---
+
+## Phase 7: 智能题目生成与学情分析优化 🔄 进行中
+
+**目标**: 将题目生成从"纯 LLM 猜测"升级为"标准库检索 + 学情驱动 + 结构化输出"，实现可用、可控、可持续迭代的出题能力。
+
+**前置条件**: Phase 6 完成（Per-Block AI 生成 + Patch 机制）。
+
+**计划文档**: [2026-02-03-phase7-question-generation.md](plans/2026-02-03-phase7-question-generation.md)
+
+### P0 任务（必须先做）
+
+- [x] **P0-1:** 题目级数据模型 + 错题数据接入
+  - [x] 扩展 `models/data.py`: QuestionItem, QuestionSpec, ErrorPattern, StudentMastery
+  - [x] 扩展 `SubmissionRecord`: items[] 题目级明细
+  - [x] 新增 `tools/assessment_tools.py`: analyze_student_weakness, get_student_error_patterns
+
+- [x] **P0-2:** Blueprint→Page 结构一致性修复
+  - [x] 修复 `tools/stats_tools.py`: calculate_stats 新增 summary 字段
+  - [x] 更新 `config/prompts/planner.py`: Rule 11-12 约束
+
+- [x] **P0-3:** Rubric-as-Assets（最小标准库）
+  - [x] 新增 `models/rubric.py`: Rubric, RubricCriterion, RubricLevel
+  - [x] 新增 `data/rubrics/*.json`: DSE 评分标准
+  - [x] 新增 `services/rubric_service.py`: Rubric 加载服务
+  - [x] 新增 `tools/rubric_tools.py`: get_rubric 工具
+
+- [x] **P0-4:** 题目生成流水线 Draft→Judge→Repair
+  - [x] 新增 `models/question_pipeline.py`: QuestionDraft, JudgeResult, QuestionFinal
+  - [x] 新增 `agents/question_pipeline.py`: 三阶段流水线
+
+### P1 任务（重要优化）
+
+- [x] **P1-1:** RAG 基础设施
+  - [x] 新增 `services/rag_service.py`: SimpleRAGStore + CurriculumRAG
+  - [x] 分库设计: official_corpus, school_assets, question_bank
+
+- [x] **P1-2:** 知识点字典
+  - [x] 新增 `data/knowledge_points/*.json`: DSE Math, Chinese, ICT, English
+  - [x] 新增 `services/knowledge_service.py`: 知识点注册表服务
+  - [x] 错误标签 → 知识点 ID 映射
+
+### P2 任务（中长期）
+
+- [ ] **P2-1:** Teacher-in-the-loop 数据闭环
+- [ ] **P2-2:** 混合生成策略（题库检索优先 + LLM 变体）
+
+### Phase 7 关键文件清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `models/data.py` | 修改 ✅ | 新增 QuestionItem, ErrorPattern, StudentMastery |
+| `models/rubric.py` | 新建 ✅ | Rubric, RubricCriterion, RubricLevel |
+| `models/question_pipeline.py` | 新建 ✅ | QuestionDraft, JudgeResult, QuestionFinal |
+| `data/rubrics/*.json` | 新建 ✅ | 7 个评分标准文件 (English, Math, Chinese, ICT) |
+| `data/knowledge_points/*.json` | 新建 ✅ | 4 个知识点文件 (English, Math, Chinese, ICT) |
+| `services/rubric_service.py` | 新建 ✅ | Rubric 加载服务 |
+| `services/rag_service.py` | 新建 ✅ | RAG 分库服务 |
+| `services/knowledge_service.py` | 新建 ✅ | 知识点注册表服务 |
+| `agents/question_pipeline.py` | 新建 ✅ | Draft→Judge→Repair 流水线 |
+| `tools/stats_tools.py` | 修改 ✅ | 新增 summary 字段 |
+| `tools/assessment_tools.py` | 新建 ✅ | 学情分析工具 |
+| `tools/rubric_tools.py` | 新建 ✅ | Rubric 检索工具 |
+| `tests/test_rag_question_generation.py` | 新建 ✅ | 31 项 RAG + 知识点测试 |
 
 ---
 

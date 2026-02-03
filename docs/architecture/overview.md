@@ -226,6 +226,21 @@ LLMConfig 提供三层优先级链：`.env` 全局默认 → Agent 级覆盖 →
 | Patch Model | `models/patch.py` | PatchType / RefineScope / PatchInstruction / PatchPlan | ✅ 已完成 (Step 6.4) |
 | Patch Agent | `agents/patch_agent.py` | analyze_refine() → PatchPlan (layout/compose/rebuild 分流) | ✅ 已完成 (Step 6.4) |
 
+### 新增模块（Phase 7 — 智能题目生成）
+
+| 模块 | 文件 | 功能 | 状态 |
+|------|------|------|------|
+| Rubric Model | `models/rubric.py` | Rubric / RubricCriterion / RubricLevel 评分标准模型 | ✅ 已完成 (P0-3) |
+| Question Pipeline Model | `models/question_pipeline.py` | QuestionDraft / JudgeResult / QuestionFinal | ✅ 已完成 (P0-4) |
+| Rubric Service | `services/rubric_service.py` | Rubric 加载和检索服务 | ✅ 已完成 (P0-3) |
+| RAG Service | `services/rag_service.py` | SimpleRAGStore + CurriculumRAG 向量检索 | ✅ 已完成 (P1-1) |
+| Knowledge Service | `services/knowledge_service.py` | 知识点注册表 + 错误标签映射 | ✅ 已完成 (P1-2) |
+| Question Pipeline | `agents/question_pipeline.py` | Draft→Judge→Repair 三阶段流水线 | ✅ 已完成 (P0-4) |
+| Assessment Tools | `tools/assessment_tools.py` | 学情分析工具 (analyze_student_weakness) | ✅ 已完成 (P0-1) |
+| Rubric Tools | `tools/rubric_tools.py` | get_rubric 工具 | ✅ 已完成 (P0-3) |
+| Knowledge Points | `data/knowledge_points/*.json` | DSE English/Math/Chinese/ICT 知识点 | ✅ 已完成 (P1-2) |
+| Rubrics | `data/rubrics/*.json` | 7 个评分标准文件 | ✅ 已完成 (P0-3) |
+
 ### 当前 → 目标的差距
 
 | 方面 | 当前 (Phase 5) | 目标 |

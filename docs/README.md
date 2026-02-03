@@ -1,7 +1,7 @@
 # Insight AI Agent — 文档中心
 
 > **最后更新**: 2026-02-03
-> **当前阶段**: Phase 6 进行中 (Step 6.1–6.4 完成 ✅，Step 6.5 E2E 测试待完成)
+> **当前阶段**: Phase 7 进行中 (P0-P1 完成 ✅，P2 待实现)
 > **一句话概述**: 面向教育场景的 AI Agent 服务，教师用自然语言即可构建结构化的数据分析页面并进行对话式交互。
 
 ---
@@ -38,6 +38,8 @@
 | SSE Block 事件流 | BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 逐 block 推送 | ✅ 已实现 |
 | Per-Block AI 生成 | 每个 ai_content_slot 独立生成，支持多种 output_format | ✅ 已实现 |
 | Patch 机制 | refine 支持 patch_layout/patch_compose/full_rebuild | ✅ 已实现 |
+| RAG 知识库 | HKDSE 课纲、评分标准、知识点检索 | ✅ 已实现 |
+| 智能题目生成 | Draft→Judge→Repair 流水线 | ✅ 已实现 |
 | 前端集成 | Next.js 通过 API Routes 代理 | 🔲 待实现 |
 
 ---

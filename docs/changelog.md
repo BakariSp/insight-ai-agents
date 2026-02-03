@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-02-03 — Phase 7 P1 完成: HKDSE Math, Chinese, ICT 知识库
+
+基于官方 HKDSE 课纲，补充数学、中文、ICT 的知识点和评分标准，完善 RAG 向量库。
+
+**知识点文件 (data/knowledge_points/)**
+- 新增 `dse-math.json`: 29 个数学知识点（代数、几何、统计、M1 微积分）
+- 新增 `dse-chinese.json`: 22 个中文知识点（阅读、写作、聆听说话、语文基础）
+- 新增 `dse-ict.json`: 30 个 ICT 知识点（信息处理、计算机系统、网络、编程、社会影响）
+
+**评分标准文件 (data/rubrics/)**
+- 新增 `dse-math-problem-solving.json`: 数学解题评分（理解/过程/表达）
+- 新增 `dse-math-multiple-choice.json`: 数学选择题质量标准
+- 新增 `dse-chi-writing-essay.json`: 中文写作评分（内容/表达/结构）
+- 新增 `dse-chi-reading-comprehension.json`: 中文阅读理解评分
+- 新增 `dse-ict-programming.json`: ICT 编程评分（逻辑/代码质量/输出）
+- 新增 `dse-ict-database.json`: ICT 数据库评分（SQL/查询逻辑/设计）
+
+**服务更新**
+- 更新 `services/knowledge_service.py`: SUBJECT_CODE_MAP 新增 ICT；ERROR_TAG_MAPPING 新增 Math/Chinese/ICT 错误标签映射
+
+**测试**
+- 新增 `tests/test_rag_question_generation.py`: 31 项 RAG + 知识点 + Rubric 测试
+- 新增 `scripts/test_question_generation.py`: 手动测试脚本
+
+**数据来源**
+- [HKEAA Mathematics 课纲](https://www.hkeaa.edu.hk/DocLibrary/HKDSE/Subject_Information/math/2024hkdse-e-math.pdf)
+- [HKEAA ICT 课纲](https://www.hkeaa.edu.hk/DocLibrary/HKDSE/Subject_Information/ict/2024hkdse-e-ict.pdf)
+- [教育局中國語文課程指引](https://www.edb.gov.hk/attachment/tc/curriculum-development/kla/chi-edu/CHI_LANG_CAGuide_2021.pdf)
+
+---
+
 ## 2026-02-03 — Phase 6.5 完成: E2E 测试 + Phase 6 全量验收
 
 完成 Phase 6 最后一步，编写全链路 E2E 测试，验证 BLOCK 事件、Patch 机制和错误处理。
