@@ -1,0 +1,308 @@
+{
+  "test_time": "2026-02-03T16:30:13.090804",
+  "config": {
+    "base_url": "https://api.insightai.hk",
+    "api_prefix": "/api",
+    "teacher_id": "2fe869fb-4a2d-4aa1-a173-c263235dc62b",
+    "user_id": 3,
+    "use_mock_data": false
+  },
+  "tests": {
+    "list_classes": {
+      "status": "success",
+      "data": {
+        "code": 200,
+        "message": "获取成功",
+        "data": [
+          {
+            "id": 1,
+            "uid": "d7aa27aa-cfc3-4497-839e-cdde75e99989",
+            "name": "高一数学班",
+            "subject": "数学",
+            "grade": "高一",
+            "description": "高中数学基础课程，涵盖函数、方程、不等式等核心概念，为后续学习打下坚实基础。",
+            "teacherId": 3,
+            "schoolId": null,
+            "semesterLabel": null,
+            "semesterStartDate": null,
+            "semesterEndDate": null,
+            "studentCount": 5,
+            "assignmentCount": 0,
+            "createdAt": "2025-12-22T12:57:34",
+            "updatedAt": "2025-12-22T12:57:34"
+          },
+          {
+            "id": 2,
+            "uid": "1e4fd110-0d58-4daa-a048-ee691fc7bef4",
+            "name": "高一英语班",
+            "subject": "英语",
+            "grade": "高一",
+            "description": "高中英语综合课程，注重听说读写四项技能培养，提升学生英语综合运用能力。",
+            "teacherId": 3,
+            "schoolId": null,
+            "semesterLabel": null,
+            "semesterStartDate": null,
+            "semesterEndDate": null,
+            "studentCount": 5,
+            "assignmentCount": 0,
+            "createdAt": "2025-12-22T12:57:34",
+            "updatedAt": "2025-12-22T12:57:34"
+          },
+          {
+            "id": 5,
+            "uid": "b8765929-ff20-4a17-9a44-f861afb1ab71",
+            "name": "高三语文班",
+            "subject": "语文",
+            "grade": "高三",
+            "description": "高中语文综合提升课程，强化阅读理解、写作表达，为高考做好充分准备。",
+            "teacherId": 3,
+            "schoolId": null,
+            "semesterLabel": null,
+            "semesterStartDate": null,
+            "semesterEndDate": null,
+            "studentCount": 3,
+            "assignmentCount": 0,
+            "createdAt": "2025-12-22T12:57:34",
+            "updatedAt": "2025-12-31T13:12:10"
+          },
+          {
+            "id": 31,
+            "uid": "b8b3689a-440f-4059-949c-b2255c30d1d4",
+            "name": "123",
+            "subject": "physics",
+            "grade": "P4",
+            "description": null,
+            "teacherId": 3,
+            "schoolId": null,
+            "semesterLabel": "Spring2027",
+            "semesterStartDate": null,
+            "semesterEndDate": null,
+            "studentCount": 1,
+            "assignmentCount": 0,
+            "createdAt": "2026-01-15T12:26:23",
+            "updatedAt": "2026-02-01T14:27:48"
+          },
+          {
+            "id": 38,
+            "uid": "abfbe9b3-ac81-466e-917a-e86c140a42c4",
+            "name": "456",
+            "subject": "chinese",
+            "grade": "P1",
+            "description": "test",
+            "teacherId": 3,
+            "schoolId": null,
+            "semesterLabel": "Spring2026",
+            "semesterStartDate": "2026-01-22",
+            "semesterEndDate": "2026-06-25",
+            "studentCount": 0,
+            "assignmentCount": 0,
+            "createdAt": "2026-01-23T07:47:16",
+            "updatedAt": "2026-01-23T07:47:16"
+          }
+        ],
+        "timestamp": "2026-02-03T08:30:16Z"
+      }
+    },
+    "class_detail": {
+      "status": "success",
+      "data": {
+        "code": 200,
+        "message": "获取成功",
+        "data": {
+          "id": 1,
+          "uid": "d7aa27aa-cfc3-4497-839e-cdde75e99989",
+          "name": "高一数学班",
+          "subject": "数学",
+          "grade": "高一",
+          "description": "高中数学基础课程，涵盖函数、方程、不等式等核心概念，为后续学习打下坚实基础。",
+          "teacherId": 3,
+          "schoolId": null,
+          "semesterLabel": null,
+          "semesterStartDate": null,
+          "semesterEndDate": null,
+          "studentCount": 5,
+          "assignmentCount": 0,
+          "createdAt": "2025-12-22T12:57:34",
+          "updatedAt": "2025-12-22T12:57:34"
+        },
+        "timestamp": "2026-02-03T08:30:16Z"
+      }
+    },
+    "list_assignments": {
+      "status": "success",
+      "data": {
+        "code": 200,
+        "message": "获取成功",
+        "data": {
+          "data": [
+            {
+              "id": null,
+              "assignmentId": "assign-b72bfd1f-60c1-46ae-a08c-21ec87ce11f9",
+              "title": "未命名",
+              "due_date": "2026-02-03T23:59:00",
+              "submission_count": null,
+              "total_students": null,
+              "average_score": null,
+              "total_points": null,
+              "status": "DRAFT",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-b32b4fec-2f1c-4bb1-b8d9-c7a754c3d2f7",
+              "title": "测试一",
+              "due_date": "2026-01-30T15:59:00",
+              "submission_count": 0,
+              "total_students": 5,
+              "average_score": null,
+              "total_points": null,
+              "status": "GRADED",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-bc0b6ed1-5f76-48b6-b7d4-e6078390f8d6",
+              "title": "Assignment Title",
+              "due_date": "2026-01-20T23:59:00",
+              "submission_count": null,
+              "total_students": null,
+              "average_score": null,
+              "total_points": null,
+              "status": "DRAFT",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-8cbcb9db-fa14-40df-8e42-8a2139e4ad9f",
+              "title": "Assignment Title",
+              "due_date": "2026-01-20T23:59:00",
+              "submission_count": null,
+              "total_students": null,
+              "average_score": null,
+              "total_points": null,
+              "status": "DRAFT",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-7c1f109e-1bd1-4a71-8908-9524e2f42e39",
+              "title": "作業標題",
+              "due_date": "2026-01-19T23:59:00",
+              "submission_count": 0,
+              "total_students": 5,
+              "average_score": null,
+              "total_points": null,
+              "status": "GRADED",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-e73adff8-8866-4da5-bfba-177a85ed3946",
+              "title": "作業標題",
+              "due_date": "2026-01-18T23:59:00",
+              "submission_count": null,
+              "total_students": null,
+              "average_score": null,
+              "total_points": null,
+              "status": "DRAFT",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-5de68e0c-8a98-48d4-b25f-b4901cedcceb",
+              "title": "语文测验",
+              "due_date": "2026-01-17T15:59:00",
+              "submission_count": 0,
+              "total_students": 5,
+              "average_score": null,
+              "total_points": null,
+              "status": "GRADED",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-35a85133-3c52-4316-8ca3-75bb7b15703e",
+              "title": "测试作业",
+              "due_date": "2026-01-16T23:00:00",
+              "submission_count": 2,
+              "total_students": 5,
+              "average_score": null,
+              "total_points": null,
+              "status": "GRADED",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-e9dd8663-c61e-4698-9517-27dbe5c30415",
+              "title": "作业标题",
+              "due_date": "2026-01-14T23:59:00",
+              "submission_count": 0,
+              "total_students": 5,
+              "average_score": null,
+              "total_points": null,
+              "status": "GRADED",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            },
+            {
+              "id": null,
+              "assignmentId": "assign-13465824-6826-4a9d-820a-946561c63246",
+              "title": "作业标题",
+              "due_date": "2026-01-12T23:59:00",
+              "submission_count": 0,
+              "total_students": 5,
+              "average_score": null,
+              "total_points": null,
+              "status": "GRADED",
+              "assignmentType": null,
+              "teacherId": null,
+              "teacherName": null,
+              "canEdit": null
+            }
+          ],
+          "pagination": {
+            "page": 1,
+            "limit": 10,
+            "total": 49
+          }
+        },
+        "timestamp": "2026-02-03T08:30:16Z"
+      }
+    },
+    "assignment_submissions": {
+      "status": "success",
+      "data": {
+        "code": 200,
+        "message": "获取成功",
+        "data": [],
+        "timestamp": "2026-02-03T08:30:17Z"
+      }
+    }
+  }
+}
