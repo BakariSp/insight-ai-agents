@@ -1,0 +1,135 @@
+{
+  "id": "DSE-ENG-Writing-Argumentative",
+  "name": "DSE English Writing - Argumentative Essay",
+  "subject": "English",
+  "taskType": "essay",
+  "level": "DSE",
+  "version": "2024",
+  "totalMarks": 21,
+  "instructions": "This rubric is used to assess argumentative essays in the Hong Kong Diploma of Secondary Education (HKDSE) English Language examination. Evaluate across three dimensions: Content, Organization, and Language.",
+  "criteria": [
+    {
+      "dimension": "content",
+      "maxMarks": 7,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [6, 7],
+          "descriptor": "Fully addresses the task with well-developed, relevant ideas. Arguments are compelling and well-supported with appropriate evidence and examples.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [5, 5],
+          "descriptor": "Addresses the task with mostly relevant ideas. Arguments are generally well-developed with adequate support.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [3, 4],
+          "descriptor": "Partially addresses the task with some relevant ideas. Arguments may lack full development or supporting evidence.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [2, 2],
+          "descriptor": "Limited response to the task. Ideas may be off-topic or insufficiently developed.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 1],
+          "descriptor": "Fails to address the task. Content is irrelevant or severely limited.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "organization",
+      "maxMarks": 7,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [6, 7],
+          "descriptor": "Coherent and well-organized with clear paragraphing. Logical progression of ideas with effective use of cohesive devices.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [5, 5],
+          "descriptor": "Generally organized with adequate paragraphing. Good use of cohesive devices with minor lapses.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [3, 4],
+          "descriptor": "Some organization evident. Paragraphing may be inconsistent. Limited range of cohesive devices.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [2, 2],
+          "descriptor": "Limited organization. Weak paragraphing with minimal use of cohesive devices.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 1],
+          "descriptor": "No clear organization. Absence of paragraphing and cohesion.",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "dimension": "language",
+      "maxMarks": 7,
+      "weight": 1.0,
+      "levels": [
+        {
+          "level": 5,
+          "marksRange": [6, 7],
+          "descriptor": "Wide range of vocabulary and grammatical structures with minimal errors. Precise and effective word choice. Demonstrates sophistication in language use.",
+          "examples": []
+        },
+        {
+          "level": 4,
+          "marksRange": [5, 5],
+          "descriptor": "Good range of vocabulary and structures with occasional errors that do not impede communication.",
+          "examples": []
+        },
+        {
+          "level": 3,
+          "marksRange": [3, 4],
+          "descriptor": "Adequate vocabulary and structures with noticeable errors. Meaning is generally clear despite errors.",
+          "examples": []
+        },
+        {
+          "level": 2,
+          "marksRange": [2, 2],
+          "descriptor": "Limited vocabulary and structures with frequent errors that sometimes impede communication.",
+          "examples": []
+        },
+        {
+          "level": 1,
+          "marksRange": [0, 1],
+          "descriptor": "Very limited language that severely impedes communication. Errors are pervasive.",
+          "examples": []
+        }
+      ]
+    }
+  ],
+  "sampleAnswers": [],
+  "commonErrors": [
+    "Weak thesis statement that does not clearly state the argument",
+    "Lack of topic sentences in body paragraphs",
+    "Insufficient supporting evidence or examples",
+    "Abrupt transitions between paragraphs",
+    "Subject-verb agreement errors",
+    "Run-on sentences and comma splices",
+    "Informal language or contractions in formal writing",
+    "Repetitive vocabulary",
+    "Weak or missing conclusion"
+  ]
+}

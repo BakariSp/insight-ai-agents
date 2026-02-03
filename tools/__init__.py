@@ -23,6 +23,7 @@ from tools.assessment_tools import (
     get_student_error_patterns,
     calculate_class_mastery,
 )
+from tools.rubric_tools import get_rubric, list_available_rubrics
 
 mcp = FastMCP("insight-ai-tools")
 
@@ -37,6 +38,9 @@ mcp.tool()(compare_performance)
 mcp.tool()(analyze_student_weakness)
 mcp.tool()(get_student_error_patterns)
 mcp.tool()(calculate_class_mastery)
+# Phase 7: Rubric tools
+mcp.tool()(get_rubric)
+mcp.tool()(list_available_rubrics)
 
 # In-process tool registry: name → callable
 TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
@@ -50,6 +54,9 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     "analyze_student_weakness": analyze_student_weakness,
     "get_student_error_patterns": get_student_error_patterns,
     "calculate_class_mastery": calculate_class_mastery,
+    # Phase 7: Rubric tools
+    "get_rubric": get_rubric,
+    "list_available_rubrics": list_available_rubrics,
 }
 
 
