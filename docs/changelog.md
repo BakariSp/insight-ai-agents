@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-02-04 — 文档更新: Phase 6 前端集成规范完善
+
+更新 `docs/integration/frontend-integration.md`，补充 Phase 6 (SSE Block 事件流 + Patch 机制) 的完整 API 契约。
+
+**版本升级**
+- 文档版本从 0.5.1 → 0.6.0
+- 项目版本标识从 Phase 5 → Phase 6 完成
+
+**新增端点**
+- `/api/page/patch` (POST, SSE): Patch 机制增量修改端点
+
+**新增 SSE 事件**
+- `BLOCK_START`: AI 内容块开始生成
+- `SLOT_DELTA`: 流式内容增量（打字机效果）
+- `BLOCK_COMPLETE`: AI 内容块完成
+- `DATA_ERROR`: 数据获取错误（Phase 4.5）
+
+**新增数据模型**
+- `PatchPlan`: scope (patch_layout/patch_compose/full_rebuild) + instructions + affectedBlockIds
+- `PatchInstruction`: type (update_props/reorder/add_block/remove_block/recompose) + targetBlockId + changes
+- `PagePatchRequest`: blueprint + page + patchPlan + dataContext + computeResults
+- `ResolvedEntity`: entityType + entityId + displayName (Phase 4.5)
+
+**ConversationResponse 字段更新**
+- 新增 `mode`: "entry" | "followup"
+- 新增 `action`: "chat" | "build" | "clarify" | "refine" | "rebuild"
+- 新增 `chatKind`: "smalltalk" | "qa" | "page" | null
+- 新增 `patchPlan`: PatchPlan | null (refine 时可能有值)
+- 新增 `resolvedEntities`: ResolvedEntity[] | null
+- `legacyAction` 改为向下兼容字段
+
+**前端处理逻辑变更**
+- refine 分流：有 `patchPlan` → `/api/page/patch`，无则 → `/api/page/generate`
+- Patch 模式复用缓存数据 (dataContext, computeResults)，避免重新获取
+
+**TypeScript 类型补充**
+- SSEEvent 新增 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE/DATA_ERROR
+- ConversationResponse 完整结构化字段
+- PatchPlan, PatchInstruction, RefineScope, PatchType
+- ResolvedEntity
+
+---
+
 ## 2026-02-04 — Phase 7 测试完成: 测试基础设施 + Live 测试
 
 完成 Phase 7 全量测试，新增 live-test skill 和 Live 集成测试。

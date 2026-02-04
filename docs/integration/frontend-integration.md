@@ -13,7 +13,7 @@
 | **响应字段命名** | 所有 JSON 响应字段使用 **camelCase** |
 | **请求字段命名** | 同时接受 `camelCase` 和 `snake_case`（推荐 camelCase） |
 | **SSE 端点** | 返回 `text/event-stream`，其余端点返回 JSON |
-| **版本** | `0.5.0` (Phase 5 完成, Phase 6 进行中) |
+| **版本** | `0.6.0` (Phase 6 完成, Phase 7 进行中) |
 
 ---
 
@@ -23,7 +23,8 @@
 |------|------|------|------|
 | `/api/conversation` | POST | ✅ Phase 4 | **统一会话入口** — 意图分类 + 路由（聊天/构建/反问/追问） |
 | `/api/workflow/generate` | POST | ✅ 已实现 | 直调：用户提示词 → Blueprint（跳过意图分类） |
-| `/api/page/generate` | POST | ✅ 已实现 | 执行 Blueprint → SSE 流式页面 |
+| `/api/page/generate` | POST | ✅ Phase 3 | 执行 Blueprint → SSE 流式页面（逐 block 事件流） |
+| `/api/page/patch` | POST | ✅ Phase 6 | SSE 流式应用增量修改（Patch 机制，避免全页重建） |
 | `/api/health` | GET | ✅ 已实现 | 健康检查 |
 | `/models` | GET | ✅ 已实现 | 列出可用模型 |
 | `/skills` | GET | ✅ 已实现 | 列出可用技能/工具 |
@@ -244,6 +245,75 @@ Phase 0 兼容路由，已在 Phase 4 被 `/api/conversation` 统一入口替代
 
 ---
 
+### 6a. 应用增量修改 — `POST /api/page/patch` (SSE) ✅ Phase 6
+
+执行 PatchPlan，对已有页面进行增量修改。响应为 SSE 事件流。
+
+**Request:**
+
+```json
+{
+  "blueprint": { "..." : "当前 Blueprint" },
+  "page": { "..." : "当前页面 JSON（来自上次 COMPLETE 事件）" },
+  "patchPlan": {
+    "scope": "patch_compose",
+    "instructions": [
+      {
+        "type": "recompose",
+        "targetBlockId": "analysis_summary",
+        "changes": { "instruction": "缩短为 3 句话" }
+      }
+    ],
+    "affectedBlockIds": ["analysis_summary"]
+  },
+  "context": {
+    "teacherId": "t-001"
+  },
+  "dataContext": { "..." : "缓存的数据上下文（可选）" },
+  "computeResults": { "..." : "缓存的计算结果（可选）" }
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `blueprint` | object | **是** | 当前 Blueprint |
+| `page` | object | **是** | 当前页面结构（来自上次 COMPLETE 事件的 result.page） |
+| `patchPlan` | object | **是** | Patch 指令计划（从 `/api/conversation` refine 分支获得） |
+| `context` | object \| null | 否 | 运行时上下文 |
+| `dataContext` | object \| null | 否 | 缓存的数据上下文（可避免重新获取数据） |
+| `computeResults` | object \| null | 否 | 缓存的计算结果（可避免重新计算） |
+
+**PatchPlan 结构:**
+
+```typescript
+interface PatchPlan {
+  scope: "patch_layout" | "patch_compose" | "full_rebuild";
+  instructions: PatchInstruction[];
+  affectedBlockIds: string[];
+  composeInstruction?: string;
+}
+
+interface PatchInstruction {
+  type: "update_props" | "reorder" | "add_block" | "remove_block" | "recompose";
+  targetBlockId: string;
+  changes: Record<string, any>;
+}
+```
+
+**scope 含义:**
+
+| scope | 说明 | 是否调用 LLM | 适用场景 |
+|-------|------|--------------|---------|
+| `patch_layout` | 仅修改 UI 属性（颜色、标题、顺序） | 否 | "把图表改成蓝色"、"交换两个模块位置" |
+| `patch_compose` | 重新生成受影响的 AI 内容块 | 是（仅受影响块） | "缩短分析总结"、"换个措辞" |
+| `full_rebuild` | 结构性重建，不使用 patch | 是（完整重建） | "加一个语法分析板块"（应调用 `/api/page/generate`） |
+
+**Response:** SSE 事件流，格式与 `/api/page/generate` 相同，但：
+- `patch_layout` 只发送 COMPLETE 事件（无 LLM 调用）
+- `patch_compose` 只对 `affectedBlockIds` 发送 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 事件
+
+---
+
 ### 7. 统一会话 — `POST /api/conversation` ✅ Phase 4
 
 **统一入口**，处理所有用户交互：初始消息（闲聊/提问/构建请求/模糊请求）和追问消息（页面问答/微调/重建）。后端内部通过 RouterAgent 分类意图 + 置信度路由，前端只需根据 `action` 字段做渲染。
@@ -345,11 +415,28 @@ Phase 0 兼容路由，已在 Phase 4 被 `/api/conversation` 统一入口替代
   "conversationId": "conv-001"
 }
 
-// action: "refine" — 追问模式：页面微调
+// action: "refine" — 追问模式：页面微调（Patch 模式）
 {
   "action": "refine",
   "chatResponse": "好的，我已将图表颜色调整为蓝色系。",
+  "blueprint": { "...": "当前 Blueprint（未修改）" },
+  "patchPlan": {
+    "scope": "patch_layout",
+    "instructions": [
+      { "type": "update_props", "targetBlockId": "score_chart", "changes": { "color": "#3B82F6" } }
+    ],
+    "affectedBlockIds": ["score_chart"]
+  },
+  "clarifyOptions": null,
+  "conversationId": "conv-001"
+}
+
+// action: "refine" — 追问模式：页面微调（Full Rebuild 模式）
+{
+  "action": "refine",
+  "chatResponse": "好的，我已将分析总结重新生成。",
   "blueprint": { "...": "修改后的 Blueprint" },
+  "patchPlan": null,
   "clarifyOptions": null,
   "conversationId": "conv-001"
 }
@@ -366,29 +453,64 @@ Phase 0 兼容路由，已在 Phase 4 被 `/api/conversation` 统一入口替代
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `action` | string | 后端决定的操作类型，见下表 |
+| `mode` | string | `"entry"` (初始) 或 `"followup"` (追问) — Phase 4.5.3 新增 |
+| `action` | string | `"chat"` / `"build"` / `"clarify"` / `"refine"` / `"rebuild"` — Phase 4.5.3 新增 |
+| `chatKind` | string \| null | `"smalltalk"` / `"qa"` / `"page"` (仅 action=chat 时) — Phase 4.5.3 新增 |
+| `legacyAction` | string | 向下兼容字段 (`"chat_smalltalk"` / `"chat_qa"` / `"build_workflow"` 等) |
 | `chatResponse` | string \| null | 面向用户的回复 (Markdown) |
-| `blueprint` | object \| null | Blueprint（仅 build_workflow/refine/rebuild 时有值） |
-| `clarifyOptions` | object \| null | 交互式选项（仅 clarify 时有值） |
+| `blueprint` | object \| null | Blueprint（build/refine/rebuild 时有值） |
+| `patchPlan` | object \| null | Patch 指令（refine 时可能有值，Phase 6 新增） |
+| `clarifyOptions` | object \| null | 交互式选项（clarify 时有值） |
 | `conversationId` | string \| null | 会话 ID |
+| `resolvedEntities` | array \| null | 已解析的实体（班级/学生/作业，Phase 4.5 新增） |
 
 **前端处理逻辑:**
 
-| action | 模式 | 前端行为 |
-|--------|------|---------|
-| `chat_smalltalk` | 初始 | 显示 `chatResponse` |
-| `chat_qa` | 初始 | 显示 `chatResponse` |
-| `build_workflow` | 初始 | 拿 `blueprint` 调 `/api/page/generate`，可选先渲染 inputs UI |
-| `clarify` | 初始 | 渲染 `clarifyOptions` 为交互式 UI（单选/多选/自定义输入），用户选择后重新发送 |
-| `chat` | 追问 | 显示 `chatResponse`，页面不变 |
-| `refine` | 追问 | 自动用新 `blueprint` 调 `/api/page/generate`，重新渲染页面 |
-| `rebuild` | 追问 | 展示 `chatResponse` 说明变更，用户确认后调 `/api/page/generate` |
+| legacyAction | mode | action | chatKind | 前端行为 |
+|--------------|------|--------|----------|---------|
+| `chat_smalltalk` | entry | chat | smalltalk | 显示 `chatResponse` |
+| `chat_qa` | entry | chat | qa | 显示 `chatResponse` |
+| `build_workflow` | entry | build | — | 拿 `blueprint` 调 `/api/page/generate`，可选先渲染 inputs UI |
+| `clarify` | entry | clarify | — | 渲染 `clarifyOptions` 为交互式 UI，用户选择后重新发送 |
+| `chat` | followup | chat | page | 显示 `chatResponse`，页面不变 |
+| `refine` | followup | refine | — | **Phase 6**: 检查 `patchPlan`，有则调 `/api/page/patch`，无则调 `/api/page/generate` |
+| `rebuild` | followup | rebuild | — | 展示 `chatResponse` 说明变更，用户确认后调 `/api/page/generate` |
+
+**Phase 6 Refine 分流逻辑:**
+
+```typescript
+if (response.action === 'refine') {
+  if (response.patchPlan) {
+    // Patch 模式：增量修改
+    await fetch('/api/page/patch', {
+      method: 'POST',
+      body: JSON.stringify({
+        blueprint: currentBlueprint,
+        page: currentPage,
+        patchPlan: response.patchPlan,
+        context: { teacherId: 't-001' },
+        dataContext: cachedDataContext,  // 复用缓存数据
+        computeResults: cachedComputeResults
+      })
+    });
+  } else {
+    // Full Rebuild 模式：完整重建
+    await fetch('/api/page/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        blueprint: response.blueprint,
+        context: { teacherId: 't-001' }
+      })
+    });
+  }
+}
+```
 
 ---
 
-## SSE 协议 ✅ Phase 3
+## SSE 协议 ✅ Phase 3 + Phase 6
 
-`POST /api/page/generate` 返回 SSE 事件流。每个事件格式为:
+`POST /api/page/generate` 和 `POST /api/page/patch` 返回 SSE 事件流。每个事件格式为:
 
 ```
 data: {"type":"<EVENT_TYPE>", ...payload}
@@ -396,14 +518,18 @@ data: {"type":"<EVENT_TYPE>", ...payload}
 
 ### 事件类型
 
-| type | 含义 | 前端必须处理 |
-|------|------|-------------|
-| `PHASE` | 执行阶段通知 | 可选 — 显示进度提示 |
-| `TOOL_CALL` | 工具调用开始 | 可选 — 显示"正在计算..." |
-| `TOOL_RESULT` | 工具调用结果 | 可选 |
-| `MESSAGE` | 流式文本片段 | **是** — 累积拼接为完整文本 |
-| `COMPLETE` | 流结束，包含完整结果 | **是** — 解析 `result` 获取页面 |
-| `ERROR` | 错误 | **是** — 显示错误信息 |
+| type | 含义 | 前端必须处理 | Phase |
+|------|------|-------------|-------|
+| `PHASE` | 执行阶段通知 | 可选 — 显示进度提示 | 3 |
+| `TOOL_CALL` | 工具调用开始 | 可选 — 显示"正在计算..." | 3 |
+| `TOOL_RESULT` | 工具调用结果 | 可选 | 3 |
+| `MESSAGE` | 流式文本片段（已废弃） | 否 — Phase 6 改用 SLOT_DELTA | 3 |
+| `BLOCK_START` | AI 内容块开始生成 | **推荐** — 显示 loading 状态 | 6 |
+| `SLOT_DELTA` | 流式内容增量（打字机效果） | **推荐** — 逐字符渲染 AI 内容 | 6 |
+| `BLOCK_COMPLETE` | AI 内容块完成 | **推荐** — 结束 loading 状态 | 6 |
+| `COMPLETE` | 流结束，包含完整结果 | **是** — 解析 `result` 获取页面 | 3 |
+| `ERROR` | 错误 | **是** — 显示错误信息 | 3 |
+| `DATA_ERROR` | 数据获取错误（如实体不存在） | **是** — 显示友好提示 | 4.5 |
 
 ### 事件示例
 
@@ -422,7 +548,7 @@ data: {"type":"<EVENT_TYPE>", ...payload}
 { "type": "TOOL_RESULT", "tool": "calculate_stats", "status": "success" }
 ```
 
-**MESSAGE — 流式文本 (打字机效果)**
+**MESSAGE — 流式文本 (打字机效果)** ⚠️ 已废弃
 
 ```json
 { "type": "MESSAGE", "content": "Based on my " }
@@ -430,7 +556,31 @@ data: {"type":"<EVENT_TYPE>", ...payload}
 { "type": "MESSAGE", "content": "Form 1A..." }
 ```
 
-前端将 `content` 依次拼接，实现打字机效果。
+> **Phase 6 变更**: MESSAGE 事件已被 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE 替代。
+
+**BLOCK_START — AI 内容块开始** ✅ Phase 6
+
+```json
+{ "type": "BLOCK_START", "blockId": "analysis_summary", "componentType": "markdown" }
+```
+
+通知前端某个 AI 内容块开始生成，可显示 loading 状态。
+
+**SLOT_DELTA — 流式内容增量** ✅ Phase 6
+
+```json
+{ "type": "SLOT_DELTA", "blockId": "analysis_summary", "slotKey": "content", "deltaText": "## 分析总结\n\n### 关键发现\n- **平均分**: 74.2 分..." }
+```
+
+前端将 `deltaText` 依次拼接到对应 block 的 slot，实现打字机效果。
+
+**BLOCK_COMPLETE — AI 内容块完成** ✅ Phase 6
+
+```json
+{ "type": "BLOCK_COMPLETE", "blockId": "analysis_summary" }
+```
+
+通知前端某个 AI 内容块生成完成，可结束 loading 状态。
 
 **COMPLETE — 最终结果**
 
@@ -495,9 +645,17 @@ while (true) {
     const event = JSON.parse(line.slice(6));
 
     switch (event.type) {
-      case 'MESSAGE':
-        // 拼接文本，实现打字机效果
-        appendText(event.content);
+      case 'BLOCK_START':
+        // Phase 6: 显示 block loading 状态
+        showBlockLoading(event.blockId, event.componentType);
+        break;
+      case 'SLOT_DELTA':
+        // Phase 6: 逐字符拼接 AI 内容
+        appendToBlock(event.blockId, event.slotKey, event.deltaText);
+        break;
+      case 'BLOCK_COMPLETE':
+        // Phase 6: 结束 block loading 状态
+        hideBlockLoading(event.blockId);
         break;
       case 'COMPLETE':
         // 解析页面结构，渲染 blocks
@@ -505,6 +663,10 @@ while (true) {
         break;
       case 'ERROR':
         showError(event.message);
+        break;
+      case 'DATA_ERROR':
+        // Phase 4.5: 显示实体不存在等数据错误
+        showDataError(event.entity, event.message, event.suggestions);
         break;
       case 'PHASE':
         updateProgress(event.phase, event.message);
@@ -884,6 +1046,18 @@ interface PageGenerateRequest {
   teacherId?: string;
 }
 
+// ── POST /api/page/patch (Phase 6) ──
+
+interface PagePatchRequest {
+  blueprint: Blueprint;
+  page: Record<string, any>;               // 当前页面 JSON
+  patchPlan: PatchPlan;
+  teacherId?: string;
+  context?: Record<string, any> | null;
+  dataContext?: Record<string, any> | null;   // 缓存的数据上下文
+  computeResults?: Record<string, any> | null; // 缓存的计算结果
+}
+
 // ── POST /api/conversation (Phase 4) ──
 
 interface ConversationRequest {
@@ -918,11 +1092,47 @@ interface ClarifyOptions {
 }
 
 interface ConversationResponse {
-  action: ConversationAction;
+  // Phase 4.5.3: 结构化 action 字段
+  mode: 'entry' | 'followup';
+  action: 'chat' | 'build' | 'clarify' | 'refine' | 'rebuild';
+  chatKind: 'smalltalk' | 'qa' | 'page' | null;
+
+  // 向下兼容字段
+  legacyAction: ConversationAction;
+
+  // 核心字段
   chatResponse: string | null;
-  blueprint: Blueprint | null;           // 仅 build_workflow/refine/rebuild 时有值
-  clarifyOptions: ClarifyOptions | null; // 仅 clarify 时有值
+  blueprint: Blueprint | null;           // build/refine/rebuild 时有值
+  patchPlan: PatchPlan | null;           // Phase 6: refine 时可能有值
+  clarifyOptions: ClarifyOptions | null; // clarify 时有值
   conversationId: string | null;
+  resolvedEntities: ResolvedEntity[] | null; // Phase 4.5: 已解析实体
+}
+
+// Phase 4.5: 实体解析
+interface ResolvedEntity {
+  entityType: 'class' | 'student' | 'assignment';
+  entityId: string;
+  displayName: string;
+  confidence: number;
+  matchType: string;
+}
+
+// Phase 6: Patch 机制
+type PatchType = 'update_props' | 'reorder' | 'add_block' | 'remove_block' | 'recompose';
+type RefineScope = 'patch_layout' | 'patch_compose' | 'full_rebuild';
+
+interface PatchInstruction {
+  type: PatchType;
+  targetBlockId: string;
+  changes: Record<string, any>;
+}
+
+interface PatchPlan {
+  scope: RefineScope;
+  instructions: PatchInstruction[];
+  affectedBlockIds: string[];
+  composeInstruction?: string;
 }
 ```
 
@@ -933,9 +1143,13 @@ type SSEEvent =
   | { type: 'PHASE'; phase: 'data' | 'compute' | 'compose'; message: string }
   | { type: 'TOOL_CALL'; tool: string; args: Record<string, any> }
   | { type: 'TOOL_RESULT'; tool: string; status: 'success' | 'error' }
-  | { type: 'MESSAGE'; content: string }
+  | { type: 'MESSAGE'; content: string }  // 已废弃，Phase 6 改用 BLOCK_START/SLOT_DELTA/BLOCK_COMPLETE
+  | { type: 'BLOCK_START'; blockId: string; componentType: string }  // Phase 6
+  | { type: 'SLOT_DELTA'; blockId: string; slotKey: string; deltaText: string }  // Phase 6
+  | { type: 'BLOCK_COMPLETE'; blockId: string }  // Phase 6
   | { type: 'COMPLETE'; message: string; progress: 100; result: PageResult }
-  | { type: 'ERROR'; message: string; code: string };
+  | { type: 'ERROR'; message: string; code: string }
+  | { type: 'DATA_ERROR'; entity: string; message: string; suggestions: string[] };  // Phase 4.5
 
 interface PageResult {
   response: string;
@@ -1471,3 +1685,4 @@ data: {"type":"COMPLETE","message":"completed","progress":100,"result":{...}}
 |------|------|----------|
 | 0.5.0 | 2026-02-02 | 初版：Phase 4 API 设计 |
 | 0.5.1 | 2026-02-03 | 新增完整 E2E 示例，明确前端对接要点 |
+| 0.6.0 | 2026-02-04 | Phase 6 完成：SSE Block 事件流、Per-Block AI 生成、Patch 机制 |
