@@ -8,22 +8,26 @@
 
 **抽象层级**: Middle Level（逻辑流程 + 数据结构设计，不含具体 Java 代码）
 
-**修订日期**: 2026-02-04
+**修订日期**: 2026-02-04 (v2.0 - 整合 OSS 存储、API 分离、权限管理)
 
 ---
 
 ## 核心职责
 
-Java 后端在本方案中承担三个核心职责：
+Java 后端在本方案中承担五个核心职责：
 
 1. **App 管理**: 管理应用身份（永久不变的 app_id），支持 Blueprint 版本迭代
-2. **权限管理**: 统一鉴权，验证 teacherId 合法性，检查班级访问权限
+2. **权限管理**: 统一鉴权，验证 teacherId 合法性，检查班级访问权限，支持分享
 3. **历史记录查询**: 支持查询连续的执行历史（跨 Blueprint 版本）
+4. **OSS 存储管理**: 大数据字段存储到阿里云 OSS，优化性能与成本
+5. **版本生命周期**: 支持创建版本、激活版本、执行版本的完整分离
 
 **关键原则**:
 - **App 身份不变**: 修改 Blueprint 不会改变 App ID，历史连续
 - **版本控制**: Blueprint 可以修改，每次修改生成新版本（v1, v2, v3...）
 - **连续历史**: 查询执行历史时，跨版本展示（用户体验连续）
+- **分离设计与执行**: 创建 Blueprint 版本 ≠ 执行，用户可以先设计后执行
+- **混合存储**: 小字段存 MySQL，大字段存 OSS（按需加载）
 
 ---
 
@@ -145,11 +149,13 @@ FOREIGN KEY (app_id)
 
 ---
 
-### 3. ai_page_executions 表（执行历史）
+### 3. ai_page_executions 表（执行历史）⭐ 重要优化
 
 **用途**: 存储 Blueprint 的每次执行结果
 
-#### 字段说明（逻辑层级）
+**v2.0 变更**: 大字段迁移到 OSS，MySQL 只存 URL + 轻量级预览
+
+#### 字段说明（优化版 - 整合 OSS 存储）
 
 | 字段名 | 类型 | 约束 | 说明 | 示例值 |
 |--------|------|------|------|--------|
@@ -158,18 +164,32 @@ FOREIGN KEY (app_id)
 | `app_id` | VARCHAR(100) | NOT NULL, INDEX | 关联的 App ID（冗余字段，便于查询） | "app-uuid-1234" |
 | `blueprint_id` | VARCHAR(100) | NOT NULL, INDEX | 本次执行使用的 Blueprint 版本 | "bp-uuid-7777" |
 | `teacher_id` | VARCHAR(50) | NOT NULL, INDEX | 执行者 ID | "teacher-001" |
-| `page_content` | JSON | NOT NULL | 本次执行的 Page 完整 JSON（含真实数据） | `{layout: {...}, components: [{data: [...]}]}` |
-| `data_context` | JSON | NULL | 缓存的原始数据（用于 Patch 更新） | `{grades: [...], classInfo: {...}}` |
-| `compute_results` | JSON | NULL | 缓存的计算结果（用于 Patch 更新） | `{average: 75.5, distribution: [...]}` |
+| ⭐ `page_content_url` | VARCHAR(500) | NOT NULL | **Page JSON 的 OSS URL** | "https://oss.../exec-9999-page.json" |
+| ⭐ `data_context_url` | VARCHAR(500) | NULL | **原始数据的 OSS URL（用于 Patch）** | "https://oss.../exec-9999-data.json" |
+| ⭐ `compute_results_url` | VARCHAR(500) | NULL | **计算结果的 OSS URL（用于 Patch）** | "https://oss.../exec-9999-compute.json" |
+| ⭐ `page_thumbnail` | TEXT | NULL | **Page 预览摘要（< 1KB）** | `{"title": "...", "summary": "..."}` |
 | `class_ids` | JSON | NULL | 本次执行关联的班级（可能与 App 不同） | `["1A"]` |
 | `tags` | JSON | NULL | 本次执行的标签 | `["2月", "期中"]` |
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP, INDEX | 执行时间 | "2026-02-04 10:30:00" |
+
+#### v2.0 关键变更
+
+| 变更类型 | 说明 | 原因 |
+|----------|------|------|
+| ✅ **删除字段** | `page_content`, `data_context`, `compute_results` | 大字段（50KB-2MB）影响查询性能 |
+| ✅ **新增字段** | `page_content_url`, `data_context_url`, `compute_results_url` | OSS 存储，按需下载 |
+| ✅ **新增字段** | `page_thumbnail` | 列表展示优化（无需下载完整 Page） |
+| 📊 **性能提升** | 列表查询速度提升 10x+ | 只查询 MySQL 小字段 |
+| 💰 **成本降低** | 存储成本降低 80%+ | OSS 比 MySQL 便宜 |
 
 #### 关键说明
 
 - **app_id**: 冗余字段，便于查询"某 App 的所有执行历史"（无需 JOIN Blueprint 表）
 - **blueprint_id**: 记录本次执行用的是哪个版本
 - **class_ids 可变**: 某次执行可能只针对部分班级
+- **page_thumbnail**: 轻量级预览（title + 前 500 字符摘要），用于列表展示
+- **OSS URL**: 完整数据存储在 OSS，按需下载（只有用户点击"查看"时才下载）
+- **签名 URL**: Java 后端动态生成签名 URL（有效期 1 小时），前端直接访问 OSS
 
 #### 索引设计
 
@@ -194,21 +214,163 @@ FOREIGN KEY (blueprint_id)
 
 ---
 
-### 4. ai_app_shares 表（分享）(可选)
+### 4. ai_app_shares 表（分享）⭐ 权限管理 (P1)
 
-**用途**: 支持 App 或执行记录的分享
+**用途**: 支持 App 的分享与权限管理
 
-#### 字段说明
+#### 字段说明（v2.0 扩展）
 
-| 字段名 | 类型 | 约束 | 说明 |
+| 字段名 | 类型 | 约束 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 分享记录 ID | 12345 |
+| `share_id` | VARCHAR(100) | UNIQUE, NOT NULL | 分享唯一 ID | "share-uuid-9999" |
+| `resource_type` | VARCHAR(20) | NOT NULL | 'app' 或 'execution' | "app" |
+| `resource_id` | VARCHAR(100) | NOT NULL, INDEX | app_id 或 execution_id | "app-uuid-1234" |
+| `shared_by_teacher_id` | VARCHAR(50) | NOT NULL | 分享者 ID | "teacher-001" |
+| `shared_to_teacher_id` | VARCHAR(50) | NULL, INDEX | 接收者 ID（NULL = 公开分享） | "teacher-002" |
+| `permission` | VARCHAR(20) | NOT NULL | 'view', 'execute', 'edit' | "view" |
+| `expires_at` | TIMESTAMP | NULL | 过期时间（NULL = 永久） | "2026-03-06 10:00:00" |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 分享时间 | "2026-02-04 10:00:00" |
+
+#### 权限层级
+
+| 权限 | 说明 | 可执行操作 |
+|------|------|------------|
+| **owner** | 拥有者 | 全部操作（创建、编辑、删除、执行、分享） |
+| **edit** | 编辑权限 | 查看、编辑 Blueprint、执行、创建新版本 |
+| **execute** | 执行权限 | 查看、执行（不能编辑 Blueprint） |
+| **view** | 只读权限 | 只能查看 App 和执行历史 |
+
+#### 索引设计
+
+| 索引名 | 字段 | 类型 | 目的 |
 |--------|------|------|------|
-| `id` | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 分享记录 ID |
-| `resource_type` | VARCHAR(20) | NOT NULL | 'app' 或 'execution' |
-| `resource_id` | VARCHAR(100) | NOT NULL | app_id 或 execution_id |
-| `shared_by_teacher_id` | VARCHAR(50) | NOT NULL | 分享者 ID |
-| `shared_to_teacher_id` | VARCHAR(50) | NOT NULL, INDEX | 接收者 ID |
-| `permission` | VARCHAR(20) | DEFAULT 'view' | 'view', 'comment', 'edit' |
-| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 分享时间 |
+| `PRIMARY` | `id` | PRIMARY KEY | 主键 |
+| `idx_share_id` | `share_id` | UNIQUE INDEX | 唯一标识分享记录 |
+| `idx_resource` | `resource_type`, `resource_id` | COMPOSITE INDEX | 查询某资源的所有分享 |
+| `idx_shared_to` | `shared_to_teacher_id` | INDEX | 查询"分享给我的" |
+
+---
+
+## OSS 存储规范（v2.0 新增）
+
+### 目录结构
+
+```
+insight-ai-executions/           # OSS Bucket 名称
+├── blueprints/
+│   ├── bp-uuid-7777.json       # 超大 Blueprint（罕见，> 50KB）
+│   └── bp-uuid-8888.json
+├── executions/
+│   ├── exec-uuid-1111/
+│   │   ├── page.json           # Page 完整 JSON（5-500KB）
+│   │   ├── data.json           # 原始数据（100KB-2MB）
+│   │   └── compute.json        # 计算结果（20-100KB）
+│   └── exec-uuid-2222/
+│       ├── page.json
+│       ├── data.json
+│       └── compute.json
+└── archives/                    # 归档（可选，3 个月后迁移）
+    └── 2026-01/
+        └── exec-uuid-0001/
+```
+
+### URL 格式
+
+```
+Blueprint: https://oss.insightai.hk/blueprints/{blueprint_id}.json
+Page:      https://oss.insightai.hk/executions/{execution_id}/page.json
+Data:      https://oss.insightai.hk/executions/{execution_id}/data.json
+Compute:   https://oss.insightai.hk/executions/{execution_id}/compute.json
+```
+
+### 访问控制
+
+| 资源 | 访问权限 | 鉴权方式 |
+|------|----------|----------|
+| Blueprint | Private | 签名 URL（1 小时有效期） |
+| Page | Private | 签名 URL（1 小时有效期） |
+| Data/Compute | Private | 签名 URL（1 小时有效期） |
+
+**实现方式**:
+- Java 后端使用 OSS SDK 生成签名 URL
+- 前端从 Java 获取签名 URL 后直接访问 OSS（减少后端带宽）
+- 每次请求都重新生成签名 URL（防止泄露）
+
+### 存储逻辑
+
+#### 创建 Execution 时
+
+```java
+// 伪代码
+public String createExecution(ExecutionRequest request) {
+    String executionId = generateUUID();
+
+    // 1. 上传 Page 到 OSS
+    String pageJson = toJson(request.getPageContent());
+    String pageUrl = ossClient.upload(
+        "executions/" + executionId + "/page.json",
+        pageJson
+    );
+
+    // 2. 上传 Data/Compute 到 OSS（可选）
+    String dataUrl = null;
+    if (request.getDataContext() != null) {
+        dataUrl = ossClient.upload(
+            "executions/" + executionId + "/data.json",
+            toJson(request.getDataContext())
+        );
+    }
+
+    // 3. 提取 thumbnail
+    String thumbnail = extractThumbnail(request.getPageContent());
+
+    // 4. 存储到 MySQL
+    executionRepository.save(new Execution(
+        executionId,
+        pageUrl,        // 存 URL
+        dataUrl,        // 存 URL
+        thumbnail       // 存轻量级预览
+    ));
+
+    return executionId;
+}
+```
+
+#### 查询 Execution 时
+
+```java
+// 伪代码
+public ExecutionDetail getExecution(String executionId, String teacherId) {
+    // 1. 查询 MySQL（快速）
+    Execution execution = executionRepository.findByIdWithPermissionCheck(executionId, teacherId);
+
+    // 2. 生成签名 URL（无需下载完整文件）
+    String signedPageUrl = ossClient.generateSignedUrl(
+        execution.getPageContentUrl(),
+        3600  // 1 小时有效期
+    );
+
+    return new ExecutionDetail(
+        execution.getExecutionId(),
+        signedPageUrl,  // 前端直接访问 OSS
+        execution.getPageThumbnail()
+    );
+}
+```
+
+### 成本优化
+
+| 场景 | MySQL 成本 | OSS 成本 | 节省 |
+|------|------------|----------|------|
+| 单次执行（500KB） | ¥0.005 | ¥0.0002 | 96% |
+| 1000 次执行/月 | ¥5.0 | ¥0.2 | 96% |
+| 10000 次执行/月 | ¥50.0 | ¥2.0 | 96% |
+
+**额外优势**:
+- 查询速度提升 10x+（只查 MySQL 小字段）
+- 支持 CDN 加速（全球访问）
+- 无大小限制（Page 可以任意大）
 
 ---
 
@@ -221,9 +383,11 @@ FOREIGN KEY (blueprint_id)
 
 ---
 
-### 1. 创建 App + Blueprint v1 + 首次执行
+### 1. 创建 App + Blueprint v1 + 首次执行（可选）
 
 **端点**: `POST /api/studio/teacher/{teacherId}/apps`
+
+**v2.0 变更**: 支持跳过首次执行（`skipInitialExecution`）
 
 **请求体**:
 ```json
@@ -240,11 +404,12 @@ FOREIGN KEY (blueprint_id)
     "components": [{ "id": "table-1", "data": [...] }]
   },
   "conversationId": "conv-uuid-5678",
-  "classIds": ["1A"],          // 可选
-  "taskContext": null,         // 可选
-  "dataContext": {...},        // 可选
-  "computeResults": {...},     // 可选
-  "tags": ["期中", "数学"]
+  "classIds": ["1A"],                // 可选
+  "taskContext": null,               // 可选
+  "dataContext": {...},              // 可选（需要首次执行时）
+  "computeResults": {...},           // 可选（需要首次执行时）
+  "tags": ["期中", "数学"],
+  "skipInitialExecution": false      // ⭐ v2.0 新增：是否跳过首次执行（默认 false）
 }
 ```
 
@@ -321,9 +486,11 @@ FOREIGN KEY (blueprint_id)
 
 ---
 
-### 2. 修改 Blueprint（生成新版本）
+### 2. 创建新 Blueprint 版本（不执行）⭐ v2.0 重要变更
 
 **端点**: `POST /api/studio/teacher/{teacherId}/apps/{appId}/blueprints`
+
+**v2.0 变更**: 创建版本 ≠ 执行（解耦），支持"先保存设计，稍后执行"
 
 **请求体**:
 ```json
@@ -333,13 +500,8 @@ FOREIGN KEY (blueprint_id)
     "layout": { "type": "grid", "columns": 4 },  // 修改：从 3 列改为 4 列
     "components": [...]  // 修改：增加了趋势图
   },
-  "pageContent": {
-    "layout": {...},
-    "components": [...]  // 使用新 Blueprint 的首次执行结果
-  },
   "changeSummary": "调整了布局，增加了趋势图",
-  "classIds": ["1A"],
-  "tags": ["2月"]
+  "activateImmediately": true  // ⭐ v2.0: 是否立即激活为当前版本（默认 true）
 }
 ```
 
@@ -369,16 +531,25 @@ FOREIGN KEY (blueprint_id)
    );
    ```
 
-3. **更新 App**:
+3. **更新 App（如果需要激活）**:
    ```
-   UPDATE ai_apps
-   SET current_blueprint_id = 'bp-uuid-8888',
-       current_version = 2,
-       updated_at = CURRENT_TIMESTAMP
-   WHERE app_id = 'app-uuid-1234';
+   IF activateImmediately == true:
+       UPDATE ai_apps
+       SET current_blueprint_id = 'bp-uuid-8888',
+           current_version = 2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE app_id = 'app-uuid-1234';
+   ELSE:
+       // 不更新，保持当前版本
    ```
 
-4. **创建首次执行记录（使用新版本）**:
+4. ⭐ **不再创建首次执行记录**:
+   ```
+   // v2.0 变更：创建版本时不再自动执行
+   // 用户需要单独调用 POST /apps/{appId}/executions
+   ```
+
+5. **返回结果**:
    ```
    生成 execution_id（如 "exec-uuid-2222"）
 
@@ -729,9 +900,155 @@ WHERE e.execution_id = 'exec-uuid-9999'
 
 ---
 
-## 鉴权流程详解
+### 10. 激活某个 Blueprint 版本（v2.0 新增）
 
-### JWT Token 验证
+**端点**: `POST /api/studio/teacher/{teacherId}/apps/{appId}/blueprints/{blueprintId}/activate`
+
+**用途**: 切换到指定版本（如回滚到旧版本）
+
+**请求体**: 无（空 Body）
+
+**业务逻辑**:
+```
+1. 鉴权验证（需要 edit 权限）
+2. 查询 Blueprint: WHERE blueprint_id = ? AND app_id = ?
+3. 如果不存在 → 返回 404
+4. 更新 App:
+   UPDATE ai_apps
+   SET current_blueprint_id = ?,
+       current_version = (SELECT version FROM ai_blueprints WHERE blueprint_id = ?),
+       updated_at = CURRENT_TIMESTAMP
+   WHERE app_id = ?
+5. 返回结果
+```
+
+**返回结果**:
+```json
+{
+  "code": 200,
+  "data": {
+    "appId": "app-uuid-1234",
+    "blueprintId": "bp-uuid-7777",
+    "version": 1,
+    "activatedAt": "2026-02-20T10:00:00Z"
+  }
+}
+```
+
+**关键点**: 激活 ≠ 执行，只是设置"下次执行时使用哪个版本"
+
+---
+
+### 11. 分享 App（v2.0 新增，P1）
+
+**端点**: `POST /api/studio/teacher/{teacherId}/apps/{appId}/shares`
+
+**请求体**:
+```json
+{
+  "sharedToTeacherId": "teacher-002",  // NULL = 公开分享
+  "permission": "view",                 // view, execute, edit
+  "expiresInDays": 30                   // NULL = 永久
+}
+```
+
+**业务逻辑**:
+```
+1. 鉴权: 检查是否是 owner
+2. 生成 share_id
+3. 计算过期时间:
+   IF expiresInDays != NULL:
+     expires_at = NOW() + expiresInDays * 24小时
+   ELSE:
+     expires_at = NULL
+4. 插入记录:
+   INSERT INTO ai_app_shares (
+     share_id, resource_type, resource_id,
+     shared_by_teacher_id, shared_to_teacher_id,
+     permission, expires_at
+   )
+5. 返回分享链接
+```
+
+**返回结果**:
+```json
+{
+  "code": 200,
+  "data": {
+    "shareId": "share-uuid-9999",
+    "shareUrl": "https://insightai.hk/share/share-uuid-9999",
+    "permission": "view",
+    "expiresAt": "2026-03-06T10:00:00Z"
+  }
+}
+```
+
+---
+
+### 12. 查询"分享给我的" Apps（v2.0 新增，P1）
+
+**端点**: `GET /api/studio/teacher/{teacherId}/shared-apps`
+
+**查询逻辑**:
+```sql
+SELECT
+  a.app_id,
+  a.app_name,
+  a.app_type,
+  s.permission,
+  s.shared_by_teacher_id,
+  s.expires_at,
+  s.created_at AS shared_at
+FROM ai_app_shares s
+JOIN ai_apps a ON s.resource_id = a.app_id
+WHERE s.shared_to_teacher_id = 'teacher-001'
+  AND s.resource_type = 'app'
+  AND (s.expires_at IS NULL OR s.expires_at > NOW())
+ORDER BY s.created_at DESC;
+```
+
+**返回结果**:
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {
+        "appId": "app-uuid-1234",
+        "appName": "1A班期中分析",
+        "appType": "analysis",
+        "permission": "view",
+        "sharedBy": {
+          "teacherId": "teacher-003",
+          "teacherName": "张老师"
+        },
+        "expiresAt": "2026-03-06T10:00:00Z",
+        "sharedAt": "2026-02-04T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 13. 撤销分享（v2.0 新增，P1）
+
+**端点**: `DELETE /api/studio/teacher/{teacherId}/apps/{appId}/shares/{shareId}`
+
+**业务逻辑**:
+```
+1. 鉴权: 检查是否是 owner
+2. 删除记录:
+   DELETE FROM ai_app_shares WHERE share_id = ?
+3. 返回结果
+```
+
+---
+
+## 鉴权流程详解（v2.0 扩展）
+
+### 1. JWT Token 验证
 
 **关键前提**: Java 已有完善的鉴权系统，Python 不需要关心细节
 
@@ -745,7 +1062,64 @@ WHERE e.execution_id = 'exec-uuid-9999'
 6. 对比路径参数: 确保路径中的 {teacherId} 与 Token 中的一致
 ```
 
-### 班级权限检查（仅当 classIds 非空时）
+### 2. 资源权限检查（v2.0 新增）
+
+**触发时机**: 所有 App 相关的 API 请求
+
+**检查逻辑**:
+```java
+public boolean checkPermission(String teacherId, String appId, String requiredPermission) {
+    // 1. 检查是否是拥有者
+    App app = appRepository.findByAppId(appId);
+    if (app.getTeacherId().equals(teacherId)) {
+        return true;  // 拥有者有全部权限
+    }
+
+    // 2. 检查分享权限
+    AppShare share = shareRepository.findByResourceIdAndSharedTo(appId, teacherId);
+    if (share == null) {
+        return false;  // 无权限
+    }
+
+    // 3. 检查过期时间
+    if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(Instant.now())) {
+        return false;  // 已过期
+    }
+
+    // 4. 检查权限级别
+    return hasRequiredPermission(share.getPermission(), requiredPermission);
+}
+
+private boolean hasRequiredPermission(String grantedPermission, String requiredPermission) {
+    // 权限层级: owner > edit > execute > view
+    Map<String, Integer> permissionLevel = Map.of(
+        "view", 1,
+        "execute", 2,
+        "edit", 3,
+        "owner", 4
+    );
+    return permissionLevel.get(grantedPermission) >= permissionLevel.get(requiredPermission);
+}
+```
+
+**各端点所需权限**:
+
+| 端点 | 所需权限 | 说明 |
+|------|----------|------|
+| `GET /apps` | owner | 查询我的 Apps |
+| `GET /apps/{appId}` | view | 查看 App 详情 |
+| `GET /apps/{appId}/executions` | view | 查看执行历史 |
+| `GET /executions/{executionId}` | view | 查看某次执行 |
+| `POST /apps/{appId}/blueprints` | edit | 创建新版本 |
+| `POST /apps/{appId}/blueprints/{blueprintId}/activate` | edit | 激活版本 |
+| `POST /apps/{appId}/executions` | execute | 执行 Blueprint |
+| `PATCH /executions/{executionId}` | execute | Patch 更新 |
+| `DELETE /apps/{appId}` | owner | 删除 App |
+| `POST /apps/{appId}/shares` | owner | 分享 App |
+
+---
+
+### 3. 班级权限检查（仅当 classIds 非空时）
 
 **场景 1: 成绩分析（有 classIds）**
 ```
@@ -775,28 +1149,41 @@ Java 内部逻辑:
 
 ---
 
-## 实施检查清单
+## 实施检查清单（v2.0 更新）
 
-### Phase 1: 基础功能
+### Phase 1: 基础功能（P0）
 - [ ] 创建 `ai_apps` 表
 - [ ] 创建 `ai_blueprints` 表
-- [ ] 创建 `ai_page_executions` 表
-- [ ] 实现 POST /apps（创建 App + Blueprint v1 + 首次执行）
+- [ ] 创建 `ai_page_executions` 表（**v2.0: 整合 OSS URL 字段**）
+- [ ] 实现 OSS 上传/下载工具类
+- [ ] 实现 POST /apps（支持 `skipInitialExecution`）
 - [ ] 实现 GET /apps（查询 App 列表）
-- [ ] 实现 GET /apps/{appId}/executions（查询执行历史）
-- [ ] 实现 GET /executions/{executionId}（获取执行详情）
+- [ ] 实现 GET /apps/{appId}/executions（查询执行历史，返回 thumbnail + URL）
+- [ ] 实现 GET /executions/{executionId}（返回签名 URL）
 - [ ] 单元测试 + 集成测试
 
-### Phase 2: 版本控制
-- [ ] 实现 POST /apps/{appId}/blueprints（修改 Blueprint，生成新版本）
-- [ ] 实现 POST /apps/{appId}/executions（重新执行，使用当前版本）
+### Phase 2: 版本分离（P0）⭐ 重要
+- [ ] 修改 POST /apps/{appId}/blueprints（**去掉自动执行，支持 `activateImmediately`**）
+- [ ] 新增 POST /apps/{appId}/blueprints/{blueprintId}/activate（激活版本）
+- [ ] 实现 POST /apps/{appId}/executions（独立的执行接口）
 - [ ] 实现 GET /apps/{appId}/blueprints（查询版本历史）
+- [ ] 单元测试 + 集成测试
 
-### Phase 3: 高级功能
+### Phase 3: 权限管理（P1）
 - [ ] 创建 `ai_app_shares` 表
-- [ ] 实现分享功能
-- [ ] 实现 PATCH /executions/{executionId}（Patch 更新）
+- [ ] 实现通用鉴权逻辑（`checkPermission`）
+- [ ] 集成到所有 API 端点
+- [ ] 实现 POST /apps/{appId}/shares（创建分享）
+- [ ] 实现 GET /shared-apps（查询"分享给我的"）
+- [ ] 实现 DELETE /shares/{shareId}（撤销分享）
+- [ ] 单元测试 + 集成测试
+
+### Phase 4: 高级功能（P2）
+- [ ] 实现 PATCH /executions/{executionId}（Patch 更新，上传新文件到 OSS）
+- [ ] 实现自动归档（3 个月后迁移到 OSS 冷存储）
 - [ ] 实现 App 发布为 Studio
+- [ ] 实现 Fork 功能（复制别人的 App）
+- [ ] 实现批量分享（如分享给整个学科组）
 
 ---
 
