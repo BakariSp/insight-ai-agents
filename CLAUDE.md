@@ -4,6 +4,15 @@
 
 教育场景 AI Agent 服务，用自然语言构建结构化的数据分析，题目生成等可交互页面。当前: FastAPI + PydanticAI + FastMCP + Pydantic 数据模型 + Java 后端 Adapter 层 (Phase 5 完成)。目标: 前端集成 + SSE 升级 + Patch 机制 (Phase 6)。
 
+## ⚠️ 重要提示
+
+**本项目是全新功能，尚未接入前端或对接 Java 后端生产环境。**
+
+- ✅ **所有代码都可以自由修改**：无需担心用户端的前向兼容
+- ✅ **架构可以重构**：Blueprint/Page 数据模型、API 端点、Agent 逻辑都可以调整
+- ✅ **API 可以 Breaking Change**：Phase 6 之前的设计如不合理可直接重写
+- ⚠️ **前提条件**：确保修改后通过测试（`pytest tests/ -v`）
+
 文档入口: `docs/README.md`（导航首页，链接到所有子文档）。
 
 主要文档:

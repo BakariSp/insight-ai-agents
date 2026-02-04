@@ -905,6 +905,7 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | **M5: 真实数据** | 5 ✅ | Java 后端对接 + Adapter 抽象层，mock → 真实教务数据 |
 | **M6: 产品上线** | 6 ✅ | 前端集成 + Level 2 Per-Block AI + SSE Block 事件流 + Patch 机制 + E2E 测试 |
 | **M7: 智能题目生成** | 7 🔄 | RAG 知识库 + 知识点字典 + 题目生成流水线 + 学情分析 |
+| **M8: 通用知识层** | 8 🔲 | RAG 通用化 + KnowledgeTools + TemplateTools + QualityPipeline 通用化 |
 
 ---
 
@@ -970,6 +971,155 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | `tools/assessment_tools.py` | 新建 ✅ | 学情分析工具 |
 | `tools/rubric_tools.py` | 新建 ✅ | Rubric 检索工具 |
 | `tests/test_rag_question_generation.py` | 新建 ✅ | 31 项 RAG + 知识点测试 |
+
+---
+
+## Phase 8: 通用知识层架构升级 🔲 待开始
+
+**目标**: 将 RAG 从"QuestionPipeline 专用"升级为"通用 Knowledge Layer"，让批改、备课等教学任务都能按需调用知识/资产/规范。支持 Blueprint 中显式建模 Retrieval Nodes，Executor 支持混合 Data + Knowledge 绑定。
+
+**前置条件**: Phase 7 完成（题目生成流水线 + RAG 基础设施）。
+
+**架构设计文档**: [backend-flow.md - Phase 8 架构升级](architecture/backend-flow.md#phase-8-架构升级通用知识层)
+
+### 升级动机
+
+**当前问题**: RAG 只在 QuestionPipeline（出题）中使用，导致批改、备课等高频教学任务无法有效使用知识库/资产/规范。
+
+**核心场景缺失**:
+- **批改**: 需要 rubric anchors（评分样例）、校内反馈规范、教师偏好
+- **备课**: 需要教案框架（PPP/5E/校本模板）、教材资源、课程标准
+
+**GPT 提出的关键洞察**:
+> "批改不是只有'拿 rubric 文本'这么简单，通常至少需要三类知识输入：Rubric、Anchor Samples、课程标准/校内要求。备课更明显是检索驱动：教案框架、材料库、课程标准。如果不允许 Planner 触发 RAG，你就会得到'看似像备课、但不接地气'的泛泛生成。"
+
+### P0 任务（架构基础）
+
+- [ ] **P0-1:** 扩展 Blueprint 数据模型
+  - [ ] 新增 `models/blueprint.py`: `KnowledgeBinding(CamelModel)`
+    - `bind_id`, `source_type`, `query`, `corpus`, `filters`, `depends_on`
+  - [ ] 扩展 `DataContract`: 新增 `knowledge_bindings: list[KnowledgeBinding]`
+  - [ ] 编写单元测试：KnowledgeBinding 序列化、拓扑排序兼容性
+
+- [ ] **P0-2:** KnowledgeTools 工具化
+  - [ ] 创建 `tools/knowledge_tools.py`：
+    - `retrieve_curriculum_standards(subject, grade, topic)` → 课程标准/考纲
+    - `retrieve_teaching_materials(subject, topic, material_type)` → 教材/校本资源
+    - `retrieve_rubric_anchors(rubric_id, score_level)` → 评分样例/档位示例
+    - `retrieve_school_templates(template_type)` → 校内规范/教师偏好
+  - [ ] 扩展 `services/rag_service.py`: 支持多库查询路由
+  - [ ] 编写工具测试（12 项）：4 个工具 × 3 测试场景
+
+- [ ] **P0-3:** TemplateTools 工具化
+  - [ ] 创建 `tools/template_tools.py`：
+    - `get_lesson_framework(framework_type, subject)` → 教案框架（PPP/5E/校本）
+    - `get_output_schema(schema_type)` → 输出格式模板
+    - `get_analysis_framework(analysis_type)` → 分析框架模板
+  - [ ] 创建 `services/template_service.py`: 模板加载服务
+  - [ ] 创建 `data/templates/*.json`:
+    - `lesson_frameworks.json` — PPP、5E、读写课型、校本模板
+    - `output_schemas.json` — 批改格式、备课格式、分析报告格式
+    - `analysis_frameworks.json` — Bloom、SWOT、5E 分析框架
+  - [ ] 编写服务测试（9 项）：3 个工具 × 3 测试场景
+
+> ✅ 验收: Blueprint 支持 knowledge_bindings，6 个新工具可通过 FastMCP 调用。
+
+### P1 任务（Executor 升级）
+
+- [ ] **P1-1:** Executor Phase A 升级为 Input Binding
+  - [ ] 修改 `agents/executor.py`:
+    - 新增 `_resolve_knowledge_bindings(knowledge_bindings, context) → dict`
+    - 修改 `execute_blueprint_stream()` Phase A: 合并 data + knowledge contexts
+    - 拓扑排序支持混合依赖（DataBinding 和 KnowledgeBinding 互相依赖）
+  - [ ] 新增路径引用前缀: `$knowledge.` (和 `$data.`, `$compute.` 同级)
+  - [ ] 编写 Executor 测试（8 项）:
+    - Knowledge binding 执行顺序
+    - 混合依赖拓扑排序
+    - `$knowledge.` 引用解析
+    - Phase A 错误处理
+
+- [ ] **P1-2:** Planner 升级支持生成 KnowledgeBinding
+  - [ ] 修改 `config/prompts/planner.py`:
+    - 更新 system prompt: 指导生成 knowledge_bindings
+    - 注入 KnowledgeTools 描述
+    - 添加示例：包含 knowledge_bindings 的 Blueprint
+  - [ ] 编写 Planner 测试（5 项）:
+    - 生成包含 KnowledgeBinding 的 Blueprint
+    - 批改任务生成 retrieve_rubric_anchors
+    - 备课任务生成 get_lesson_framework
+    - 混合 data + knowledge bindings
+
+> ✅ 验收: Planner 可生成含 knowledge_bindings 的 Blueprint，Executor Phase A 可执行 Input Binding。
+
+### P2 任务（Quality Pipeline 通用化）
+
+- [ ] **P2-1:** 抽象 QualityPipeline 基类
+  - [ ] 创建 `agents/quality_pipeline.py`: `QualityPipeline(ABC)`
+    - `draft()` → 生成初稿
+    - `judge()` → 质量评估
+    - `repair()` → 修复问题
+  - [ ] 从 `agents/question_pipeline.py` 提取通用流程
+  - [ ] 编写基类测试（3 项）
+
+- [ ] **P2-2:** 实现 GradingQualityPipeline
+  - [ ] 创建 `agents/grading_pipeline.py`:
+    - `judge()`: 检查 rubric 维度覆盖、格式符合性、反馈质量
+    - `repair()`: 补充缺失维度、修正格式、增强反馈
+  - [ ] 编写 GradingPipeline 测试（6 项）
+
+- [ ] **P2-3:** 实现 LessonQualityPipeline
+  - [ ] 创建 `agents/lesson_pipeline.py`:
+    - `judge()`: 检查 learning objectives 覆盖、模板符合性、材料质量
+    - `repair()`: 补充缺失目标、调整格式、优化材料
+  - [ ] 编写 LessonPipeline 测试（6 项）
+
+> ✅ 验收: QualityPipeline 可用于批改和备课场景，Judge→Repair 流程通用化。
+
+### P3 任务（E2E 验证）
+
+- [ ] **P3-1:** 批改场景端到端测试
+  - [ ] `test_e2e_grading_with_knowledge()`: "批改这篇作文（整段）" → KnowledgeBinding → 包含 rubric anchors 的反馈
+  - [ ] `test_e2e_grading_by_section()`: "按段落批改" → 输出结构化分段反馈
+
+- [ ] **P3-2:** 备课场景端到端测试
+  - [ ] `test_e2e_lesson_planning()`: "用 5E 框架设计阅读课" → KnowledgeBinding → 完整教案
+  - [ ] `test_e2e_lesson_with_materials()`: "准备材料" → retrieve_teaching_materials
+
+- [ ] **P3-3:** 混合场景测试
+  - [ ] `test_mixed_data_knowledge_bindings()`: 同一 Blueprint 包含 data + knowledge bindings
+  - [ ] `test_knowledge_depends_on_data()`: KnowledgeBinding 依赖 DataBinding 结果
+
+> ✅ 验收: 批改、备课全流程可跑通，RAG 按需触发，输出符合预期。
+
+### Phase 8 关键文件清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `models/blueprint.py` | 修改 | 新增 KnowledgeBinding, 扩展 DataContract |
+| `tools/knowledge_tools.py` | 新建 | 4 个 RAG 检索工具 |
+| `tools/template_tools.py` | 新建 | 3 个模板工具 |
+| `services/template_service.py` | 新建 | 模板加载服务 |
+| `data/templates/lesson_frameworks.json` | 新建 | 教案框架（PPP/5E/校本） |
+| `data/templates/output_schemas.json` | 新建 | 输出格式模板 |
+| `data/templates/analysis_frameworks.json` | 新建 | 分析框架模板 |
+| `agents/executor.py` | 修改 | Phase A 升级为 Input Binding |
+| `agents/quality_pipeline.py` | 新建 | QualityPipeline 基类 |
+| `agents/grading_pipeline.py` | 新建 | 批改质量流水线 |
+| `agents/lesson_pipeline.py` | 新建 | 备课质量流水线 |
+| `config/prompts/planner.py` | 修改 | 注入 KnowledgeTools，指导生成 knowledge_bindings |
+| `tests/test_e2e_phase8.py` | 新建 | Phase 8 E2E 测试（批改/备课场景） |
+
+### Phase 8 总验收
+
+- [ ] `models/blueprint.py` — KnowledgeBinding 模型 + DataContract 扩展
+- [ ] `tools/knowledge_tools.py` — 4 个 RAG 检索工具可用
+- [ ] `tools/template_tools.py` — 3 个模板工具可用
+- [ ] `services/template_service.py` — 模板加载服务
+- [ ] `agents/executor.py` — Phase A Input Binding (Data + Knowledge)
+- [ ] `agents/quality_pipeline.py` — QualityPipeline 基类
+- [ ] `agents/grading_pipeline.py` — 批改质量流水线
+- [ ] `agents/lesson_pipeline.py` — 备课质量流水线
+- [ ] `pytest tests/ -v` 全部通过（预计新增 60+ 项测试）
 
 ---
 

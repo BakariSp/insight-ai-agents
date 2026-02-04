@@ -51,6 +51,8 @@
 | 文档 | 内容 |
 |------|------|
 | [架构总览](architecture/overview.md) | 系统全景、当前架构 vs 目标架构、项目结构、核心模块 |
+| [后端流程图](architecture/backend-flow.md) | 从用户 Prompt 到输出的完整数据流、意图路由、RAG 按需调取 |
+| [架构优化方案](architecture/architecture-optimization.md) | **NEW** 三方协调优化设计、职责划分、数据契约、Phase 8 升级路径 |
 | [多 Agent 设计](architecture/agents.md) | PlannerAgent / ExecutorAgent / RouterAgent / ChatAgent 分工与实现 |
 | [Blueprint 数据模型](architecture/blueprint-model.md) | 可执行蓝图三层模型、Pydantic 定义、路径引用、完整示例 |
 
@@ -74,6 +76,7 @@
 
 | 文档 | 内容 |
 |------|------|
+| [三方集成契约规范](integration/three-party-integration-contract.md) | **NEW** 前端 ↔ Python ↔ Java 完整对接规范、数据契约、错误处理、部署监控 |
 | [前端集成](integration/frontend-integration.md) | Next.js Proxy、字段映射、前端改动清单、Mock 策略、错误处理 |
 | [Java 后端对接](integration/java-backend.md) | Java API 端点、数据工具映射、对接计划 |
 | [Next.js Proxy 契约](integration/nextjs-proxy.md) | 前端 proxy 路由契约、SSE 透传、CORS 策略 |

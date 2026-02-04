@@ -1,6 +1,9 @@
-# Java 后端对接
+# Java 数据 API 对接（Phase 5）
 
-> SpringBoot 后端 HTTP 客户端、适配器层、数据模型映射。Phase 5 已实现。
+> SpringBoot 后端 HTTP 客户端、适配器层、数据模型映射，用于 AI Agent 获取教务数据。
+
+**注意**: 本文档描述 **Phase 5 数据获取 API**。最新的 **App 层级架构**（历史记录持久化）请参考：
+- [Java 后端集成规范](./java-backend-spec.md) - App → Blueprint Versions → Page Executions
 
 ---
 
