@@ -23,6 +23,8 @@ class QuestionType(str, Enum):
     FILL_IN_BLANK = "fill_in_blank"
     TRUE_FALSE = "true_false"
     MATCHING = "matching"
+    ORDERING = "ordering"
+    COMPOSITE = "composite"
 
 
 class Difficulty(str, Enum):
@@ -58,12 +60,13 @@ class QuestionDraft(CamelModel):
     type: str = QuestionType.SHORT_ANSWER.value
     stem: str  # 题干
     options: list[str] | None = None  # 选择题选项
-    answer: str
+    answer: str = ""  # COMPOSITE root may have no answer
     explanation: str = ""
     knowledge_point_ids: list[str] = Field(default_factory=list)
     difficulty: str = Difficulty.MEDIUM.value
     rubric_ref: str | None = None  # 引用的 rubric ID
     skill_tags: list[str] = Field(default_factory=list)
+    sub_questions: list[QuestionDraft] | None = None  # COMPOSITE 子题
 
 
 class QualityIssue(CamelModel):
@@ -90,8 +93,8 @@ class QuestionFinal(CamelModel):
     type: str
     stem: str
     options: list[str] | None = None
-    answer: str
-    explanation: str
+    answer: str = ""  # COMPOSITE root may have no answer
+    explanation: str = ""
     knowledge_point_ids: list[str] = Field(default_factory=list)
     difficulty: str
     rubric_ref: str | None = None
@@ -100,6 +103,7 @@ class QuestionFinal(CamelModel):
     version: int = 1
     passed_quality_gate: bool = True
     repair_count: int = 0  # Number of repair iterations
+    sub_questions: list[QuestionFinal] | None = None  # COMPOSITE 子题
 
 
 class GenerationSpec(CamelModel):
@@ -109,10 +113,14 @@ class GenerationSpec(CamelModel):
     difficulty: str = Difficulty.MEDIUM.value
     subject: str = ""
     topic: str = ""
+    grade: str = ""
     knowledge_points: list[str] = Field(default_factory=list)
     rubric_ref: str | None = None
     target_students: list[str] = Field(default_factory=list)  # 针对的学生 ID
     avoid_similar_to: list[str] = Field(default_factory=list)  # 避免与这些题目相似
+    # Phase 1 quality constraints
+    difficulty_distribution: dict[str, float] | None = None  # e.g. {"easy": 0.3, "medium": 0.5, "hard": 0.2}
+    type_distribution: dict[str, float] | None = None  # e.g. {"multiple_choice": 0.6, "fill_in_blank": 0.2, "true_false": 0.2}
 
 
 class PipelineResult(CamelModel):
