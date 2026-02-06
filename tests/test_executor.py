@@ -177,11 +177,16 @@ def test_fill_single_block_suggestion_list():
 
 
 def test_fill_single_block_question_generator():
-    """_fill_single_block fills question_generator questions."""
-    block = {"type": "question_generator", "title": "Quiz", "questions": []}
-    _fill_single_block(block, "question_generator", "What is 2+2?")
+    """_fill_single_block fills question_generator with V1 dict format."""
+    block = {"type": "question_generator", "title": "Quiz", "questions": [], "quizMeta": None}
+    v1_content = {
+        "questions": [{"id": "q-001", "questionType": "SINGLE_CHOICE", "question": "What is 2+2?"}],
+        "quizMeta": {"title": "Quiz", "totalPoints": 1.0, "questionCount": 1},
+    }
+    _fill_single_block(block, "question_generator", v1_content)
     assert len(block["questions"]) == 1
     assert block["questions"][0]["question"] == "What is 2+2?"
+    assert block["quizMeta"]["totalPoints"] == 1.0
 
 
 # ── ExecutorAgent Phase A tests ──────────────────────────────
@@ -707,13 +712,13 @@ def test_fill_single_block_question_generator_list():
 
 
 def test_fill_single_block_question_fallback():
-    """_fill_single_block wraps string as single question for question_generator."""
+    """_fill_single_block handles non-dict/non-list input gracefully."""
     block = {"type": "question_generator", "title": "Quiz", "questions": []}
 
-    _fill_single_block(block, "question_generator", "What is the capital?")
+    _fill_single_block(block, "question_generator", "unexpected string")
 
-    assert len(block["questions"]) == 1
-    assert block["questions"][0]["question"] == "What is the capital?"
+    # V1 flow: non-dict/non-list string results in empty questions
+    assert block["questions"] == []
 
 
 @pytest.mark.asyncio

@@ -33,6 +33,13 @@ from models.blueprint import (
     DataBinding,
     DataSourceType,
 )
+from models.question_pipeline import GenerationSpec, PipelineResult
+from models.quiz_output import (
+    QuizOutputV1,
+    QuizMeta,
+    convert_pipeline_to_v1,
+    build_quiz_meta,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -356,11 +363,19 @@ class ExecutorAgent:
     ) -> str | list | dict:
         """Generate AI content for a single block using per-block prompt.
 
+        For question_generator blocks, uses QuestionPipeline for three-stage
+        generation (Draft → Judge → Repair) and converts output to QuizOutputV1.
+
         Returns:
             For markdown: str (the narrative text)
-            For suggestion_list/question_generator: parsed JSON (list/dict)
+            For suggestion_list: parsed JSON list
+            For question_generator: dict with V1 questions + quizMeta
             Falls back to str if JSON parsing fails.
         """
+        # ── Phase 1: question_generator uses QuestionPipeline ──
+        if slot.component_type.value == "question_generator":
+            return await self._generate_quiz_content(slot, blueprint)
+
         prompt, output_format = build_block_prompt(
             slot, blueprint, data_context, compute_results
         )
@@ -379,6 +394,75 @@ class ExecutorAgent:
             return _parse_json_output(raw_output)
 
         return raw_output
+
+    async def _generate_quiz_content(
+        self,
+        slot: ComponentSlot,
+        blueprint: Blueprint,
+    ) -> dict[str, Any]:
+        """Generate quiz content via QuestionPipeline + QuizOutputV1.
+
+        Extracts spec from slot.props, runs pipeline, converts to V1 format.
+        Returns a dict with questions list + quizMeta for the block.
+        """
+        from agents.question_pipeline import QuestionPipeline
+
+        props = slot.props or {}
+
+        # Build GenerationSpec from Blueprint slot props
+        spec = GenerationSpec(
+            count=int(props.get("count", 10)),
+            types=props.get("types", ["multiple_choice", "short_answer"]),
+            difficulty=props.get("difficulty", "medium"),
+            subject=props.get("subject", ""),
+            topic=props.get("topic", props.get("knowledgePoint", "")),
+            grade=props.get("grade", ""),
+            knowledge_points=props.get("knowledgePoints", []),
+            difficulty_distribution=props.get("difficultyDistribution"),
+            type_distribution=props.get("typeDistribution"),
+        )
+
+        logger.info(
+            "QuestionPipeline: generating %d questions (types=%s, difficulty=%s)",
+            spec.count, spec.types, spec.difficulty,
+        )
+
+        pipeline = QuestionPipeline()
+        pipeline_result: PipelineResult = await pipeline.run_pipeline(spec)
+
+        if not pipeline_result.questions:
+            logger.warning("QuestionPipeline returned 0 questions")
+            return {"questions": [], "quizMeta": None}
+
+        # Convert pipeline output → QuizOutputV1
+        question_dicts = []
+        for q in pipeline_result.questions:
+            q_dict = q.model_dump(by_name=True)
+            question_dicts.append(q_dict)
+
+        quiz_title = props.get("title", blueprint.name or "Practice Quiz")
+        quiz_v1 = convert_pipeline_to_v1(
+            question_dicts,
+            title=quiz_title,
+            description=props.get("description"),
+            subject=spec.subject or None,
+            grade=spec.grade or None,
+            estimated_duration=props.get("estimatedDuration"),
+        )
+
+        # Build quizMeta
+        quiz_meta = build_quiz_meta(quiz_v1)
+
+        # Serialize questions to camelCase dicts for frontend
+        v1_questions = [
+            q.model_dump(by_alias=True, exclude_none=True)
+            for q in quiz_v1.questions
+        ]
+
+        return {
+            "questions": v1_questions,
+            "quizMeta": quiz_meta.model_dump(by_alias=True),
+        }
 
     async def _stream_ai_content(
         self,
@@ -590,6 +674,9 @@ def _build_ai_placeholder(component_type: str, props: dict) -> dict[str, Any]:
         return {
             "type": "question_generator",
             "title": props.get("title", "Practice Questions"),
+            "description": props.get("description", ""),
+            "knowledgePoint": props.get("knowledgePoint", ""),
+            "quizMeta": None,
             "questions": [],
         }
     return {"type": component_type, **props}
@@ -748,18 +835,15 @@ def _fill_single_block(
                 }
             ]
     elif component_type == "question_generator":
-        if isinstance(ai_content, list):
+        if isinstance(ai_content, dict):
+            # V1 format: dict with "questions" and "quizMeta"
+            block["questions"] = ai_content.get("questions", [])
+            if ai_content.get("quizMeta"):
+                block["quizMeta"] = ai_content["quizMeta"]
+        elif isinstance(ai_content, list):
             block["questions"] = ai_content
         else:
-            # Fallback: wrap as single question
-            block["questions"] = [
-                {
-                    "id": "q1",
-                    "type": "short_answer",
-                    "question": str(ai_content),
-                    "answer": "",
-                }
-            ]
+            block["questions"] = []
 
 
 def _parse_json_output(raw_output: str) -> list | dict | str:
