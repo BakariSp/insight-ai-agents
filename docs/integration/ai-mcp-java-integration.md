@@ -1,5 +1,7 @@
 # AI-MCP 与 Java 后端集成方案
 
+> **⚠️ Phase 2+ 规划文档** — 不属于当前 Phase 1 范围。Phase 1 规格见 [docs/studio-v1/phase1/](../../../../docs/studio-v1/phase1/)
+>
 > **文档目的**: 定义 AI-MCP 作为无状态计算服务的职责边界与 Java 后端的集成规范
 > **核心原则**: AI-MCP 不持久化用户数据，所有数据归属由 Java 后端从 JWT 决定
 > **修订日期**: 2026-02-04
@@ -1517,6 +1519,7 @@ private void validateFile(MultipartFile file) {
 ## 11. 相关文档
 
 - [存储优化方案](./storage-optimization-plan.md) - OSS 存储策略
+- [RAG 与向量数据库架构](./rag-vectordb-architecture.md) - 文档解析 + 向量存储 + 语义检索
 - [API 分离与权限管理](./api-separation-and-permissions.md) - 版本分离设计
 - [Java 后端集成规范](./java-backend-spec.md) - API 端点设计
 - [App 架构快速参考](./app-architecture-quickref.md) - 核心概念

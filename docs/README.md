@@ -74,12 +74,20 @@
 
 ### 集成规范
 
-| 文档 | 内容 |
-|------|------|
-| [三方集成契约规范](integration/three-party-integration-contract.md) | **NEW** 前端 ↔ Python ↔ Java 完整对接规范、数据契约、错误处理、部署监控 |
-| [前端集成](integration/frontend-integration.md) | Next.js Proxy、字段映射、前端改动清单、Mock 策略、错误处理 |
-| [Java 后端对接](integration/java-backend.md) | Java API 端点、数据工具映射、对接计划 |
-| [Next.js Proxy 契约](integration/nextjs-proxy.md) | 前端 proxy 路由契约、SSE 透传、CORS 策略 |
+> **注意**: 跨端集成规范已统一维护在 `docs/studio-v1/`。以下为指针或本 repo 独有文档。
+
+| 文档 | 内容 | 备注 |
+|------|------|------|
+| [三方集成契约规范](integration/three-party-integration-contract.md) | → 指向 `docs/studio-v1/integration/` | 已合并到 root |
+| [整体流程设计](integration/overall-flow.md) | → 指向 `docs/studio-v1/architecture/` | 已合并到 root |
+| [系统架构全览](integration/system-architecture-overview.md) | → 指向 `docs/studio-v1/architecture/` | 已合并到 root |
+| [Java 后端集成规范](integration/java-backend-spec.md) | → 指向 root + Backend repo | 已合并 |
+| [前端集成](integration/frontend-integration.md) | Next.js Proxy、字段映射、前端改动清单 | 本 repo 独有 |
+| [Next.js Proxy 契约](integration/nextjs-proxy.md) | 前端 proxy 路由契约、SSE 透传 | 本 repo 独有 |
+| [App 架构速查](integration/app-architecture-quickref.md) | App/Blueprint/Execution 速查卡 | ⚠️ Phase 2+ |
+| [API 分离与权限](integration/api-separation-and-permissions.md) | 版本分离 + 权限管理 | ⚠️ Phase 2+ |
+| [存储优化方案](integration/storage-optimization-plan.md) | OSS 混合存储策略 | ⚠️ Phase 2+ |
+| [AI-MCP Java 集成](integration/ai-mcp-java-integration.md) | 无状态计算 + JWT 透传 | ⚠️ Phase 2+ |
 
 ### 测试与用例
 
