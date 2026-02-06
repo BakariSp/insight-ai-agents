@@ -332,7 +332,7 @@ class TestPromptBuilding:
 
         prompt = self.pipeline._build_draft_prompt(spec, None, None)
 
-        assert "Generate 3 questions" in prompt
+        assert "3 questions" in prompt
         assert "English" in prompt
         assert "Grammar" in prompt
         assert "multiple_choice" in prompt

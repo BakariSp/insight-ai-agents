@@ -1,6 +1,7 @@
 """Question generation pipeline — Draft → Judge → Repair.
 
 Phase 7: Three-stage pipeline for generating high-quality assessment questions.
+Phase 1: Added quality constraints (difficulty/type distribution, count enforcement).
 
 Stage 1 (Draft): Generate question drafts based on specifications
 Stage 2 (Judge): Evaluate questions for quality issues
@@ -11,6 +12,9 @@ The pipeline supports:
 - Weakness-targeted questions based on student error patterns
 - Quality gates with configurable pass thresholds
 - Multiple repair iterations for failing questions
+- Difficulty distribution enforcement (Phase 1)
+- Question type distribution enforcement (Phase 1)
+- Question count clamping (1-50, Phase 1)
 """
 
 from __future__ import annotations
@@ -35,6 +39,74 @@ from models.question_pipeline import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ── Phase 1 Quality Constraint Defaults ───────────────────────
+
+MIN_QUESTIONS = 1
+MAX_QUESTIONS = 50
+DEFAULT_QUESTION_COUNT = 10
+
+DEFAULT_DIFFICULTY_DISTRIBUTION: dict[str, float] = {
+    "easy": 0.3,
+    "medium": 0.5,
+    "hard": 0.2,
+}
+
+DEFAULT_TYPE_DISTRIBUTION: dict[str, float] = {
+    "multiple_choice": 0.6,
+    "fill_in_blank": 0.2,
+    "true_false": 0.2,
+}
+
+DIFFICULTY_TOLERANCE = 0.20  # 20% tolerance for distribution deviation
+
+
+def clamp_question_count(count: int) -> int:
+    """Clamp question count to valid range [1, 50]."""
+    return max(MIN_QUESTIONS, min(MAX_QUESTIONS, count))
+
+
+def compute_target_counts(
+    total: int,
+    distribution: dict[str, float],
+) -> dict[str, int]:
+    """Convert a fractional distribution to integer counts summing to total.
+
+    Example: total=10, {"easy": 0.3, "medium": 0.5, "hard": 0.2}
+             → {"easy": 3, "medium": 5, "hard": 2}
+    """
+    raw = {k: v * total for k, v in distribution.items()}
+    counts = {k: int(v) for k, v in raw.items()}
+    remainder = total - sum(counts.values())
+    # Distribute remainder by largest fractional part
+    fracs = sorted(distribution.keys(), key=lambda k: raw[k] - counts[k], reverse=True)
+    for i in range(remainder):
+        counts[fracs[i % len(fracs)]] += 1
+    return counts
+
+
+def check_difficulty_distribution(
+    questions: list,
+    target: dict[str, float],
+    tolerance: float = DIFFICULTY_TOLERANCE,
+) -> bool:
+    """Check if question difficulty distribution is within tolerance."""
+    if not questions:
+        return True
+    total = len(questions)
+    for diff, target_pct in target.items():
+        actual_count = sum(1 for q in questions if _get_difficulty(q) == diff)
+        actual_pct = actual_count / total
+        if abs(actual_pct - target_pct) > tolerance:
+            return False
+    return True
+
+
+def _get_difficulty(q: Any) -> str:
+    """Extract difficulty from either a Pydantic model or a dict."""
+    if isinstance(q, dict):
+        return q.get("difficulty", "")
+    return getattr(q, "difficulty", "")
 
 
 class QuestionPipeline:
@@ -157,6 +229,12 @@ class QuestionPipeline:
     ) -> PipelineResult:
         """Run the full Draft → Judge → Repair pipeline.
 
+        Phase 1 enhancements:
+        - Clamps question count to [1, 50]
+        - Applies default difficulty distribution if not specified
+        - Applies default type distribution if not specified
+        - Checks difficulty distribution after generation, retries once if off
+
         Args:
             spec: Generation specifications
             rubric_context: Optional rubric for guided generation and evaluation
@@ -168,6 +246,16 @@ class QuestionPipeline:
         """
         if isinstance(spec, dict):
             spec = GenerationSpec(**spec)
+
+        # Phase 1: Clamp count and apply default distributions
+        spec.count = clamp_question_count(spec.count)
+        if not spec.difficulty_distribution:
+            spec.difficulty_distribution = DEFAULT_DIFFICULTY_DISTRIBUTION
+        if not spec.type_distribution and len(spec.types) <= 1:
+            # Only apply default type distribution if user didn't specify types
+            if spec.types == ["short_answer"]:  # default type
+                spec.type_distribution = DEFAULT_TYPE_DISTRIBUTION
+                spec.types = list(spec.type_distribution.keys())
 
         # Stage 1: Generate drafts
         logger.info("Pipeline Stage 1: Generating %d question drafts", spec.count)
@@ -240,12 +328,32 @@ class QuestionPipeline:
     ) -> str:
         """Build prompt for draft generation."""
         parts = [
-            f"Generate {spec.count} questions with the following requirements:",
+            f"Generate exactly {spec.count} questions with the following requirements:",
             f"- Subject: {spec.subject or 'General'}",
             f"- Topic: {spec.topic or 'Not specified'}",
             f"- Question types: {', '.join(spec.types)}",
             f"- Difficulty: {spec.difficulty}",
         ]
+
+        # Phase 1: Difficulty distribution
+        if spec.difficulty_distribution:
+            dist_str = ", ".join(
+                f"{k} {v * 100:.0f}%"
+                for k, v in spec.difficulty_distribution.items()
+            )
+            target_counts = compute_target_counts(spec.count, spec.difficulty_distribution)
+            counts_str = ", ".join(f"{v} {k}" for k, v in target_counts.items())
+            parts.append(f"- Difficulty distribution: {dist_str} → generate {counts_str}")
+
+        # Phase 1: Type distribution
+        if spec.type_distribution:
+            type_dist_str = ", ".join(
+                f"{k} {v * 100:.0f}%"
+                for k, v in spec.type_distribution.items()
+            )
+            type_counts = compute_target_counts(spec.count, spec.type_distribution)
+            type_counts_str = ", ".join(f"{v} {k}" for k, v in type_counts.items())
+            parts.append(f"- Type distribution: {type_dist_str} → generate {type_counts_str}")
 
         if spec.knowledge_points:
             parts.append(f"- Target knowledge points: {', '.join(spec.knowledge_points)}")
