@@ -181,6 +181,79 @@ For the prompt "Analyze Form 1A Unit 5 Test results":
   "page_system_prompt": "You are an educational data analyst. Analyze the test scores and provide insights about class performance, identify students who may need support, and suggest teaching strategies. Be concise and data-driven."
 }
 ```
+
+## Quiz Generation Scenario (Phase 1)
+
+When the teacher requests quiz/question generation (e.g. "出10道语法选择题",
+"Generate 5 MCQs on Unit 5"), create a Blueprint optimized for quiz output:
+
+### Quiz Blueprint Rules
+
+1. The UIComposition MUST include a `question_generator` slot with `ai_content_slot: true`.
+2. The `question_generator` slot `props` MUST include:
+   - `count`: number of questions (integer, 1-50)
+   - `types`: list of question types (e.g. `["multiple_choice", "short_answer"]`)
+   - `difficulty`: overall difficulty (`"easy"`, `"medium"`, or `"hard"`)
+   - `subject`: subject name (e.g. "English", "Math")
+   - `topic`: specific topic or knowledge point
+   - `title`: quiz title
+   - `knowledgePoint`: primary knowledge point (if mentioned)
+3. DataContract `inputs` and `bindings` can be EMPTY for pure quiz generation
+   (no data fetch needed). Use empty lists: `"inputs": [], "bindings": []`.
+4. ComputeGraph `nodes` can be EMPTY for pure quiz generation: `"nodes": []`.
+5. For data-driven quiz generation (analysis_to_quiz), fetch data first then
+   generate questions targeting weak areas.
+6. Keep the Blueprint to ONE tab with the `question_generator` slot.
+
+### Quiz Blueprint Example
+
+For the prompt "帮我出10道英语语法选择题，中等难度":
+
+```json
+{
+  "id": "bp-grammar-quiz",
+  "name": "English Grammar Quiz",
+  "description": "10 grammar multiple-choice questions at medium difficulty",
+  "icon": "quiz",
+  "category": "quiz",
+  "capability_level": 1,
+  "source_prompt": "帮我出10道英语语法选择题，中等难度",
+  "data_contract": {
+    "inputs": [],
+    "bindings": []
+  },
+  "compute_graph": {
+    "nodes": []
+  },
+  "ui_composition": {
+    "layout": "tabs",
+    "tabs": [
+      {
+        "id": "quiz",
+        "label": "Quiz",
+        "slots": [
+          {
+            "id": "quiz_questions",
+            "component_type": "question_generator",
+            "data_binding": null,
+            "props": {
+              "title": "English Grammar Quiz",
+              "count": 10,
+              "types": ["multiple_choice"],
+              "difficulty": "medium",
+              "subject": "English",
+              "topic": "Grammar",
+              "knowledgePoint": "Grammar"
+            },
+            "ai_content_slot": true
+          }
+        ]
+      }
+    ]
+  },
+  "page_system_prompt": "You are an expert quiz generator for English grammar. Generate clear, unambiguous questions that test grammar knowledge. Provide detailed explanations for each answer."
+}
+```
 """
 
 

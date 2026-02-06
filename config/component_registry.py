@@ -55,13 +55,39 @@ COMPONENT_REGISTRY: dict[str, dict] = {
         "props": {"title": "str"},
     },
     "question_generator": {
-        "description": "自动生成练习题，基于错误模式",
+        "description": "AI 题目生成器（V1）。输出 QuizOutputV1 格式，含 questions + quizMeta。"
+        " ai_content_slot 必须为 true。",
         "data_shape": {
             "questions": [
-                {"id": "str", "type": "str", "question": "str", "answer": "str"}
-            ]
+                {
+                    "questionType": "SINGLE_CHOICE | MULTIPLE_CHOICE | TRUE_FALSE | "
+                    "FILL_IN_BLANK | SHORT_ANSWER | ORDERING | COMPOSITE",
+                    "stem": "str",
+                    "options": ["str (choice types only)"],
+                    "correctAnswer": "str",
+                    "explanation": "str",
+                    "difficulty": "EASY | MEDIUM | HARD",
+                    "points": "int (default 1)",
+                    "knowledgePointIds": ["str"],
+                    "subQuestions": ["QuizQuestionV1 (COMPOSITE only)"],
+                }
+            ],
+            "quizMeta": {
+                "totalCount": "int",
+                "passedCount": "int",
+                "avgQuality": "float",
+                "generatedAt": "ISO datetime str",
+            },
         },
-        "props": {"knowledgePoint": "str", "difficulty": "str"},
+        "props": {
+            "title": "str",
+            "count": "int (1-50)",
+            "types": "list[str]",
+            "difficulty": "easy | medium | hard",
+            "subject": "str",
+            "topic": "str",
+            "knowledgePoint": "str",
+        },
     },
 }
 
