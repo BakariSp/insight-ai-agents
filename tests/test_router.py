@@ -5,8 +5,11 @@ from pydantic_ai.models.test import TestModel
 
 from agents.router import (
     _apply_confidence_routing,
+    _apply_v1_guard,
+    _degrade_to_chat,
     _initial_agent,
     classify_intent,
+    V1_QUIZ_KEYWORDS,
 )
 from models.blueprint import Blueprint
 from models.conversation import IntentType, FollowupIntentType, RouterResult
@@ -294,3 +297,104 @@ async def test_followup_refine_with_scope():
     r = result.output
     assert r.intent == "refine"
     assert r.refine_scope == "patch_layout"
+
+
+# ── V1 Capability Guard tests ────────────────────────────────
+
+
+def test_v1_guard_quiz_keyword_allows_build():
+    """V1 guard allows build when quiz keywords present."""
+    r = RouterResult(intent="build_workflow", confidence=0.85, should_build=True)
+    result = _apply_v1_guard(r, "帮我出10道语法选择题")
+    assert result.should_build is True
+    assert result.intent == "build_workflow"
+
+
+def test_v1_guard_english_quiz_keyword_allows_build():
+    """V1 guard allows build for English quiz keywords."""
+    r = RouterResult(intent="build_workflow", confidence=0.85, should_build=True)
+    result = _apply_v1_guard(r, "Generate 5 MCQ on grammar")
+    assert result.should_build is True
+
+
+def test_v1_guard_non_quiz_hint_degrades():
+    """V1 guard degrades non-quiz hint to chat."""
+    r = RouterResult(
+        intent="build_workflow",
+        confidence=0.85,
+        should_build=True,
+        route_hint="lesson_plan",
+    )
+    result = _apply_v1_guard(r, "帮我做一个课程计划")
+    assert result.should_build is False
+    assert result.intent == "chat_qa"
+    assert "题目生成" in result.clarifying_question
+
+
+def test_v1_guard_ppt_hint_degrades():
+    """V1 guard degrades PPT generation to chat."""
+    r = RouterResult(
+        intent="build_workflow",
+        confidence=0.9,
+        should_build=True,
+        route_hint="ppt_generation",
+    )
+    result = _apply_v1_guard(r, "Generate a presentation for Unit 5")
+    assert result.should_build is False
+    assert result.intent == "chat_qa"
+    assert "quiz generation" in result.clarifying_question.lower()
+
+
+def test_v1_guard_non_build_passthrough():
+    """V1 guard does not affect non-build intents."""
+    r = RouterResult(intent="chat_qa", confidence=0.9, should_build=False)
+    result = _apply_v1_guard(r, "什么是KPI？")
+    assert result.intent == "chat_qa"
+    assert result.should_build is False
+
+
+def test_v1_guard_no_hint_no_keyword_allows():
+    """V1 guard allows build when no explicit non-quiz hint and LLM says build."""
+    r = RouterResult(intent="build_workflow", confidence=0.85, should_build=True)
+    result = _apply_v1_guard(r, "分析 1A 班英语成绩")
+    assert result.should_build is True
+
+
+def test_v1_quiz_keywords_match_chinese():
+    """V1_QUIZ_KEYWORDS matches Chinese quiz terms."""
+    assert V1_QUIZ_KEYWORDS.search("帮我出题")
+    assert V1_QUIZ_KEYWORDS.search("生成10道题")
+    assert V1_QUIZ_KEYWORDS.search("英语练习")
+    assert V1_QUIZ_KEYWORDS.search("选择题")
+    assert V1_QUIZ_KEYWORDS.search("填空题")
+
+
+def test_v1_quiz_keywords_match_english():
+    """V1_QUIZ_KEYWORDS matches English quiz terms."""
+    assert V1_QUIZ_KEYWORDS.search("Generate quiz")
+    assert V1_QUIZ_KEYWORDS.search("Create MCQ questions")
+    assert V1_QUIZ_KEYWORDS.search("practice exercise")
+    assert V1_QUIZ_KEYWORDS.search("assessment")
+
+
+def test_v1_quiz_keywords_no_false_positive():
+    """V1_QUIZ_KEYWORDS should not match unrelated text."""
+    assert not V1_QUIZ_KEYWORDS.search("你好")
+    assert not V1_QUIZ_KEYWORDS.search("天气怎么样")
+    assert not V1_QUIZ_KEYWORDS.search("KPI是什么")
+
+
+def test_degrade_to_chat_chinese():
+    """Degradation message is Chinese for Chinese input."""
+    r = RouterResult(intent="build_workflow", confidence=0.85, should_build=True)
+    result = _degrade_to_chat(r, "帮我做课件")
+    assert "题目生成" in result.clarifying_question
+    assert result.should_build is False
+
+
+def test_degrade_to_chat_english():
+    """Degradation message is English for English input."""
+    r = RouterResult(intent="build_workflow", confidence=0.85, should_build=True)
+    result = _degrade_to_chat(r, "Make a lesson plan")
+    assert "quiz generation" in result.clarifying_question.lower()
+    assert result.should_build is False

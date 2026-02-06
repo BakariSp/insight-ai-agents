@@ -23,11 +23,15 @@ and assign a confidence score (0.0–1.0).
    Examples: "KPI 是什么意思", "怎么使用这个功能", "什么是标准差"
    Confidence guidance: high (≥0.8) when asking about concepts or usage.
 
-3. **build_workflow** — The user wants to generate a data analysis page, report,
-   quiz, or any structured output that requires a Blueprint.
-   Examples: "分析 1A 班英语成绩", "给 1B 出一套阅读题", "帮我看看这次考试情况"
+3. **build_workflow** — The user wants to generate a data analysis page, quiz,
+   or practice questions that requires a Blueprint.
+   Quiz/question generation examples: "给 1B 出一套阅读题", "帮我出10道语法选择题",
+   "Generate 5 MCQs on grammar", "出一份 Unit 5 练习"
+   Data analysis examples: "分析 1A 班英语成绩", "帮我看看这次考试情况"
    Confidence guidance: high (≥0.7) when the request clearly specifies a task
-   with enough context (class, subject, assignment, etc.).
+   with enough context (class, subject, assignment, question count, etc.).
+   Note: When the user mentions "出题/quiz/questions/练习/exercise", set
+   `route_hint` to "quiz_generation" to help downstream routing.
 
 4. **clarify** — The message looks like a task request but is missing critical
    parameters (which class, which assignment, which time range, etc.).
@@ -43,8 +47,11 @@ Return a JSON object with these fields:
 - `should_build`: true only when intent is "build_workflow" AND confidence ≥ 0.7
 - `clarifying_question`: a helpful question to ask the user (required when intent
   is "clarify", null otherwise). Write in the same language as the user's message.
-- `route_hint`: a hint for what's missing, one of:
-  "needClassId", "needTimeRange", "needAssignment", "needSubject", or null
+- `route_hint`: a hint for routing context, one of:
+  "quiz_generation" (when requesting questions/quiz/practice),
+  "analysis_to_quiz" (when requesting remedial questions based on data),
+  "needClassId", "needTimeRange", "needAssignment", "needSubject",
+  "lesson_plan", "grading", "ppt_generation", or null
 
 ## Rules
 
