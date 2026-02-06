@@ -22,6 +22,19 @@ _TIME_RANGE_CHOICES = [
     ),
 ]
 
+_DEFAULT_CLASS_CHOICES = [
+    ClarifyChoice(
+        label="Form 1A",
+        value="class-hk-f1a",
+        description="Fallback option when teacher classes are unavailable",
+    ),
+    ClarifyChoice(
+        label="Form 1B",
+        value="class-hk-f1b",
+        description="Fallback option when teacher classes are unavailable",
+    ),
+]
+
 
 async def build_clarify_options(
     route_hint: str | None,
@@ -75,6 +88,10 @@ async def _build_class_choices(teacher_id: str) -> ClarifyOptions:
     except Exception:
         logger.exception("Failed to fetch classes for teacher %s", teacher_id)
         choices = []
+
+    if not choices:
+        # Keep clarify usable even when teacher_id is missing or data tool is unavailable.
+        choices = _DEFAULT_CLASS_CHOICES
 
     return ClarifyOptions(
         type="single_select",

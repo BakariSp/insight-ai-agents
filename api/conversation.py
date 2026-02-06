@@ -104,6 +104,21 @@ async def _handle_initial(
         )
 
     if intent == IntentType.BUILD_WORKFLOW.value:
+        # Gateway-first guard: when class context is required but missing, always clarify.
+        if not (req.context and req.context.get("classId")) and router_result.route_hint == "needClassId":
+            clarify_options = await build_clarify_options(
+                "needClassId",
+                teacher_id=req.teacher_id,
+            )
+            return ConversationResponse(
+                mode="entry",
+                action="clarify",
+                chat_response=router_result.clarifying_question
+                or "Which class would you like to look at?",
+                clarify_options=clarify_options,
+                conversation_id=req.conversation_id,
+            )
+
         # Skip entity resolution if context already fully specified
         if req.context and req.context.get("classId"):
             blueprint, _model = await generate_blueprint(
