@@ -395,3 +395,9 @@ Phase 6 首步，定义 SSE block/slot 粒度事件模型并编写前端对接�
 - 实现 WebSearch 和 Memory 技能
 - 基础测试
 - 从 Anthropic-specific 重构为 provider-agnostic 架构
+
+## 2026-02-06 - Dify submissions now include guest records
+
+- Java Dify endpoint `/dify/teacher/{teacherId}/submissions/assignments/{assignmentId}` now returns merged student + guest submissions.
+- Added source marker `type` (`student`/`guest`) in each record.
+- Adapter update: `adapters/submission_adapter.py` now falls back to `guestName` when `studentName` is absent.

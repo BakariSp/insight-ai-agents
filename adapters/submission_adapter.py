@@ -23,7 +23,7 @@ def _parse_submission(raw: dict[str, Any]) -> SubmissionRecord:
     """Convert a Java ``SubmissionDTO`` to :class:`SubmissionRecord`."""
     return SubmissionRecord(
         student_id=str(raw.get("uid") or raw.get("studentId", "")),
-        name=raw.get("studentName", ""),
+        name=raw.get("studentName") or raw.get("guestName", ""),
         score=raw.get("score"),
         submitted=raw.get("status", "").lower() not in ("not_submitted", ""),
         status=raw.get("status", ""),
