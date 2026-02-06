@@ -36,12 +36,17 @@ from models.blueprint import (
 from models.question_pipeline import GenerationSpec, PipelineResult
 from models.quiz_output import (
     QuizOutputV1,
+    QuizQuestionV1,
     QuizMeta,
     convert_pipeline_to_v1,
     build_quiz_meta,
+    validate_question_types,
 )
 
 logger = logging.getLogger(__name__)
+
+# Quiz generation retry config (A1.2)
+QUIZ_GENERATION_MAX_RETRIES = 2
 
 
 class ExecutorAgent:
@@ -403,8 +408,14 @@ class ExecutorAgent:
         """Generate quiz content via QuestionPipeline + QuizOutputV1.
 
         Extracts spec from slot.props, runs pipeline, converts to V1 format.
+        Validates output with QuizOutputV1.model_validate() and retries on
+        failure (max QUIZ_GENERATION_MAX_RETRIES times).
+
         Returns a dict with questions list + quizMeta for the block.
+        On total failure, returns dict with error key for SSE ERROR event.
         """
+        from pydantic import ValidationError
+
         from agents.question_pipeline import QuestionPipeline
 
         props = slot.props or {}
@@ -427,41 +438,93 @@ class ExecutorAgent:
             spec.count, spec.types, spec.difficulty,
         )
 
-        pipeline = QuestionPipeline()
-        pipeline_result: PipelineResult = await pipeline.run_pipeline(spec)
+        max_attempts = 1 + QUIZ_GENERATION_MAX_RETRIES
+        last_error: str | None = None
 
-        if not pipeline_result.questions:
-            logger.warning("QuestionPipeline returned 0 questions")
-            return {"questions": [], "quizMeta": None}
+        for attempt in range(max_attempts):
+            try:
+                pipeline = QuestionPipeline()
+                pipeline_result: PipelineResult = await pipeline.run_pipeline(spec)
 
-        # Convert pipeline output → QuizOutputV1
-        question_dicts = []
-        for q in pipeline_result.questions:
-            q_dict = q.model_dump(by_name=True)
-            question_dicts.append(q_dict)
+                if not pipeline_result.questions:
+                    last_error = "Pipeline returned 0 questions"
+                    logger.warning(
+                        "QuestionPipeline returned 0 questions (attempt %d/%d)",
+                        attempt + 1, max_attempts,
+                    )
+                    continue
 
-        quiz_title = props.get("title", blueprint.name or "Practice Quiz")
-        quiz_v1 = convert_pipeline_to_v1(
-            question_dicts,
-            title=quiz_title,
-            description=props.get("description"),
-            subject=spec.subject or None,
-            grade=spec.grade or None,
-            estimated_duration=props.get("estimatedDuration"),
+                # Convert pipeline output → QuizOutputV1
+                # model_dump() uses field names (snake_case) by default
+                question_dicts = [
+                    q.model_dump()
+                    for q in pipeline_result.questions
+                ]
+
+                quiz_title = props.get("title", blueprint.name or "Practice Quiz")
+                quiz_v1 = convert_pipeline_to_v1(
+                    question_dicts,
+                    title=quiz_title,
+                    description=props.get("description"),
+                    subject=spec.subject or None,
+                    grade=spec.grade or None,
+                    estimated_duration=props.get("estimatedDuration"),
+                )
+
+                # A1.3: Type whitelist gateway validation
+                validate_question_types(quiz_v1.questions)
+
+                # A1.2: Re-validate full output via model_validate
+                validated = QuizOutputV1.model_validate(
+                    quiz_v1.model_dump(by_alias=True),
+                )
+
+                # A1.4: Field completeness warnings (non-blocking)
+                completeness_issues = _check_quiz_completeness(validated)
+                if completeness_issues:
+                    logger.warning(
+                        "Quiz completeness issues: %s", completeness_issues
+                    )
+
+                # Build quizMeta
+                quiz_meta = build_quiz_meta(validated)
+
+                # Serialize questions to camelCase dicts for frontend
+                v1_questions = [
+                    q.model_dump(by_alias=True, exclude_none=True)
+                    for q in validated.questions
+                ]
+
+                return {
+                    "questions": v1_questions,
+                    "quizMeta": quiz_meta.model_dump(by_alias=True),
+                }
+
+            except (ValidationError, ValueError) as exc:
+                last_error = str(exc)
+                logger.warning(
+                    "Quiz output validation failed (attempt %d/%d): %s",
+                    attempt + 1, max_attempts, exc,
+                )
+            except Exception as exc:
+                last_error = str(exc)
+                logger.warning(
+                    "Quiz generation error (attempt %d/%d): %s",
+                    attempt + 1, max_attempts, exc,
+                )
+
+        # All retries exhausted
+        logger.error(
+            "Quiz generation failed after %d attempts: %s",
+            max_attempts, last_error,
         )
-
-        # Build quizMeta
-        quiz_meta = build_quiz_meta(quiz_v1)
-
-        # Serialize questions to camelCase dicts for frontend
-        v1_questions = [
-            q.model_dump(by_alias=True, exclude_none=True)
-            for q in quiz_v1.questions
-        ]
-
         return {
-            "questions": v1_questions,
-            "quizMeta": quiz_meta.model_dump(by_alias=True),
+            "questions": [],
+            "quizMeta": None,
+            "error": (
+                f"Quiz generation failed after {max_attempts} attempts: "
+                f"{last_error}"
+            ),
         }
 
     async def _stream_ai_content(
@@ -492,6 +555,25 @@ class ExecutorAgent:
                 ai_content = await self._generate_block_content(
                     slot, blueprint, data_context, compute_results
                 )
+
+                # A1.2: Check for quiz generation error
+                if (
+                    isinstance(ai_content, dict)
+                    and ai_content.get("error")
+                ):
+                    yield {
+                        "type": "ERROR",
+                        "blockId": block_id,
+                        "componentType": component,
+                        "message": ai_content["error"],
+                    }
+                    # Still fill block with empty content so page is valid
+                    _fill_single_block(block, component, ai_content)
+                    yield {
+                        "type": "BLOCK_COMPLETE",
+                        "blockId": block_id,
+                    }
+                    continue
 
                 # For SLOT_DELTA, convert list/dict to JSON string
                 delta_text = (
@@ -897,6 +979,56 @@ def _apply_prop_patch(block: dict[str, Any], changes: dict[str, Any]) -> None:
     """Apply property changes to a block."""
     for key, value in changes.items():
         block[key] = value
+
+
+# ── Quiz completeness validation (A1.4) ──────────────────────
+
+
+def _check_quiz_completeness(quiz: QuizOutputV1) -> list[str]:
+    """Check field completeness per spec A1.4.
+
+    Returns a list of warning strings (empty = all good).
+    These are non-blocking warnings logged for monitoring.
+    """
+    from models.quiz_output import QuestionTypeV1
+
+    issues: list[str] = []
+    for q in quiz.questions:
+        _check_question_completeness(q, issues)
+        if q.sub_questions:
+            for sq in q.sub_questions:
+                _check_question_completeness(sq, issues)
+    return issues
+
+
+def _check_question_completeness(
+    q: "QuizQuestionV1", issues: list[str]
+) -> None:
+    """Check a single question's field completeness."""
+    from models.quiz_output import QuestionTypeV1
+
+    choice_types = {QuestionTypeV1.SINGLE_CHOICE, QuestionTypeV1.MULTIPLE_CHOICE}
+
+    if q.question_type in choice_types:
+        if not q.options or len(q.options) < 2:
+            issues.append(f"{q.id}: choice question needs >= 2 options")
+        if q.correct_answer is not None and q.options:
+            answer_str = (
+                q.correct_answer
+                if isinstance(q.correct_answer, str)
+                else ", ".join(q.correct_answer)
+            )
+            # Check if answer matches an option or is a letter reference
+            if (
+                answer_str not in q.options
+                and answer_str.upper() not in {chr(65 + i) for i in range(len(q.options))}
+            ):
+                issues.append(f"{q.id}: correct_answer '{answer_str}' not in options")
+
+    if not q.explanation:
+        issues.append(f"{q.id}: missing explanation")
+    if q.points <= 0:
+        issues.append(f"{q.id}: points must be > 0 (got {q.points})")
 
 
 # ── Topological sort ─────────────────────────────────────────

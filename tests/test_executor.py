@@ -5,11 +5,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from agents.executor import (
+    QUIZ_GENERATION_MAX_RETRIES,
     ExecutorAgent,
     _build_block,
     _build_chart_block,
     _build_kpi_block,
     _build_table_block,
+    _check_quiz_completeness,
     _fill_single_block,
     _get_slot_key,
     _topo_sort,
@@ -786,3 +788,439 @@ async def test_slot_delta_serializes_list_as_json():
     # Should be JSON string, not Python repr
     assert '"title"' in deltas[0]["deltaText"]
     assert '"Test"' in deltas[0]["deltaText"]
+
+
+# ── A1.2: Quiz output validation + retry tests ───────────────
+
+
+def test_quiz_generation_max_retries_constant():
+    """QUIZ_GENERATION_MAX_RETRIES should be 2."""
+    assert QUIZ_GENERATION_MAX_RETRIES == 2
+
+
+def test_check_quiz_completeness_all_good():
+    """No issues for well-formed quiz."""
+    from models.quiz_output import QuizOutputV1, QuizQuestionV1, QuestionTypeV1
+
+    quiz = QuizOutputV1(
+        title="Test",
+        questions=[
+            QuizQuestionV1(
+                id="q-001",
+                order=1,
+                question_type=QuestionTypeV1.SINGLE_CHOICE,
+                question="What is 2+2?",
+                options=["3", "4", "5", "6"],
+                correct_answer="4",
+                explanation="Basic math",
+                difficulty="easy",
+                points=1.0,
+            ),
+        ],
+        total_points=1.0,
+    )
+    issues = _check_quiz_completeness(quiz)
+    assert issues == []
+
+
+def test_check_quiz_completeness_missing_explanation():
+    """Flag missing explanation."""
+    from models.quiz_output import QuizOutputV1, QuizQuestionV1, QuestionTypeV1
+
+    quiz = QuizOutputV1(
+        title="Test",
+        questions=[
+            QuizQuestionV1(
+                id="q-001",
+                order=1,
+                question_type=QuestionTypeV1.SHORT_ANSWER,
+                question="What is Python?",
+                correct_answer="A programming language",
+                explanation="",
+                difficulty="easy",
+                points=1.0,
+            ),
+        ],
+        total_points=1.0,
+    )
+    issues = _check_quiz_completeness(quiz)
+    assert any("missing explanation" in i for i in issues)
+
+
+def test_check_quiz_completeness_zero_points():
+    """Flag zero or negative points."""
+    from models.quiz_output import QuizOutputV1, QuizQuestionV1, QuestionTypeV1
+
+    quiz = QuizOutputV1(
+        title="Test",
+        questions=[
+            QuizQuestionV1(
+                id="q-001",
+                order=1,
+                question_type=QuestionTypeV1.SHORT_ANSWER,
+                question="What?",
+                correct_answer="Answer",
+                explanation="Explanation",
+                difficulty="easy",
+                points=0,
+            ),
+        ],
+        total_points=0,
+    )
+    issues = _check_quiz_completeness(quiz)
+    assert any("points must be > 0" in i for i in issues)
+
+
+def test_check_quiz_completeness_answer_not_in_options():
+    """Flag correct_answer not matching options."""
+    from models.quiz_output import QuizOutputV1, QuizQuestionV1, QuestionTypeV1
+
+    quiz = QuizOutputV1(
+        title="Test",
+        questions=[
+            QuizQuestionV1(
+                id="q-001",
+                order=1,
+                question_type=QuestionTypeV1.SINGLE_CHOICE,
+                question="What?",
+                options=["A. Opt1", "B. Opt2", "C. Opt3"],
+                correct_answer="D. Wrong",
+                explanation="Test",
+                difficulty="easy",
+                points=1.0,
+            ),
+        ],
+        total_points=1.0,
+    )
+    issues = _check_quiz_completeness(quiz)
+    assert any("not in options" in i for i in issues)
+
+
+def test_check_quiz_completeness_letter_answer_ok():
+    """Letter reference (A, B, C) should not be flagged."""
+    from models.quiz_output import QuizOutputV1, QuizQuestionV1, QuestionTypeV1
+
+    quiz = QuizOutputV1(
+        title="Test",
+        questions=[
+            QuizQuestionV1(
+                id="q-001",
+                order=1,
+                question_type=QuestionTypeV1.SINGLE_CHOICE,
+                question="What?",
+                options=["Opt1", "Opt2", "Opt3"],
+                correct_answer="B",
+                explanation="Test",
+                difficulty="easy",
+                points=1.0,
+            ),
+        ],
+        total_points=1.0,
+    )
+    issues = _check_quiz_completeness(quiz)
+    # "B" is a valid letter reference for 3 options
+    assert not any("not in options" in i for i in issues)
+
+
+def test_check_quiz_completeness_sub_questions():
+    """Check sub_questions completeness too."""
+    from models.quiz_output import QuizOutputV1, QuizQuestionV1, QuestionTypeV1
+
+    quiz = QuizOutputV1(
+        title="Test",
+        questions=[
+            QuizQuestionV1(
+                id="q-001",
+                order=1,
+                question_type=QuestionTypeV1.COMPOSITE,
+                question="Read the passage and answer:",
+                explanation="",
+                difficulty="medium",
+                points=2.0,
+                sub_questions=[
+                    QuizQuestionV1(
+                        id="q-001-a",
+                        order=1,
+                        question_type=QuestionTypeV1.SHORT_ANSWER,
+                        question="Sub Q",
+                        correct_answer="Answer",
+                        explanation="",  # missing
+                        difficulty="medium",
+                        points=1.0,
+                    ),
+                ],
+            ),
+        ],
+        total_points=2.0,
+    )
+    issues = _check_quiz_completeness(quiz)
+    # Both root and sub should have missing explanation flagged
+    assert len([i for i in issues if "missing explanation" in i]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_generate_quiz_content_retries_on_empty():
+    """_generate_quiz_content retries when pipeline returns 0 questions."""
+    from models.question_pipeline import PipelineResult, QuestionFinal
+
+    # First call returns empty, second returns valid
+    empty_result = PipelineResult(
+        questions=[],
+        total_generated=0,
+        total_passed=0,
+        total_repaired=0,
+        total_failed=0,
+        average_quality_score=0,
+    )
+    valid_result = PipelineResult(
+        questions=[
+            QuestionFinal(
+                id="q1",
+                type="short_answer",
+                stem="What is AI?",
+                answer="Artificial Intelligence",
+                explanation="AI stands for...",
+                difficulty="easy",
+                quality_score=0.9,
+                passed_quality_gate=True,
+                repair_count=0,
+            ),
+        ],
+        total_generated=1,
+        total_passed=1,
+        total_repaired=0,
+        total_failed=0,
+        average_quality_score=0.9,
+    )
+
+    call_count = 0
+
+    async def mock_run_pipeline(spec):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return empty_result
+        return valid_result
+
+    from models.blueprint import ComponentSlot, ComponentType
+
+    slot = ComponentSlot(
+        id="quiz",
+        component_type=ComponentType.QUESTION_GENERATOR,
+        props={"count": 1, "types": ["short_answer"], "difficulty": "easy"},
+        ai_content_slot=True,
+    )
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+
+    with patch(
+        "agents.question_pipeline.QuestionPipeline"
+    ) as MockPipeline:
+        mock_instance = MockPipeline.return_value
+        mock_instance.run_pipeline = AsyncMock(side_effect=mock_run_pipeline)
+
+        result = await executor._generate_quiz_content(slot, bp)
+
+    assert call_count == 2  # retried once
+    assert len(result["questions"]) == 1
+    assert result["quizMeta"] is not None
+
+
+@pytest.mark.asyncio
+async def test_generate_quiz_content_retries_on_validation_error():
+    """_generate_quiz_content retries when validation fails."""
+    from pydantic import ValidationError
+    from models.question_pipeline import PipelineResult, QuestionFinal
+
+    valid_result = PipelineResult(
+        questions=[
+            QuestionFinal(
+                id="q1",
+                type="short_answer",
+                stem="What is AI?",
+                answer="Artificial Intelligence",
+                explanation="AI definition",
+                difficulty="easy",
+                quality_score=0.9,
+                passed_quality_gate=True,
+                repair_count=0,
+            ),
+        ],
+        total_generated=1,
+        total_passed=1,
+        total_repaired=0,
+        total_failed=0,
+        average_quality_score=0.9,
+    )
+
+    call_count = 0
+
+    async def mock_run_pipeline(spec):
+        nonlocal call_count
+        call_count += 1
+        return valid_result
+
+    from models.blueprint import ComponentSlot, ComponentType
+
+    slot = ComponentSlot(
+        id="quiz",
+        component_type=ComponentType.QUESTION_GENERATOR,
+        props={"count": 1, "types": ["short_answer"], "difficulty": "easy"},
+        ai_content_slot=True,
+    )
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+
+    # First attempt raises ValidationError, second succeeds
+    original_validate = QuizOutputV1.model_validate
+    attempt = 0
+
+    def mock_model_validate(data, **kwargs):
+        nonlocal attempt
+        attempt += 1
+        if attempt == 1:
+            raise ValueError("Simulated validation error")
+        return original_validate(data, **kwargs)
+
+    with patch(
+        "agents.question_pipeline.QuestionPipeline"
+    ) as MockPipeline:
+        mock_instance = MockPipeline.return_value
+        mock_instance.run_pipeline = AsyncMock(side_effect=mock_run_pipeline)
+
+        with patch(
+            "agents.executor.QuizOutputV1.model_validate",
+            side_effect=mock_model_validate,
+        ):
+            result = await executor._generate_quiz_content(slot, bp)
+
+    assert call_count == 2
+    assert len(result["questions"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_generate_quiz_content_all_retries_fail():
+    """_generate_quiz_content returns error dict when all retries exhausted."""
+    from models.question_pipeline import PipelineResult
+
+    empty_result = PipelineResult(
+        questions=[],
+        total_generated=0,
+        total_passed=0,
+        total_repaired=0,
+        total_failed=0,
+        average_quality_score=0,
+    )
+
+    from models.blueprint import ComponentSlot, ComponentType
+
+    slot = ComponentSlot(
+        id="quiz",
+        component_type=ComponentType.QUESTION_GENERATOR,
+        props={"count": 5, "types": ["multiple_choice"]},
+        ai_content_slot=True,
+    )
+    bp = _make_blueprint()
+    executor = ExecutorAgent()
+
+    with patch(
+        "agents.question_pipeline.QuestionPipeline"
+    ) as MockPipeline:
+        mock_instance = MockPipeline.return_value
+        mock_instance.run_pipeline = AsyncMock(return_value=empty_result)
+
+        result = await executor._generate_quiz_content(slot, bp)
+
+    assert result["questions"] == []
+    assert result["quizMeta"] is None
+    assert "error" in result
+    assert "failed after" in result["error"]
+    # Should have attempted 1 + QUIZ_GENERATION_MAX_RETRIES times
+    assert mock_instance.run_pipeline.call_count == 1 + QUIZ_GENERATION_MAX_RETRIES
+
+
+@pytest.mark.asyncio
+async def test_stream_emits_error_event_on_quiz_failure():
+    """SSE stream emits ERROR event when quiz generation fails."""
+    from models.blueprint import ComponentSlot, ComponentType
+
+    bp_args = _sample_blueprint_args()
+    bp_args["ui_composition"]["tabs"][0]["slots"] = [
+        {
+            "id": "quiz_slot",
+            "component_type": "question_generator",
+            "props": {"count": 5, "title": "Quiz"},
+            "ai_content_slot": True,
+        },
+    ]
+    bp = Blueprint(**bp_args)
+    executor = ExecutorAgent()
+
+    # Mock _generate_block_content to return error dict
+    error_content = {
+        "questions": [],
+        "quizMeta": None,
+        "error": "Quiz generation failed after 3 attempts: Pipeline returned 0 questions",
+    }
+
+    with patch(
+        "agents.executor.execute_mcp_tool",
+        side_effect=_mock_tool_dispatch,
+    ), patch.object(
+        ExecutorAgent,
+        "_generate_block_content",
+        new_callable=AsyncMock,
+        return_value=error_content,
+    ):
+        events = []
+        async for event in executor.execute_blueprint_stream(
+            bp, context={"teacherId": "t-001", "input": {"assignment": "a-001"}},
+        ):
+            events.append(event)
+
+    types = [e["type"] for e in events]
+
+    # Should have ERROR event
+    assert "ERROR" in types
+    error_event = next(e for e in events if e["type"] == "ERROR")
+    assert error_event["blockId"] == "quiz_slot"
+    assert error_event["componentType"] == "question_generator"
+    assert "failed" in error_event["message"]
+
+    # Should still have BLOCK_COMPLETE (graceful degradation)
+    assert "BLOCK_COMPLETE" in types
+
+    # Should NOT have SLOT_DELTA for the failed block
+    slot_deltas = [e for e in events if e["type"] == "SLOT_DELTA"]
+    assert len(slot_deltas) == 0
+
+    # Stream should complete normally
+    complete = events[-1]
+    assert complete["type"] == "COMPLETE"
+    assert complete["message"] == "completed"
+
+
+def test_fill_single_block_question_generator_with_error():
+    """_fill_single_block handles error dict from quiz generation."""
+    block = {
+        "type": "question_generator",
+        "title": "Quiz",
+        "questions": [],
+        "quizMeta": None,
+    }
+    error_content = {
+        "questions": [],
+        "quizMeta": None,
+        "error": "Generation failed",
+    }
+
+    _fill_single_block(block, "question_generator", error_content)
+
+    # Should fill with empty questions, not crash
+    assert block["questions"] == []
+    assert block["quizMeta"] is None
+
+
+# ── Import for A1.2 tests ─────────────────────────────────────
+
+from models.quiz_output import QuizOutputV1
