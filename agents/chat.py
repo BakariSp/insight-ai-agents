@@ -32,6 +32,7 @@ async def generate_response(
     message: str,
     intent_type: str = "chat_smalltalk",
     language: str = "en",
+    conversation_history: str = "",
 ) -> str:
     """Generate a chat response for smalltalk or QA intent.
 
@@ -39,13 +40,19 @@ async def generate_response(
         message: The user's message.
         intent_type: "chat_smalltalk" or "chat_qa".
         language: Language hint for response generation.
+        conversation_history: Formatted recent turns for context.
 
     Returns:
         A Markdown-formatted text response.
     """
+    history_section = ""
+    if conversation_history:
+        history_section = f"[Recent conversation]\n{conversation_history}\n\n"
+
     run_prompt = (
         f"[Language: {language}]\n"
         f"[Intent: {intent_type}]\n\n"
+        f"{history_section}"
         f"{message}"
     )
 

@@ -5,8 +5,11 @@ to the appropriate agent (ChatAgent, PlannerAgent, PageChatAgent) based on
 the classified intent and confidence level.
 
 Supports two modes:
-- **Initial mode** (no blueprint): chat / build / clarify
+- **Initial mode** (no blueprint): chat / quiz_generate / build / clarify
 - **Follow-up mode** (with blueprint): chat / refine / rebuild
+
+Quiz generation uses the Skill fast path (single LLM call, ~5s) instead of
+the full Blueprint pipeline (~100s).
 
 Endpoints:
 - ``POST /api/conversation``         — JSON response (legacy, backward-compat)
@@ -33,11 +36,18 @@ from models.conversation import (
     ConversationRequest,
     ConversationResponse,
     IntentType,
+    RouterResult,
 )
 from models.entity import EntityType
 from services.clarify_builder import build_clarify_options
+from services.conversation_store import (
+    ConversationSession,
+    generate_conversation_id,
+    get_conversation_store,
+)
 from services.datastream import DataStreamEncoder, map_executor_event
 from services.entity_resolver import resolve_entities
+from skills.quiz_skill import build_quiz_intro, generate_quiz
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +80,56 @@ def _verify_source_prompt(blueprint, expected_prompt: str) -> None:
         blueprint.source_prompt = expected_prompt
 
 
+# ── Session helpers ─────────────────────────────────────────
+
+
+async def _load_session(
+    store, req: ConversationRequest
+) -> tuple[ConversationSession, str]:
+    """Load or create a conversation session, inject accumulated context.
+
+    Returns:
+        (session, history_text) — session object and formatted history for prompts.
+    """
+    if not req.conversation_id:
+        req.conversation_id = generate_conversation_id()
+
+    session = await store.get(req.conversation_id)
+    if session is None:
+        session = ConversationSession(conversation_id=req.conversation_id)
+
+    # Inject accumulated context from previous turns (current request takes priority)
+    if session.accumulated_context:
+        merged = dict(session.accumulated_context)
+        if req.context:
+            merged.update(req.context)
+        req.context = merged
+
+    # Record current user turn
+    session.add_user_turn(req.message)
+
+    history_text = session.format_history_for_prompt(max_turns=5)
+    return session, history_text
+
+
+async def _save_session(
+    store,
+    session: ConversationSession,
+    req: ConversationRequest,
+    response: ConversationResponse,
+    intent: str,
+) -> None:
+    """Save the conversation session after a response is built."""
+    response_summary = response.chat_response or f"[{response.action}]"
+    session.add_assistant_turn(response_summary, action=response.legacy_action)
+    session.last_intent = intent
+    session.last_action = response.legacy_action
+    if req.context:
+        session.merge_context(req.context)
+    await store.save(session)
+    response.conversation_id = req.conversation_id
+
+
 @router.post("/conversation", response_model=ConversationResponse)
 async def conversation(req: ConversationRequest):
     """Unified conversation endpoint — single entry point for all interactions.
@@ -84,6 +144,10 @@ async def conversation(req: ConversationRequest):
                 req.context.get("teacherId")
             ) or req.teacher_id
 
+        # ── Session: load ──
+        store = get_conversation_store()
+        session, history_text = await _load_session(store, req)
+
         is_followup = req.blueprint is not None
 
         # ── Step 1: Classify intent ──
@@ -91,6 +155,8 @@ async def conversation(req: ConversationRequest):
             req.message,
             blueprint=req.blueprint,
             page_context=req.page_context,
+            conversation_history=history_text,
+            skill_config=req.skill_config,
         )
 
         intent = router_result.intent
@@ -98,8 +164,14 @@ async def conversation(req: ConversationRequest):
         # ── Step 2: Dispatch based on mode + intent ──
 
         if is_followup:
-            return await _handle_followup(req, intent, router_result)
-        return await _handle_initial(req, intent, router_result)
+            response = await _handle_followup(req, intent, router_result, history_text)
+        else:
+            response = await _handle_initial(req, intent, router_result, history_text)
+
+        # ── Session: save ──
+        await _save_session(store, session, req, response, intent)
+
+        return response
 
     except Exception as e:
         logger.exception("Conversation processing failed")
@@ -139,6 +211,8 @@ async def _conversation_stream_generator(
 ) -> AsyncGenerator[str, None]:
     """Generate the full conversation as a Data Stream Protocol SSE stream."""
     enc = DataStreamEncoder()
+    session: ConversationSession | None = None
+    intent = "unknown"
 
     try:
         yield enc.start()
@@ -149,6 +223,10 @@ async def _conversation_stream_generator(
             req.context["teacherId"] = _normalize_teacher_id(
                 req.context.get("teacherId")
             ) or req.teacher_id
+
+        # ── Session: load ──
+        store = get_conversation_store()
+        session, history_text = await _load_session(store, req)
 
         is_followup = req.blueprint is not None
 
@@ -161,6 +239,8 @@ async def _conversation_stream_generator(
             req.message,
             blueprint=req.blueprint,
             page_context=req.page_context,
+            conversation_history=history_text,
+            skill_config=req.skill_config,
         )
         intent = router_result.intent
 
@@ -173,15 +253,25 @@ async def _conversation_stream_generator(
 
         # ── Step 2: Dispatch ──
         if is_followup:
-            async for line in _stream_followup(enc, req, intent, router_result):
+            async for line in _stream_followup(enc, req, intent, router_result, history_text):
                 yield line
         else:
-            async for line in _stream_initial(enc, req, intent, router_result):
+            async for line in _stream_initial(enc, req, intent, router_result, history_text):
                 yield line
 
     except Exception as e:
         logger.exception("Conversation stream failed")
         yield enc.error(f"Conversation processing failed: {e}")
+
+    # ── Session: save (after stream completes) ──
+    if session is not None:
+        session.add_assistant_turn(f"[streamed: {intent}]", action=intent)
+        if req.context:
+            session.merge_context(req.context)
+        try:
+            await get_conversation_store().save(session)
+        except Exception:
+            logger.exception("Failed to save conversation session")
 
     yield enc.finish()
 
@@ -191,6 +281,7 @@ async def _stream_initial(
     req: ConversationRequest,
     intent: str,
     router_result,
+    history_text: str = "",
 ) -> AsyncGenerator[str, None]:
     """Stream initial-mode intents via Data Stream Protocol."""
 
@@ -200,12 +291,19 @@ async def _stream_initial(
         yield enc.data("action", {"action": "chat", "chatKind": kind})
 
         text = await chat_response(
-            req.message, intent_type=intent, language=req.language
+            req.message, intent_type=intent, language=req.language,
+            conversation_history=history_text,
         )
         tid = enc._id()
         yield enc.text_start(tid)
         yield enc.text_delta(tid, text)
         yield enc.text_end(tid)
+        return
+
+    # ── Quiz Generate (Skill fast path) ──
+    if intent == IntentType.QUIZ_GENERATE.value:
+        async for line in _stream_quiz_generate(enc, req, router_result):
+            yield line
         return
 
     # ── Build ──
@@ -356,7 +454,10 @@ async def _stream_initial(
 
     # ── Fallback → chat ──
     yield enc.data("action", {"action": "chat", "chatKind": "smalltalk"})
-    text = await chat_response(req.message, language=req.language)
+    text = await chat_response(
+        req.message, language=req.language,
+        conversation_history=history_text,
+    )
     tid = enc._id()
     yield enc.text_start(tid)
     yield enc.text_delta(tid, text)
@@ -368,6 +469,7 @@ async def _stream_followup(
     req: ConversationRequest,
     intent: str,
     router_result,
+    history_text: str = "",
 ) -> AsyncGenerator[str, None]:
     """Stream follow-up-mode intents via Data Stream Protocol."""
 
@@ -443,6 +545,67 @@ async def _stream_followup(
     yield enc.text_start(tid)
     yield enc.text_delta(tid, text)
     yield enc.text_end(tid)
+
+
+async def _stream_quiz_generate(
+    enc: DataStreamEncoder,
+    req: ConversationRequest,
+    router_result: RouterResult,
+) -> AsyncGenerator[str, None]:
+    """Quiz generation fast path — single LLM call, streaming questions.
+
+    Bypasses the Blueprint pipeline entirely.  Each question is pushed as a
+    ``data-quiz-question`` SSE event the moment it is parsed from the LLM
+    stream, giving the teacher near-instant feedback (~3-5s to first question).
+    """
+    params = router_result.extracted_params
+    language = req.language
+
+    # Determine optional RAG / file context
+    context_parts: list[str] = []
+    if router_result.enable_rag and req.skill_config:
+        if req.skill_config.uploaded_file_content:
+            context_parts.append(f"教师上传材料:\n{req.skill_config.uploaded_file_content}")
+
+    combined_context = "\n\n".join(context_parts)
+
+    # Build intro text
+    intro = build_quiz_intro(params, language)
+    yield enc.data("action", {"action": "quiz_generate"})
+    tid = enc._id()
+    yield enc.text_start(tid)
+    yield enc.text_delta(tid, intro)
+    yield enc.text_end(tid)
+
+    # Stream quiz questions
+    question_index = 0
+    try:
+        async for question in generate_quiz(
+            topic=params.get("topic", ""),
+            count=params.get("count", 10),
+            difficulty=params.get("difficulty", "medium"),
+            types=params.get("types"),
+            subject=params.get("subject", ""),
+            grade=params.get("grade", ""),
+            context=combined_context,
+            weakness_focus=params.get("weakness_focus", []),
+        ):
+            yield enc.data("quiz-question", {
+                "index": question_index,
+                "question": question.model_dump(by_alias=True),
+                "status": "generated",
+            })
+            question_index += 1
+    except Exception as e:
+        logger.exception("Quiz generation failed at question %d", question_index)
+        yield enc.error(f"Quiz generation failed: {e}")
+        return
+
+    # Completion signal
+    yield enc.data("quiz-complete", {
+        "total": question_index,
+        "message": f"{question_index} questions generated",
+    })
 
 
 async def _stream_build(
@@ -530,6 +693,7 @@ async def _handle_initial(
     req: ConversationRequest,
     intent: str,
     router_result,
+    history_text: str = "",
 ) -> ConversationResponse:
     """Handle initial-mode intents (no existing blueprint)."""
 
@@ -539,6 +703,7 @@ async def _handle_initial(
             req.message,
             intent_type=intent,
             language=req.language,
+            conversation_history=history_text,
         )
         kind = "smalltalk" if intent == IntentType.CHAT_SMALLTALK.value else "qa"
         return ConversationResponse(
@@ -546,6 +711,17 @@ async def _handle_initial(
             action="chat",
             chat_kind=kind,
             chat_response=text,
+            conversation_id=req.conversation_id,
+        )
+
+    if intent == IntentType.QUIZ_GENERATE.value:
+        # Quiz fast path — not fully supported in JSON mode (use /stream).
+        # Return a simple response directing to streaming endpoint.
+        return ConversationResponse(
+            mode="entry",
+            action="build",
+            chat_response="Quiz generation is best experienced via the streaming endpoint. "
+            "Use POST /api/conversation/stream for real-time question delivery.",
             conversation_id=req.conversation_id,
         )
 
@@ -718,7 +894,10 @@ async def _handle_initial(
         )
 
     # Fallback — treat as smalltalk
-    text = await chat_response(req.message, language=req.language)
+    text = await chat_response(
+        req.message, language=req.language,
+        conversation_history=history_text,
+    )
     return ConversationResponse(
         mode="entry",
         action="chat",
@@ -732,6 +911,7 @@ async def _handle_followup(
     req: ConversationRequest,
     intent: str,
     router_result,
+    history_text: str = "",
 ) -> ConversationResponse:
     """Handle follow-up-mode intents (existing blueprint context)."""
 

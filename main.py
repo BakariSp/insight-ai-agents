@@ -1,5 +1,6 @@
 """FastAPI entry point for Insight AI Agent service."""
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -7,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import get_settings
+from services.conversation_store import get_conversation_store, periodic_cleanup
 from services.java_client import get_java_client
 from insight_backend.rag_engine import init_rag_engine
 
@@ -23,7 +25,17 @@ async def lifespan(app: FastAPI):
     rag_engine = init_rag_engine()
     await rag_engine.initialize()
 
+    # Initialize conversation store and start periodic cleanup
+    get_conversation_store()
+    cleanup_task = asyncio.create_task(periodic_cleanup(interval_seconds=300))
+
     yield
+
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
 
     await rag_engine.close()
     await client.close()

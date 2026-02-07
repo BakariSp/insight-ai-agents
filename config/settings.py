@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # ── LLM ──────────────────────────────────────────────────
     default_model: str = "dashscope/qwen-max"
     executor_model: str = "dashscope/qwen-max"
+    router_model: str = "dashscope/qwen-turbo-latest"  # Fast router (~200ms)
     max_tokens: int = 4096
 
     # ── LLM Generation Defaults (all optional, None = model default) ──
@@ -58,6 +59,10 @@ class Settings(BaseSettings):
     internal_api_secret: str = ""
     embedding_model: str = "text-embedding-v3"
     embedding_dim: int = 1024
+
+    # ── Conversation Memory ──────────────────────────────────
+    conversation_store_type: str = "memory"  # "memory" or "redis" (future)
+    conversation_ttl: int = 1800  # seconds (30 min)
 
     # ── MCP ──────────────────────────────────────────────────
     mcp_server_name: str = "insight-ai-agent"

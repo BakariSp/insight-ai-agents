@@ -17,6 +17,7 @@ from models.base import CamelModel
 from models.blueprint import Blueprint
 from models.entity import ResolvedEntity
 from models.patch import PatchPlan
+from models.skill_config import SkillConfig
 
 
 # ── Intent enums ──────────────────────────────────────────────
@@ -28,6 +29,7 @@ class IntentType(str, Enum):
     CHAT_SMALLTALK = "chat_smalltalk"
     CHAT_QA = "chat_qa"
     BUILD_WORKFLOW = "build_workflow"
+    QUIZ_GENERATE = "quiz_generate"  # Skill fast-path: direct quiz generation
     CLARIFY = "clarify"
 
 
@@ -51,6 +53,14 @@ class RouterResult(CamelModel):
     clarifying_question: str | None = None
     route_hint: str | None = None
     refine_scope: str | None = None  # Phase 6.4: "patch_layout", "patch_compose", or "full_rebuild"
+
+    # ── Skill / Canvas extensions ────────────────────────────
+    extracted_params: dict = Field(default_factory=dict)
+    completeness: float = 0.0  # 0-1, how sufficient are the known params
+    critical_missing: list[str] = Field(default_factory=list)
+    suggested_skills: list[str] = Field(default_factory=list)
+    enable_rag: bool = False
+    strategy: str = "direct_generate"  # direct_generate | ask_one_question | show_context
 
 
 # ── Clarify interaction ───────────────────────────────────────
@@ -85,6 +95,7 @@ class ConversationRequest(CamelModel):
     blueprint: Blueprint | None = None
     page_context: dict | None = None
     conversation_id: str | None = None
+    skill_config: SkillConfig | None = None  # Skill toggles (RAG, file context)
 
 
 class ConversationResponse(CamelModel):

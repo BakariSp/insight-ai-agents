@@ -303,18 +303,27 @@ async def test_followup_refine_with_scope():
 
 
 def test_v1_guard_quiz_keyword_allows_build():
-    """V1 guard allows build when quiz keywords present."""
+    """V1 guard allows build_workflow with quiz keywords (LLM decides intent)."""
     r = RouterResult(intent="build_workflow", confidence=0.85, should_build=True)
     result = _apply_v1_guard(r, "帮我出10道语法选择题")
+    # The LLM now classifies quiz_generate directly; V1 guard trusts build_workflow
     assert result.should_build is True
     assert result.intent == "build_workflow"
 
 
 def test_v1_guard_english_quiz_keyword_allows_build():
-    """V1 guard allows build for English quiz keywords."""
+    """V1 guard allows build for English quiz keywords (LLM decides intent)."""
     r = RouterResult(intent="build_workflow", confidence=0.85, should_build=True)
     result = _apply_v1_guard(r, "Generate 5 MCQ on grammar")
     assert result.should_build is True
+    assert result.intent == "build_workflow"
+
+
+def test_v1_guard_quiz_generate_passes():
+    """V1 guard passes quiz_generate intent unchanged."""
+    r = RouterResult(intent="quiz_generate", confidence=0.85, should_build=False)
+    result = _apply_v1_guard(r, "帮我出10道语法选择题")
+    assert result.intent == "quiz_generate"
 
 
 def test_v1_guard_non_quiz_hint_degrades():
