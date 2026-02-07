@@ -81,6 +81,22 @@ def _build_quiz_prompt(
 # ── Streaming JSON parser ─────────────────────────────────────
 
 
+def _fix_invalid_json_escapes(s: str) -> str:
+    r"""Fix invalid JSON escape sequences produced by LLMs.
+
+    LLMs frequently emit LaTeX notation like ``\(x^2\)`` or ``\frac{}{}``
+    inside JSON strings.  These are invalid JSON escapes (only ``\"``,
+    ``\\``, ``\/``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\uXXXX``
+    are legal).  Replace lone backslashes before non-escape characters
+    with double-backslashes so ``json.loads`` succeeds.
+    """
+    return re.sub(
+        r'\\(?!["\\/bfnrtu])',
+        r"\\\\",
+        s,
+    )
+
+
 def _try_extract_question(buffer: str) -> tuple[dict | None, str]:
     """Try to extract a complete JSON object from the buffer.
 
@@ -126,7 +142,13 @@ def _try_extract_question(buffer: str) -> tuple[dict | None, str]:
                     obj = json.loads(json_str)
                     return obj, buffer[i + 1 :]
                 except json.JSONDecodeError:
-                    # Malformed — skip this block and continue
+                    pass
+                # Retry with invalid escape fix (LLM LaTeX like \( \))
+                try:
+                    obj = json.loads(_fix_invalid_json_escapes(json_str))
+                    return obj, buffer[i + 1 :]
+                except json.JSONDecodeError:
+                    # Truly malformed — skip this block and continue
                     return None, buffer[i + 1 :]
 
     # No complete object found yet

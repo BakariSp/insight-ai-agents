@@ -1,0 +1,132 @@
+{
+  "timestamp": "2026-02-07T22:03:10.265177",
+  "summary": {
+    "total_tests": 5,
+    "quiz_tests": 3
+  },
+  "results": [
+    {
+      "test_case": "Chinese quiz - 5 MCQ",
+      "message": "帮我出5道英语语法选择题",
+      "router": {
+        "intent": "quiz_generate",
+        "confidence": 0.9,
+        "strategy": "direct_generate",
+        "duration_ms": 1812.9,
+        "extracted_params": {
+          "topic": "英语语法",
+          "count": 5,
+          "types": [
+            "SINGLE_CHOICE"
+          ],
+          "subject": "英语"
+        }
+      },
+      "generation": {
+        "question_count": 5,
+        "ttfq_ms": 6550.0,
+        "total_ms": 41418.2,
+        "e2e_ms": 43231.1,
+        "per_question_ms": [
+          6550.0,
+          5866.7,
+          11458.3,
+          7980.0,
+          9562.2
+        ],
+        "avg_per_question_ms": 8283.6
+      }
+    },
+    {
+      "test_case": "English quiz - 5 MCQ",
+      "message": "Generate 5 MCQ questions on quadratic equations",
+      "router": {
+        "intent": "quiz_generate",
+        "confidence": 0.9,
+        "strategy": "direct_generate",
+        "duration_ms": 1360.9,
+        "extracted_params": {
+          "topic": "quadratic equations",
+          "count": 5,
+          "types": [
+            "MULTIPLE_CHOICE"
+          ],
+          "subject": "mathematics"
+        }
+      },
+      "generation": {
+        "question_count": 5,
+        "ttfq_ms": 11290.6,
+        "total_ms": 56743.5,
+        "e2e_ms": 58104.4,
+        "per_question_ms": [
+          11290.6,
+          7131.2,
+          8225.6,
+          10776.8,
+          19318.5
+        ],
+        "avg_per_question_ms": 11348.7
+      }
+    },
+    {
+      "test_case": "Chinese quiz - 10 mixed",
+      "message": "出10道关于一元二次方程的题，选择题和填空题混合",
+      "router": {
+        "intent": "quiz_generate",
+        "confidence": 0.9,
+        "strategy": "direct_generate",
+        "duration_ms": 1466.5,
+        "extracted_params": {
+          "topic": "一元二次方程",
+          "count": 10,
+          "types": [
+            "SINGLE_CHOICE",
+            "FILL_IN_BLANK"
+          ],
+          "subject": "数学",
+          "grade": "S3"
+        }
+      },
+      "generation": {
+        "question_count": 5,
+        "ttfq_ms": 11080.7,
+        "total_ms": 39026.1,
+        "e2e_ms": 40492.6,
+        "per_question_ms": [
+          11080.7,
+          7672.2,
+          8457.6,
+          5612.1,
+          6203.1
+        ],
+        "avg_per_question_ms": 7805.2
+      }
+    },
+    {
+      "test_case": "Data analysis (should NOT quiz)",
+      "message": "分析 1A 班英语成绩",
+      "router": {
+        "intent": "build_workflow",
+        "confidence": 0.85,
+        "strategy": "ask_one_question",
+        "duration_ms": 1384.1,
+        "extracted_params": {
+          "class_id": "1A",
+          "subject": "英语"
+        }
+      }
+    },
+    {
+      "test_case": "Smalltalk (should NOT quiz)",
+      "message": "你好",
+      "router": {
+        "intent": "chat_smalltalk",
+        "confidence": 0.9,
+        "strategy": "direct_generate",
+        "duration_ms": 1097.8,
+        "extracted_params": {}
+      }
+    }
+  ]
+}
