@@ -552,9 +552,29 @@ class ExecutorAgent:
                     "componentType": component,
                 }
 
+                # Emit pipeline hint for question_generator blocks
+                if component == "question_generator":
+                    yield {
+                        "type": "MESSAGE",
+                        "message": f"Starting question pipeline for block {block_id}...",
+                    }
+
                 ai_content = await self._generate_block_content(
                     slot, blueprint, data_context, compute_results
                 )
+
+                # Emit pipeline summary for question_generator blocks
+                if component == "question_generator" and isinstance(ai_content, dict):
+                    q_count = 0
+                    if "questions" in ai_content:
+                        q_count = len(ai_content["questions"])
+                    elif "quizMeta" in ai_content:
+                        q_count = ai_content.get("quizMeta", {}).get("totalQuestions", 0)
+                    if q_count:
+                        yield {
+                            "type": "MESSAGE",
+                            "message": f"Question pipeline complete: {q_count} questions generated",
+                        }
 
                 # A1.2: Check for quiz generation error
                 if (

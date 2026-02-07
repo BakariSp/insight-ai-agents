@@ -226,6 +226,7 @@ class QuestionPipeline:
         rubric_context: dict[str, Any] | None = None,
         weakness_context: dict[str, Any] | None = None,
         max_repair_rounds: int = 2,
+        progress_callback: Any | None = None,
     ) -> PipelineResult:
         """Run the full Draft → Judge → Repair pipeline.
 
@@ -257,9 +258,16 @@ class QuestionPipeline:
                 spec.type_distribution = DEFAULT_TYPE_DISTRIBUTION
                 spec.types = list(spec.type_distribution.keys())
 
+        # Helper to emit progress events
+        async def _emit(stage: str, detail: str) -> None:
+            if progress_callback:
+                await progress_callback(stage, detail)
+
         # Stage 1: Generate drafts
         logger.info("Pipeline Stage 1: Generating %d question drafts", spec.count)
+        await _emit("draft", f"Drafting {spec.count} questions...")
         drafts = await self.generate_draft(spec, rubric_context, weakness_context)
+        await _emit("draft", f"Drafted {len(drafts) if drafts else 0} questions")
 
         if not drafts:
             logger.warning("No drafts generated")
@@ -270,7 +278,9 @@ class QuestionPipeline:
         total_repaired = 0
         total_failed = 0
 
-        for draft in drafts:
+        await _emit("judge", f"Evaluating {len(drafts)} questions...")
+
+        for idx, draft in enumerate(drafts, 1):
             current_draft = draft
             repair_count = 0
 
@@ -286,11 +296,13 @@ class QuestionPipeline:
                     total_passed += 1
                     if repair_count > 0:
                         total_repaired += 1
+                    await _emit("judge", f"Q{idx}/{len(drafts)}: score {judge_result.score:.2f} — passed")
                     break
 
                 if round_num < max_repair_rounds:
                     # Stage 3: Repair
                     logger.debug("Repairing question %s (issues: %d)", draft.id, len(judge_result.issues))
+                    await _emit("repair", f"Q{idx}: repairing ({len(judge_result.issues)} issues)")
                     current_draft = await self.repair_question(current_draft, judge_result.issues)
                     repair_count += 1
                 else:
@@ -304,11 +316,17 @@ class QuestionPipeline:
                         self._finalize(current_draft, judge_result.score * 0.5, repair_count, passed=False)
                     )
                     total_failed += 1
+                    await _emit("judge", f"Q{idx}/{len(drafts)}: score {judge_result.score:.2f} — failed")
 
         # Calculate average quality score
         avg_score = (
             sum(q.quality_score for q in final_questions) / len(final_questions)
             if final_questions else 0.0
+        )
+
+        await _emit(
+            "summary",
+            f"{total_passed} passed, {total_repaired} repaired, {total_failed} failed — avg quality {avg_score:.2f}",
         )
 
         return PipelineResult(
