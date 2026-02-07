@@ -19,6 +19,10 @@ requests>=2.31
 fastmcp>=2.0
 numpy>=1.26
 
+# Document parsing (chat attachments)
+python-pptx>=1.0
+openpyxl>=3.1
+
 # RAG / Knowledge Base
 # NOTE: lightrag-hku must be installed BEFORE raganything to avoid dep resolver backtracking.
 # On Python 3.14+, use: pip install lightrag-hku && pip install raganything --no-deps
