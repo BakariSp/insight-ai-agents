@@ -13,6 +13,8 @@ from pydantic_ai import Agent
 from agents.provider import create_model
 from config.llm_config import LLMConfig
 from config.prompts.chat import build_chat_prompt
+from models.conversation import Attachment
+from services.multimodal import build_user_content, has_images
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,7 @@ async def generate_response(
     intent_type: str = "chat_smalltalk",
     language: str = "en",
     conversation_history: str = "",
+    attachments: list[Attachment] | None = None,
 ) -> str:
     """Generate a chat response for smalltalk or QA intent.
 
@@ -41,6 +44,7 @@ async def generate_response(
         intent_type: "chat_smalltalk" or "chat_qa".
         language: Language hint for response generation.
         conversation_history: Formatted recent turns for context.
+        attachments: Optional image attachments for multimodal input.
 
     Returns:
         A Markdown-formatted text response.
@@ -56,10 +60,27 @@ async def generate_response(
         f"{message}"
     )
 
+    # Build multimodal content when images are attached
+    user_content = await build_user_content(run_prompt, attachments or [])
+
+    # Use vision model when images are present
+    if has_images(attachments):
+        from config.settings import get_settings
+
+        agent = Agent(
+            model=create_model(get_settings().vision_model),
+            system_prompt=build_chat_prompt(),
+            retries=1,
+            defer_model_check=True,
+        )
+        logger.info("ChatAgent: using vision model for %d image(s)", len(attachments or []))
+    else:
+        agent = _chat_agent
+
     logger.info("ChatAgent: intent=%s message=%.60s", intent_type, message)
 
-    result = await _chat_agent.run(
-        run_prompt,
+    result = await agent.run(
+        user_content,
         model_settings=CHAT_LLM_CONFIG.to_litellm_kwargs(),
     )
     response = str(result.output)

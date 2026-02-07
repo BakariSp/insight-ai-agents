@@ -20,6 +20,18 @@ from models.patch import PatchPlan
 from models.skill_config import SkillConfig
 
 
+# ── Multimodal attachment ────────────────────────────────────
+
+
+class Attachment(CamelModel):
+    """A file attached to a conversation message (e.g. image)."""
+
+    file_id: str
+    url: str  # Signed OSS URL from Java backend (may be near expiry)
+    mime_type: str = "image/jpeg"
+    filename: str = ""
+
+
 # ── Intent enums ──────────────────────────────────────────────
 
 
@@ -89,6 +101,7 @@ class ConversationRequest(CamelModel):
     """POST /api/conversation — unified request body."""
 
     message: str
+    attachments: list[Attachment] = Field(default_factory=list)
     language: str = "en"
     teacher_id: str = ""
     context: dict | None = None

@@ -15,6 +15,8 @@ from agents.provider import create_model
 from config.llm_config import LLMConfig
 from config.prompts.page_chat import build_page_chat_prompt
 from models.blueprint import Blueprint
+from models.conversation import Attachment
+from services.multimodal import build_user_content, has_images
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,7 @@ async def generate_response(
     blueprint: Blueprint,
     page_context: dict[str, Any] | None = None,
     language: str = "en",
+    attachments: list[Attachment] | None = None,
 ) -> str:
     """Generate a response to a follow-up question about the current page.
 
@@ -53,15 +56,25 @@ async def generate_response(
         blueprint: The current blueprint (provides context).
         page_context: Summary of the page's data points.
         language: Language hint for response generation.
+        attachments: Optional image attachments for multimodal input.
 
     Returns:
         A Markdown-formatted text response grounded in page data.
     """
     page_summary = _summarize_page_context(page_context)
 
+    # Use vision model when images are present
+    if has_images(attachments):
+        from config.settings import get_settings
+
+        model = create_model(get_settings().vision_model)
+        logger.info("PageChatAgent: using vision model for %d image(s)", len(attachments or []))
+    else:
+        model = create_model()
+
     # Build a per-request agent with page-specific context
     agent = Agent(
-        model=create_model(),
+        model=model,
         system_prompt=build_page_chat_prompt(
             blueprint_name=blueprint.name,
             blueprint_description=blueprint.description,
@@ -73,6 +86,9 @@ async def generate_response(
 
     run_prompt = f"[Language: {language}]\n\n{message}"
 
+    # Build multimodal content when images are attached
+    user_content = await build_user_content(run_prompt, attachments or [])
+
     logger.info(
         "PageChatAgent: blueprint=%s message=%.60s",
         blueprint.id,
@@ -80,7 +96,7 @@ async def generate_response(
     )
 
     result = await agent.run(
-        run_prompt,
+        user_content,
         model_settings=PAGE_CHAT_LLM_CONFIG.to_litellm_kwargs(),
     )
     response = str(result.output)

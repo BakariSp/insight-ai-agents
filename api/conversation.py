@@ -106,7 +106,7 @@ async def _load_session(
         req.context = merged
 
     # Record current user turn
-    session.add_user_turn(req.message)
+    session.add_user_turn(req.message, attachment_count=len(req.attachments))
 
     history_text = session.format_history_for_prompt(max_turns=5)
     return session, history_text
@@ -293,6 +293,7 @@ async def _stream_initial(
         text = await chat_response(
             req.message, intent_type=intent, language=req.language,
             conversation_history=history_text,
+            attachments=req.attachments,
         )
         tid = enc._id()
         yield enc.text_start(tid)
@@ -457,6 +458,7 @@ async def _stream_initial(
     text = await chat_response(
         req.message, language=req.language,
         conversation_history=history_text,
+        attachments=req.attachments,
     )
     tid = enc._id()
     yield enc.text_start(tid)
@@ -480,6 +482,7 @@ async def _stream_followup(
             blueprint=req.blueprint,
             page_context=req.page_context,
             language=req.language,
+            attachments=req.attachments,
         )
         tid = enc._id()
         yield enc.text_start(tid)
@@ -540,6 +543,7 @@ async def _stream_followup(
         blueprint=req.blueprint,
         page_context=req.page_context,
         language=req.language,
+        attachments=req.attachments,
     )
     tid = enc._id()
     yield enc.text_start(tid)
@@ -704,6 +708,7 @@ async def _handle_initial(
             intent_type=intent,
             language=req.language,
             conversation_history=history_text,
+            attachments=req.attachments,
         )
         kind = "smalltalk" if intent == IntentType.CHAT_SMALLTALK.value else "qa"
         return ConversationResponse(
@@ -897,6 +902,7 @@ async def _handle_initial(
     text = await chat_response(
         req.message, language=req.language,
         conversation_history=history_text,
+        attachments=req.attachments,
     )
     return ConversationResponse(
         mode="entry",
@@ -922,6 +928,7 @@ async def _handle_followup(
             blueprint=req.blueprint,
             page_context=req.page_context,
             language=req.language,
+            attachments=req.attachments,
         )
         return ConversationResponse(
             mode="followup",
@@ -994,6 +1001,7 @@ async def _handle_followup(
         blueprint=req.blueprint,
         page_context=req.page_context,
         language=req.language,
+        attachments=req.attachments,
     )
     return ConversationResponse(
         mode="followup",

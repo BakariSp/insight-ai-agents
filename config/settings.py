@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     default_model: str = "dashscope/qwen-max"
     executor_model: str = "dashscope/qwen-max"
     router_model: str = "dashscope/qwen-turbo-latest"  # Fast router (~200ms)
+    vision_model: str = "dashscope/qwen-vl-max"  # Vision-capable model for multimodal
     max_tokens: int = 4096
 
     # ── LLM Generation Defaults (all optional, None = model default) ──

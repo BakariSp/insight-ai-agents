@@ -27,6 +27,7 @@ class ConversationTurn(BaseModel):
     role: str  # "user" or "assistant"
     content: str
     action: str | None = None  # Router action (e.g. "clarify", "build")
+    attachment_count: int = 0  # Number of image/file attachments in this turn
     timestamp: float = Field(default_factory=time.time)
 
 
@@ -41,11 +42,12 @@ class ConversationSession(BaseModel):
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 
-    def add_user_turn(self, message: str) -> None:
+    def add_user_turn(self, message: str, attachment_count: int = 0) -> None:
         """Record a user message (truncated to 500 chars)."""
         self.turns.append(ConversationTurn(
             role="user",
             content=message[:500],
+            attachment_count=attachment_count,
         ))
         self.updated_at = time.time()
 
