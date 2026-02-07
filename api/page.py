@@ -20,6 +20,18 @@ router = APIRouter(prefix="/api/page", tags=["page"])
 _executor = ExecutorAgent()
 
 
+def _normalize_teacher_id(raw: str | None) -> str:
+    """Normalize teacher_id from request/context to avoid null-like values."""
+    if raw is None:
+        return ""
+    value = str(raw).strip()
+    if not value:
+        return ""
+    if value.lower() in {"none", "null", "undefined"}:
+        return ""
+    return value
+
+
 async def _event_generator(
     blueprint,
     context: dict,
@@ -38,8 +50,11 @@ async def page_generate(req: PageGenerateRequest):
     client, ending with a COMPLETE event containing the full page JSON.
     """
     context = req.context or {}
-    if req.teacher_id:
-        context.setdefault("teacherId", req.teacher_id)
+    req.teacher_id = _normalize_teacher_id(req.teacher_id)
+    context_teacher_id = _normalize_teacher_id(context.get("teacherId"))
+    teacher_id = req.teacher_id or context_teacher_id
+    if teacher_id:
+        context["teacherId"] = teacher_id
 
     logger.info(
         "Generating page for blueprint: %s (id=%s)",
@@ -77,8 +92,11 @@ async def page_patch(req: PagePatchRequest):
     For PATCH_LAYOUT, applies property changes directly.
     """
     context = req.context or {}
-    if req.teacher_id:
-        context.setdefault("teacherId", req.teacher_id)
+    req.teacher_id = _normalize_teacher_id(req.teacher_id)
+    context_teacher_id = _normalize_teacher_id(context.get("teacherId"))
+    teacher_id = req.teacher_id or context_teacher_id
+    if teacher_id:
+        context["teacherId"] = teacher_id
 
     logger.info(
         "Patching page for blueprint: %s (scope=%s)",

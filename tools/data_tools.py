@@ -57,6 +57,18 @@ def _should_use_mock() -> bool:
     return get_settings().use_mock_data
 
 
+def _normalize_teacher_id(teacher_id: str | None) -> str:
+    """Normalize optional teacher_id to a clean string."""
+    if teacher_id is None:
+        return ""
+    tid = str(teacher_id).strip()
+    if not tid:
+        return ""
+    if tid.lower() in {"none", "null", "undefined"}:
+        return ""
+    return tid
+
+
 def _get_client():
     """Lazy import to avoid circular dependency at module load time."""
     from services.java_client import get_java_client
@@ -76,7 +88,10 @@ async def get_teacher_classes(teacher_id: str) -> dict:
     Returns:
         Dictionary with teacher_id and list of class summaries.
     """
-    if _should_use_mock():
+    teacher_id = _normalize_teacher_id(teacher_id)
+    if _should_use_mock() or not teacher_id:
+        if not teacher_id:
+            logger.warning("get_teacher_classes called without teacher_id; using mock")
         return _mock_teacher_classes(teacher_id)
 
     try:
@@ -102,7 +117,10 @@ async def get_class_detail(teacher_id: str, class_id: str) -> dict:
     Returns:
         Dictionary with full class details, student roster, and assignment list.
     """
-    if _should_use_mock():
+    teacher_id = _normalize_teacher_id(teacher_id)
+    if _should_use_mock() or not teacher_id:
+        if not teacher_id:
+            logger.warning("get_class_detail called without teacher_id; using mock")
         return _mock_class_detail(teacher_id, class_id)
 
     try:
@@ -129,7 +147,12 @@ async def get_assignment_submissions(teacher_id: str, assignment_id: str) -> dic
     Returns:
         Dictionary with assignment info, submissions list, and raw scores array.
     """
-    if _should_use_mock():
+    teacher_id = _normalize_teacher_id(teacher_id)
+    if _should_use_mock() or not teacher_id:
+        if not teacher_id:
+            logger.warning(
+                "get_assignment_submissions called without teacher_id; using mock"
+            )
         return _mock_assignment_submissions(teacher_id, assignment_id)
 
     try:
@@ -154,7 +177,10 @@ async def get_student_grades(teacher_id: str, student_id: str) -> dict:
     Returns:
         Dictionary with student info and list of assignment grades.
     """
-    if _should_use_mock():
+    teacher_id = _normalize_teacher_id(teacher_id)
+    if _should_use_mock() or not teacher_id:
+        if not teacher_id:
+            logger.warning("get_student_grades called without teacher_id; using mock")
         return _mock_student_grades(teacher_id, student_id)
 
     try:
