@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: insight-ai-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: insight_agent
+      POSTGRES_USER: insight
+      POSTGRES_PASSWORD: insight_dev_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - insight_ai_agent_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insight -d insight_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  insight_ai_agent_pgdata:

@@ -906,6 +906,7 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 | **M6: 产品上线** | 6 ✅ | 前端集成 + Level 2 Per-Block AI + SSE Block 事件流 + Patch 机制 + E2E 测试 |
 | **M7: 智能题目生成** | 7 🔄 | RAG 知识库 + 知识点字典 + 题目生成流水线 + 学情分析 |
 | **M8: 通用知识层** | 8 🔲 | RAG 通用化 + KnowledgeTools + TemplateTools + QualityPipeline 通用化 |
+| **M9: Studio 教师知识库** | 9 🔄 | 教师文档上传 → RAG-Anything 解析 → PostgreSQL/pgvector → LightRAG 检索 |
 
 ---
 
@@ -1120,6 +1121,84 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 - [ ] `agents/grading_pipeline.py` — 批改质量流水线
 - [ ] `agents/lesson_pipeline.py` — 备课质量流水线
 - [ ] `pytest tests/ -v` 全部通过（预计新增 60+ 项测试）
+
+---
+
+## Phase 9: Studio 教师知识库 (RAG-Anything + LightRAG) 🔄 进行中
+
+**目标**: 教师在 Studio 上传文档（PDF/DOCX/PPTX）→ RAG-Anything 自动解析/切块/向量化/知识图谱 → PostgreSQL + pgvector 存储 → 对话时 LightRAG 混合检索，实现教师私有知识库。
+
+**前置条件**: Phase 7 完成（RAG 基础设施已建立），Java 后端 Studio API 已实现。
+
+**计划文档**: [教师知识库方案](../../.claude/plans/idempotent-dreaming-flask.md)
+
+**Last Updated**: 2026-02-07
+
+### 三方进度总览
+
+| 模块 | 整体状态 | 说明 |
+|------|---------|------|
+| **Java 后端** | ✅ 就绪 | Studio Controller (8 端点) + Flyway V74 迁移 + AiAgentService @Async |
+| **Python AI Agent** | ✅ 就绪 | RAG Engine + Internal API + Auth + Document Adapter + Tool 注册 |
+| **前端** | 🟡 部分就绪 | Studio 页面框架已有，RAG 文件上传/解析状态 UI 未实现 |
+| **基础设施** | ⚠️ 待启动 | PostgreSQL + pgvector Docker 需拉起，INTERNAL_API_SECRET 需配置 |
+
+### Python AI Agent 侧 — ✅ 全部就绪
+
+- [x] **P9-AI-1:** 依赖安装 — `raganything>=0.1`, `asyncpg>=0.30` in requirements.txt
+- [x] **P9-AI-2:** RAG Engine — `insight_backend/rag_engine.py` (InsightRAGEngine, workspace 隔离, ingest/search/delete)
+- [x] **P9-AI-3:** 数据模型 — `insight_backend/models.py` (ParseRequest, ParseResult, ParseStatus, ParseOptions, DocumentChunk)
+- [x] **P9-AI-4:** JWT 验证 — `insight_backend/auth.py` (转发 Java 验证 + 5min 缓存 + X-Internal-Secret 校验)
+- [x] **P9-AI-5:** 文档适配器 — `insight_backend/document_adapter.py` (download URL + parse status 回调)
+- [x] **P9-AI-6:** Internal API — `api/internal.py` (POST /api/internal/documents/parse, purpose 防御性校验)
+- [x] **P9-AI-7:** RAG 搜索工具 — `tools/document_tools.py` (search_teacher_documents, 已注册 TOOL_REGISTRY)
+- [x] **P9-AI-8:** Main.py 集成 — internal_router 注册 + lifespan 初始化 RAG engine
+- [x] **P9-AI-9:** Docker Compose — `docker-compose.pgvector.yml` (pgvector:pg16, port 5433, health check)
+- [x] **P9-AI-10:** 配置 — `config/settings.py` (pg_uri, embedding_model, embedding_dim, internal_api_secret)
+
+### Java 后端侧 — ✅ 全部就绪
+
+- [x] **P9-Java-1:** Flyway 迁移 — `V74__Add_Studio_Scope_And_RAG_Fields.sql` (scope + 5 RAG 字段 + 索引)
+- [x] **P9-Java-2:** StudioController — 8 端点 (folders CRUD + files upload/list/download + parse-status callback)
+- [x] **P9-Java-3:** AiAgentService — @Async POST /api/internal/documents/parse (非阻塞, X-Internal-Secret)
+- [x] **P9-Java-4:** FileUpload Entity — parseStatus, chunkCount, entityCount, parseError, parsedAt
+- [x] **P9-Java-5:** ResourceFolder Entity — FolderScope enum (RESOURCE_LIB / STUDIO)
+- [x] **P9-Java-6:** FileUploadDTO — RAG 字段映射
+- [x] **P9-Java-7:** Repository — Studio 文件/文件夹查询方法
+- [x] **P9-Java-8:** application.properties — ai.agent.base-url, ai.agent.internal-secret, ai.agent.parse-timeout
+
+### 前端侧 — 🟡 部分就绪
+
+- [x] **P9-FE-1:** Studio 页面框架 — `teacher/studio/` (hub + build + app runner + error boundary)
+- [x] **P9-FE-2:** AI 代理路由 — workflow-generate, report-generate, report-chat, page-patch, studio-messages
+- [x] **P9-FE-3:** HTTP 客户端 — file upload/download 能力已有
+- [x] **P9-FE-4:** 流式渲染 — SSE 事件处理 + ReportPreview 组件
+- [x] **P9-FE-5:** KnowledgePanel 组件壳 — 已存在但仅显示 mock 框架数据
+- [ ] **P9-FE-6:** Studio 文件管理 API 调用 — `/api/studio/teacher/me/folders` + `/files`
+- [ ] **P9-FE-7:** RAG 文件上传组件 — enableRag toggle + parseStatus 指示器
+- [ ] **P9-FE-8:** 知识库浏览器组件 — 文件夹树 + 文件列表 + 解析状态
+- [ ] **P9-FE-9:** TypeScript 类型 — FileParseStatus, KnowledgeFile, FolderInfo
+- [ ] **P9-FE-10:** KnowledgePanel 接入真实数据 — 替换 mock → Java Studio API
+
+### 基础设施 — ⚠️ 待配置
+
+- [ ] **P9-Infra-1:** 启动 PostgreSQL + pgvector Docker
+  ```bash
+  cd insight-ai-agent && docker-compose -f docker-compose.pgvector.yml up -d
+  ```
+- [ ] **P9-Infra-2:** 配置 INTERNAL_API_SECRET (Java + Python .env 保持一致)
+- [ ] **P9-Infra-3:** 确认 PG_URI 连接正常 (默认: postgresql://lightrag:lightrag_dev@localhost:5433/lightrag_db)
+- [ ] **P9-Infra-4:** 端到端冒烟测试 — 上传文件 → 解析 → 检索
+
+### Phase 9 联调 Checklist
+
+- [ ] Java 后端可启动 (mvn spring-boot:run), V74 迁移自动执行
+- [ ] PostgreSQL Docker 可连接 (port 5433)
+- [ ] Python Agent 可启动 (python main.py), RAG engine 初始化成功
+- [ ] 教师上传 PDF (enableRag=true) → Java 存 OSS + MySQL → POST AI parse
+- [ ] AI 接收 parse 请求 → 下载文件 → RAG-Anything 解析 → 回调 Java parse-status
+- [ ] 教师对话 "搜索我的教案" → search_teacher_documents → 返回相关 chunks
+- [ ] 前端 Studio 页面可展示文件列表 + 解析状态
 
 ---
 

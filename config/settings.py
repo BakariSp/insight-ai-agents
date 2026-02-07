@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     spring_boot_timeout: int = 15  # seconds
     use_mock_data: bool = False  # fallback to mock when True or backend unavailable
 
+    # ── Knowledge Base (RAG) ─────────────────────────────────
+    pg_uri: str = "postgresql://insight:insight_dev_pass@localhost:5433/insight_agent"
+    internal_api_secret: str = ""
+    embedding_model: str = "text-embedding-v3"
+    embedding_dim: int = 1024
+
     # ── MCP ──────────────────────────────────────────────────
     mcp_server_name: str = "insight-ai-agent"
 
