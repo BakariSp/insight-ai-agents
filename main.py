@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import get_settings
 from services.java_client import get_java_client
+from insight_backend.rag_engine import init_rag_engine
 
 settings = get_settings()
 
@@ -17,7 +18,14 @@ async def lifespan(app: FastAPI):
     """Manage application lifecycle — start/stop shared resources."""
     client = get_java_client()
     await client.start()
+
+    # Initialize RAG engine (non-blocking — parsing fails gracefully if DB is down)
+    rag_engine = init_rag_engine()
+    await rag_engine.initialize()
+
     yield
+
+    await rag_engine.close()
     await client.close()
 
 
@@ -44,6 +52,7 @@ from api.models_routes import router as models_router  # noqa: E402
 from api.workflow import router as workflow_router  # noqa: E402
 from api.page import router as page_router  # noqa: E402
 from api.conversation import router as conversation_router  # noqa: E402
+from api.internal import router as internal_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(chat_router)
@@ -51,6 +60,7 @@ app.include_router(models_router)
 app.include_router(workflow_router)
 app.include_router(page_router)
 app.include_router(conversation_router)
+app.include_router(internal_router)
 
 
 if __name__ == "__main__":

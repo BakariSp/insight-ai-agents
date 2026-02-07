@@ -24,6 +24,7 @@ from tools.assessment_tools import (
     calculate_class_mastery,
 )
 from tools.rubric_tools import get_rubric, list_available_rubrics
+from tools.document_tools import search_teacher_documents
 
 mcp = FastMCP("insight-ai-tools")
 
@@ -41,6 +42,8 @@ mcp.tool()(calculate_class_mastery)
 # Phase 7: Rubric tools
 mcp.tool()(get_rubric)
 mcp.tool()(list_available_rubrics)
+# Knowledge Base: Document search
+mcp.tool()(search_teacher_documents)
 
 # In-process tool registry: name → callable
 TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
@@ -57,6 +60,8 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     # Phase 7: Rubric tools
     "get_rubric": get_rubric,
     "list_available_rubrics": list_available_rubrics,
+    # Knowledge Base: Document search
+    "search_teacher_documents": search_teacher_documents,
 }
 
 
