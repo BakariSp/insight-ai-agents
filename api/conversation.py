@@ -101,12 +101,23 @@ async def _load_session(
         history text for router prompts, and structured PydanticAI message
         history for agent ``message_history`` parameter.
     """
+    had_conversation_id = bool(req.conversation_id)
     if not req.conversation_id:
         req.conversation_id = generate_conversation_id()
 
     session = await store.get(req.conversation_id)
+    is_new_session = session is None
     if session is None:
         session = ConversationSession(conversation_id=req.conversation_id)
+
+    logger.info(
+        "[Session] conv_id=%s had_id=%s new_session=%s existing_turns=%d message=%.60s",
+        req.conversation_id,
+        had_conversation_id,
+        is_new_session,
+        len(session.turns),
+        req.message,
+    )
 
     # Inject accumulated context from previous turns (current request takes priority)
     if session.accumulated_context:
@@ -124,6 +135,17 @@ async def _load_session(
     message_history = session.to_pydantic_messages(
         max_turns=_MESSAGE_HISTORY_MAX_TURNS
     )
+
+    if history_text:
+        logger.info(
+            "[Session] history_text length=%d message_history_turns=%d preview=%.200s",
+            len(history_text),
+            len(message_history),
+            history_text[:200],
+        )
+    else:
+        logger.info("[Session] No conversation history (first turn)")
+
     return session, history_text, message_history
 
 
@@ -289,6 +311,13 @@ async def _conversation_stream_generator(
             session.merge_context(req.context)
         try:
             await get_conversation_store().save(session)
+            logger.info(
+                "[Session] Saved conv_id=%s total_turns=%d summary_len=%d intent=%s",
+                session.conversation_id,
+                len(session.turns),
+                len(response_summary),
+                intent,
+            )
         except Exception:
             logger.exception("Failed to save conversation session")
 
@@ -330,7 +359,11 @@ async def _stream_initial(
 
     # ── Content Create (Agent Path) ──
     if intent == IntentType.CONTENT_CREATE.value:
-        async for line in _stream_agent_mode(enc, req, router_result):
+        async for line in _stream_agent_mode(
+            enc, req, router_result,
+            history_text=history_text,
+            message_history=message_history,
+        ):
             yield line
         return
 
@@ -631,8 +664,9 @@ async def _stream_quiz_generate(
     yield enc.text_delta(tid, intro)
     yield enc.text_end(tid)
 
-    # Stream quiz questions
+    # Stream quiz questions — also accumulate for session memory
     question_index = 0
+    generated_questions: list = []
     try:
         async for question in generate_quiz(
             topic=params.get("topic", ""),
@@ -649,6 +683,7 @@ async def _stream_quiz_generate(
                 "question": question.model_dump(by_alias=True),
                 "status": "generated",
             })
+            generated_questions.append(question)
             question_index += 1
     except Exception as e:
         logger.exception("Quiz generation failed at question %d", question_index)
@@ -656,16 +691,44 @@ async def _stream_quiz_generate(
         return
 
     # Completion signal
+    requested_count = params.get("count", 10)
+    if question_index < requested_count:
+        logger.warning(
+            "[QUIZ-DIAG] Count mismatch: requested=%d, generated=%d (%.0f%% yield rate)",
+            requested_count, question_index,
+            (question_index / requested_count * 100) if requested_count else 0,
+        )
     yield enc.data("quiz-complete", {
         "total": question_index,
         "message": f"{question_index} questions generated",
     })
+
+    # Save quiz content to session memory so follow-up turns have context
+    if generated_questions:
+        summary_lines = [f"\n[Generated {len(generated_questions)} quiz questions]:"]
+        for q in generated_questions:
+            opts = ""
+            if q.options:
+                opt_labels = "ABCDEFGHIJ"
+                opts = " / ".join(
+                    f"{opt_labels[i]}: {o}" for i, o in enumerate(q.options)
+                )
+            answer = q.correct_answer if q.correct_answer else ""
+            summary_lines.append(
+                f"Q{q.order}({q.question_type.value},{q.difficulty}): "
+                f"{q.question}"
+                + (f" [{opts}]" if opts else "")
+                + (f" Answer: {answer}" if answer else "")
+            )
+        enc.append_to_sink("\n".join(summary_lines))
 
 
 async def _stream_agent_mode(
     enc: DataStreamEncoder,
     req: ConversationRequest,
     router_result: RouterResult,
+    history_text: str = "",
+    message_history: list[ModelMessage] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Agent Path — LLM + Tools free orchestration for content generation.
 
@@ -703,7 +766,10 @@ async def _stream_agent_mode(
     yield enc.start_step()
 
     try:
-        async with agent.run_stream(agent_input) as result:
+        async with agent.run_stream(
+            agent_input,
+            message_history=message_history or [],
+        ) as result:
             # 4a. Stream text output
             yield enc.text_start(tid)
             async for chunk in result.stream_text(delta=True):
@@ -760,6 +826,14 @@ def _build_tool_result_events(
         events.append(enc.data("share-link-created", {
             "shareUrl": result.get("share_url"),
             "qrCodeUrl": result.get("qr_code_url"),
+        }))
+
+    elif tool_name == "generate_interactive_html":
+        events.append(enc.data("interactive-content", {
+            "html": result.get("html", ""),
+            "title": result.get("title", "Interactive Content"),
+            "description": result.get("description", ""),
+            "preferredHeight": result.get("preferredHeight", 500),
         }))
 
     return events
