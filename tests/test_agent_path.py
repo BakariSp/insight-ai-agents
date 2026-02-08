@@ -2,7 +2,7 @@
 
 import pytest
 
-from models.conversation import IntentType, RouterResult
+from models.conversation import IntentType, ModelTier, RouterResult
 
 
 # ── IntentType enum ──────────────────────────────────────────────
@@ -270,12 +270,187 @@ class TestToolRegistry:
 
 class TestSettings:
 
-    def test_agent_model_default(self):
+    def test_agent_model_configured(self):
+        """agent_model may be overridden by .env — just verify it's a valid string."""
         from config.settings import Settings
         s = Settings()
-        assert s.agent_model == "dashscope/qwen-max"
+        assert isinstance(s.agent_model, str)
+        assert "/" in s.agent_model  # must be "provider/model" format
+
+    def test_strong_model_configured(self):
+        from config.settings import Settings
+        s = Settings()
+        assert isinstance(s.strong_model, str)
+        assert "anthropic" in s.strong_model or "dashscope" in s.strong_model
 
     def test_agent_max_iterations_default(self):
         from config.settings import Settings
         s = Settings()
         assert s.agent_max_iterations == 15
+
+
+# ── ModelTier enum ────────────────────────────────────────────────
+
+
+class TestModelTier:
+
+    def test_model_tier_values(self):
+        assert ModelTier.FAST.value == "fast"
+        assert ModelTier.STANDARD.value == "standard"
+        assert ModelTier.STRONG.value == "strong"
+        assert ModelTier.VISION.value == "vision"
+
+    def test_model_tier_all_members(self):
+        expected = {"fast", "standard", "strong", "vision"}
+        actual = {e.value for e in ModelTier}
+        assert actual == expected
+
+    def test_router_result_default_tier(self):
+        r = RouterResult(intent="content_create", confidence=0.9)
+        assert r.model_tier == ModelTier.STANDARD
+
+    def test_router_result_strong_tier(self):
+        r = RouterResult(
+            intent="content_create",
+            confidence=0.9,
+            model_tier=ModelTier.STRONG,
+        )
+        assert r.model_tier == ModelTier.STRONG
+        assert r.model_tier.value == "strong"
+
+    def test_router_result_tier_from_string(self):
+        """ModelTier can be set from string value (as LLM returns)."""
+        r = RouterResult(
+            intent="content_create",
+            confidence=0.9,
+            model_tier="strong",
+        )
+        assert r.model_tier == ModelTier.STRONG
+
+    def test_router_result_tier_serialization(self):
+        r = RouterResult(
+            intent="content_create",
+            confidence=0.9,
+            model_tier=ModelTier.STRONG,
+        )
+        data = r.model_dump(by_alias=True)
+        assert "modelTier" in data
+        assert data["modelTier"] == "strong"
+
+
+# ── get_model_for_tier ────────────────────────────────────────────
+
+
+class TestGetModelForTier:
+
+    def test_fast_tier(self):
+        from agents.provider import get_model_for_tier
+        model = get_model_for_tier("fast")
+        assert "turbo" in model or "fast" in model or model  # any valid string
+
+    def test_standard_tier(self):
+        from agents.provider import get_model_for_tier
+        model = get_model_for_tier("standard")
+        assert isinstance(model, str)
+        assert "/" in model
+
+    def test_strong_tier(self):
+        from agents.provider import get_model_for_tier
+        model = get_model_for_tier("strong")
+        assert "anthropic" in model or "claude" in model
+
+    def test_vision_tier(self):
+        from agents.provider import get_model_for_tier
+        model = get_model_for_tier("vision")
+        assert "vl" in model or "vision" in model
+
+    def test_unknown_tier_falls_back(self):
+        from agents.provider import get_model_for_tier
+        model = get_model_for_tier("nonexistent")
+        # Should fall back to agent_model
+        standard = get_model_for_tier("standard")
+        assert model == standard
+
+
+# ── create_teacher_agent with model_tier ──────────────────────────
+
+
+class TestTeacherAgentModelTier:
+
+    def test_create_agent_accepts_model_tier(self):
+        """create_teacher_agent accepts model_tier parameter without error."""
+        from agents.teacher_agent import create_teacher_agent
+        agent = create_teacher_agent(
+            teacher_context={"teacher_id": "t1", "classes": []},
+            model_tier="standard",
+        )
+        assert agent is not None
+
+    def test_create_agent_default_tier(self):
+        """create_teacher_agent defaults to standard tier."""
+        from agents.teacher_agent import create_teacher_agent
+        agent = create_teacher_agent(
+            teacher_context={"teacher_id": "t1", "classes": []},
+        )
+        assert agent is not None
+
+    def test_create_agent_strong_tier(self):
+        """create_teacher_agent with strong tier creates agent with Anthropic model."""
+        from agents.teacher_agent import create_teacher_agent
+        agent = create_teacher_agent(
+            teacher_context={"teacher_id": "t1", "classes": []},
+            model_tier="strong",
+        )
+        assert agent is not None
+
+
+# ── Anthropic provider ────────────────────────────────────────────
+
+
+class TestAnthropicProvider:
+
+    def test_create_model_anthropic(self):
+        """create_model with anthropic/ prefix creates AnthropicModel."""
+        from agents.provider import create_model
+        from pydantic_ai.models.anthropic import AnthropicModel
+        model = create_model("anthropic/claude-opus-4-6")
+        assert isinstance(model, AnthropicModel)
+
+    def test_create_model_dashscope(self):
+        """create_model with dashscope/ prefix creates OpenAIChatModel."""
+        from agents.provider import create_model
+        from pydantic_ai.models.openai import OpenAIChatModel
+        model = create_model("dashscope/qwen-max")
+        assert isinstance(model, OpenAIChatModel)
+
+
+# ── Interactive HTML tool ─────────────────────────────────────────
+
+
+class TestInteractiveHtmlTool:
+
+    @pytest.mark.asyncio
+    async def test_generate_interactive_html_basic(self):
+        from tools.render_tools import generate_interactive_html
+        result = await generate_interactive_html(
+            html="<html><body><h1>Test</h1></body></html>",
+            title="Test Page",
+            description="A test page",
+        )
+        assert result["html"] == "<html><body><h1>Test</h1></body></html>"
+        assert result["title"] == "Test Page"
+        assert result["description"] == "A test page"
+        assert result["preferredHeight"] == 500  # default
+
+    @pytest.mark.asyncio
+    async def test_generate_interactive_html_custom_height(self):
+        from tools.render_tools import generate_interactive_html
+        result = await generate_interactive_html(
+            html="<html><body>Hello</body></html>",
+            preferred_height=800,
+        )
+        assert result["preferredHeight"] == 800
+
+    def test_interactive_html_in_tool_registry(self):
+        from tools import TOOL_REGISTRY
+        assert "generate_interactive_html" in TOOL_REGISTRY

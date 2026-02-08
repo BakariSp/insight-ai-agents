@@ -104,6 +104,17 @@ class DataStreamEncoder:
     def data(self, name: str, payload: Any) -> str:
         return self._sse({"type": f"data-{name}", "data": payload})
 
+    # ── Session Memory ──────────────────────────────────────────
+
+    def append_to_sink(self, text: str) -> None:
+        """Append text to the sink for session storage without emitting SSE.
+
+        Used to record structured output (e.g. quiz questions) in the
+        conversation history so follow-up turns have context.
+        """
+        if self._text_sink is not None and text:
+            self._text_sink.append(text)
+
     # ── Error ────────────────────────────────────────────────────
 
     def error(self, text: str) -> str:

@@ -21,26 +21,39 @@ _PROVIDER_MAP: dict[str, tuple[str, str]] = {
 }
 
 
-def create_model(model_name: str | None = None) -> OpenAIChatModel:
-    """Build a PydanticAI model instance via OpenAI-compatible endpoint.
+def create_model(model_name: str | None = None):
+    """Build a PydanticAI model instance.
 
-    Parses the ``"provider/model"`` format (e.g. ``"dashscope/qwen-max"``)
-    and creates an :class:`OpenAIChatModel` pointing to the provider's
-    OpenAI-compatible API.
+    Parses the ``"provider/model"`` format (e.g. ``"dashscope/qwen-max"``,
+    ``"anthropic/claude-opus-4-6"``) and creates the appropriate model.
+
+    - ``anthropic/*`` → native :class:`AnthropicModel` (supports tool-use, streaming)
+    - ``dashscope/*``, ``zai/*`` → :class:`OpenAIChatModel` via OpenAI-compatible endpoint
+    - ``openai/*`` or bare name → :class:`OpenAIChatModel` with OpenAI API
 
     Args:
         model_name: Model identifier in ``"provider/model"`` format.
                     Defaults to ``settings.default_model``.
 
     Returns:
-        An :class:`OpenAIChatModel` ready for ``Agent(model=...)``.
+        A PydanticAI model instance ready for ``Agent(model=...)``.
     """
     settings = get_settings()
     name = model_name or settings.default_model
 
-    # Split "provider/model" → lookup base_url and api_key
+    # Split "provider/model" → lookup
     if "/" in name:
         prefix, model_id = name.split("/", 1)
+
+        # ── Anthropic native ──
+        if prefix == "anthropic":
+            from pydantic_ai.models.anthropic import AnthropicModel
+            from pydantic_ai.providers.anthropic import AnthropicProvider
+
+            provider = AnthropicProvider(api_key=settings.anthropic_api_key)
+            return AnthropicModel(model_id, provider=provider)
+
+        # ── OpenAI-compatible providers ──
         if prefix in _PROVIDER_MAP:
             base_url, key_attr = _PROVIDER_MAP[prefix]
             api_key = getattr(settings, key_attr, "")
@@ -52,6 +65,30 @@ def create_model(model_name: str | None = None) -> OpenAIChatModel:
     model_id = name.split("/", 1)[1] if "/" in name else name
     provider = OpenAIProvider(api_key=settings.openai_api_key)
     return OpenAIChatModel(model_id, provider=provider)
+
+
+def get_model_for_tier(tier: str) -> str:
+    """Map a model tier to the configured model name.
+
+    Tier → Settings field mapping:
+    - fast     → router_model   (qwen-turbo-latest)
+    - standard → agent_model    (qwen-max)
+    - strong   → strong_model   (anthropic/claude-opus-4-6)
+    - vision   → vision_model   (qwen-vl-max)
+
+    Args:
+        tier: One of "fast", "standard", "strong", "vision".
+
+    Returns:
+        Model name string in ``"provider/model"`` format.
+    """
+    settings = get_settings()
+    return {
+        "fast": settings.router_model,
+        "standard": settings.agent_model,
+        "strong": settings.strong_model,
+        "vision": settings.vision_model,
+    }.get(tier, settings.agent_model)
 
 
 def get_mcp_tool_names() -> list[str]:

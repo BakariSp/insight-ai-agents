@@ -14,28 +14,80 @@ from pathlib import Path
 from config.settings import get_settings
 
 
+# ── PPT Outline Proposal ────────────────────────────────────────
+
+
+async def propose_pptx_outline(
+    title: str,
+    outline: list[dict],
+    total_slides: int = 0,
+    estimated_duration: int = 0,
+) -> dict:
+    """Propose a PPT outline for teacher review before full generation.
+
+    Call this BEFORE generate_pptx to let the teacher review the structure.
+    The frontend will show the outline with a confirm/revise UI.
+
+    Args:
+        title: Presentation title.
+        outline: List of outline entries. Each entry needs at minimum:
+            - title (str): Slide or section title
+            Any of these optional fields may be included if useful:
+            - key_points (list[str]): Main points for this slide
+            - section (str): Section grouping label
+            - layout (str): Suggested layout hint
+        total_slides: Total number of slides (auto-counted if 0).
+        estimated_duration: Estimated presentation duration in minutes.
+
+    Returns:
+        {"title": ..., "outline": [...], "totalSlides": N, "estimatedDuration": N, "status": "proposed"}
+    """
+    settings = get_settings()
+    slide_count = total_slides or len(outline)
+    if slide_count > settings.pptx_max_slides:
+        slide_count = settings.pptx_max_slides
+        outline = outline[:settings.pptx_max_slides]
+
+    return {
+        "title": title,
+        "outline": outline,
+        "totalSlides": slide_count,
+        "estimatedDuration": estimated_duration,
+        "status": "proposed",
+    }
+
+
 # ── PPT Generation ──────────────────────────────────────────────
 
 
 async def generate_pptx(
     slides: list[dict],
     title: str = "Presentation",
-    template: str = "default",
+    template: str = "education",
 ) -> dict:
     """Generate a PowerPoint file from structured slides JSON and return a download link.
 
     Args:
         slides: List of slide dicts, each with layout/title/body/notes fields.
-            layout options: "title", "content", "two_column".
+            layout options: "title", "section_header", "content", "two_column".
         title: Presentation title.
-        template: Template name (default/education/minimal).
+        template: Template name (education/default/minimal).
 
     Returns:
         {"url": "...", "filename": "xxx.pptx", "slide_count": N, "size": bytes}
     """
     from pptx import Presentation
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
 
-    prs = Presentation()
+    # Load template or create a styled blank presentation
+    template_path = _get_template_path(template)
+    if template_path and template_path.exists():
+        prs = Presentation(str(template_path))
+    else:
+        prs = Presentation()
+        _apply_education_theme(prs)
 
     for slide_data in slides:
         layout_name = slide_data.get("layout", "content")
@@ -44,32 +96,54 @@ async def generate_pptx(
             slide_layout = prs.slide_layouts[0]  # Title Slide
             slide = prs.slides.add_slide(slide_layout)
             slide.shapes.title.text = slide_data.get("title", "")
+            _style_title(slide.shapes.title, Pt(36), RGBColor(0x1E, 0x5A, 0x96))
             if len(slide.placeholders) > 1:
                 slide.placeholders[1].text = slide_data.get("body", "")
+                _style_text_frame(slide.placeholders[1].text_frame, Pt(18), RGBColor(0x55, 0x55, 0x55))
+
+        elif layout_name == "section_header":
+            # Section divider slide
+            try:
+                slide_layout = prs.slide_layouts[2]  # Section Header
+            except IndexError:
+                slide_layout = prs.slide_layouts[0]  # Fallback to title
+            slide = prs.slides.add_slide(slide_layout)
+            slide.shapes.title.text = slide_data.get("title", "")
+            _style_title(slide.shapes.title, Pt(32), RGBColor(0x1E, 0x5A, 0x96))
+            if len(slide.placeholders) > 1:
+                slide.placeholders[1].text = slide_data.get("body", slide_data.get("subtitle", ""))
+                _style_text_frame(slide.placeholders[1].text_frame, Pt(16), RGBColor(0x66, 0x66, 0x66))
 
         elif layout_name == "two_column":
             slide_layout = prs.slide_layouts[3]  # Two Content
             slide = prs.slides.add_slide(slide_layout)
             slide.shapes.title.text = slide_data.get("title", "")
+            _style_title(slide.shapes.title, Pt(28), RGBColor(0x1E, 0x5A, 0x96))
             if len(slide.placeholders) > 1:
-                slide.placeholders[1].text = slide_data.get("left", "")
+                _add_bullet_points(
+                    slide.placeholders[1].text_frame,
+                    slide_data.get("left", "").split("\n"),
+                    Pt(14), RGBColor(0x33, 0x33, 0x33),
+                )
             if len(slide.placeholders) > 2:
-                slide.placeholders[2].text = slide_data.get("right", "")
+                _add_bullet_points(
+                    slide.placeholders[2].text_frame,
+                    slide_data.get("right", "").split("\n"),
+                    Pt(14), RGBColor(0x33, 0x33, 0x33),
+                )
 
         else:  # "content" or default
             slide_layout = prs.slide_layouts[1]  # Title and Content
             slide = prs.slides.add_slide(slide_layout)
             slide.shapes.title.text = slide_data.get("title", "")
+            _style_title(slide.shapes.title, Pt(28), RGBColor(0x1E, 0x5A, 0x96))
             if len(slide.placeholders) > 1:
                 body = slide_data.get("body", "")
-                tf = slide.placeholders[1].text_frame
-                tf.clear()
-                for i, line in enumerate(body.split("\n")):
-                    if i == 0:
-                        tf.paragraphs[0].text = line.strip()
-                    else:
-                        p = tf.add_paragraph()
-                        p.text = line.strip()
+                _add_bullet_points(
+                    slide.placeholders[1].text_frame,
+                    body.split("\n"),
+                    Pt(16), RGBColor(0x33, 0x33, 0x33),
+                )
 
         # Speaker notes
         if slide_data.get("notes"):
@@ -202,7 +276,111 @@ async def render_pdf(
     }
 
 
+# ── Interactive HTML Generation ─────────────────────────────────
+
+
+async def generate_interactive_html(
+    html: str,
+    title: str = "Interactive Content",
+    description: str = "",
+    preferred_height: int | None = None,
+) -> dict:
+    """Generate an interactive HTML web page that is rendered live in the browser.
+
+    Use this tool when the teacher asks for interactive content, simulations,
+    animations, drag-and-drop exercises, visual demos, or any web-based
+    learning material.  The HTML is rendered in a sandboxed iframe on the
+    platform — it supports full HTML/CSS/JavaScript including Canvas, SVG,
+    and libraries loaded via CDN (e.g. p5.js, Chart.js, Three.js, D3.js).
+
+    Args:
+        html: Complete HTML document string. Must be self-contained (inline
+            CSS + JS, or load libraries from CDN).  Can use <!DOCTYPE html>
+            or just a <body> fragment — the platform wraps fragments
+            automatically.
+        title: Short title shown above the preview frame.
+        description: One-line description of what this interactive content does.
+        preferred_height: Preferred iframe height in pixels (default ~500).
+
+    Returns:
+        {"html": "...", "title": "...", "description": "...", "preferredHeight": N}
+    """
+    return {
+        "html": html,
+        "title": title,
+        "description": description,
+        "preferredHeight": preferred_height or 500,
+    }
+
+
 # ── Internal Helpers ─────────────────────────────────────────────
+
+
+# ── PPT Styling Helpers ──────────────────────────────────────────
+
+
+def _get_template_path(template: str) -> Path | None:
+    """Resolve a template name to a .pptx file path."""
+    assets_dir = Path(__file__).resolve().parent.parent / "assets" / "templates"
+    path = assets_dir / f"{template}.pptx"
+    return path if path.exists() else None
+
+
+def _apply_education_theme(prs) -> None:
+    """Apply an education-themed style programmatically (fallback when no template)."""
+    from pptx.util import Inches
+
+    # 16:9 widescreen
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+
+
+def _style_title(title_shape, font_size, color) -> None:
+    """Apply consistent styling to a slide title."""
+    if title_shape is None:
+        return
+    for paragraph in title_shape.text_frame.paragraphs:
+        for run in paragraph.runs:
+            run.font.size = font_size
+            run.font.color.rgb = color
+            run.font.bold = True
+
+
+def _style_text_frame(tf, font_size, color) -> None:
+    """Apply consistent styling to all text in a text frame."""
+    for paragraph in tf.paragraphs:
+        for run in paragraph.runs:
+            run.font.size = font_size
+            run.font.color.rgb = color
+
+
+def _add_bullet_points(tf, lines: list[str], font_size, color) -> None:
+    """Add formatted bullet points to a text frame with proper spacing."""
+    from pptx.util import Pt
+
+    tf.clear()
+    first = True
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # Strip leading bullet markers (-, *, •)
+        clean = line.lstrip("-*• ").strip()
+        if not clean:
+            continue
+
+        if first:
+            p = tf.paragraphs[0]
+            first = False
+        else:
+            p = tf.add_paragraph()
+
+        p.text = clean
+        p.space_after = Pt(6)
+        p.space_before = Pt(2)
+        for run in p.runs:
+            run.font.size = font_size
+            run.font.color.rgb = color
 
 
 def _safe_filename(name: str) -> str:
@@ -241,24 +419,33 @@ def _get_css_template(template: str) -> str:
 async def _upload_file(filepath: Path, filename: str, content_type: str) -> str:
     """Upload a file to storage.
 
-    Tries Java backend OSS upload first; falls back to local path for development.
+    Tries Java backend OSS upload first; falls back to local serving path.
+    The local path is served by the Python Agent's ``GET /api/files/generated/``
+    endpoint and proxied through Next.js.
     """
     try:
-        from services.java_client import get_client
-        client = get_client()
-        if client is not None:
+        from services.java_client import get_java_client
+        java_client = get_java_client()
+        # Use the underlying httpx client directly for multipart upload,
+        # since the JavaClient wrapper only supports JSON payloads.
+        http = java_client._http  # noqa: SLF001
+        if http is not None:
             with open(filepath, "rb") as f:
                 files = {"file": (filename, f, content_type)}
-                response = await client.post(
-                    "/api/files/upload",
+                response = await http.post(
+                    "/studio/teacher/me/files/upload",
                     files=files,
-                    params={"purpose": "GENERATED_CONTENT"},
+                    params={"purpose": "STUDIO"},
                 )
-                data = response.json()
-                return data.get("data", {}).get("url", "")
-    except Exception:
-        pass
+                if response.status_code == 200:
+                    data = response.json()
+                    url = data.get("data", {}).get("fileUrl", "")
+                    if url:
+                        return url
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).debug("OSS upload failed, using local fallback: %s", exc)
 
-    # Fallback: return local path (development environment)
+    # Fallback: serve from Python Agent's local file endpoint
     return f"/api/files/generated/{filepath.name}"
     # Note: temporary file is NOT deleted here — caller or cleanup job handles it

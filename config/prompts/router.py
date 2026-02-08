@@ -48,11 +48,24 @@ extract parameters, and decide the response strategy.
    Examples: "分析英语表现", "看看成绩", "帮我出题" (no topic at all)
    Confidence guidance: medium (0.4–0.7).
 
+## Model Tier (choose alongside intent)
+
+- "fast": Greetings, casual chat, simple translation, format conversion, daily Q&A
+- "standard": Lesson plans, PPT content, feedback, notices, general documents
+- "strong": Quiz/test generation (requires precise knowledge), interactive web pages/simulations,
+  deep academic analysis, rubric design, complex data analysis
+- "vision": User uploaded an image that needs understanding
+
+Principle: simple → fast (cheap), general generation → standard (balanced),
+needs precise knowledge or deep reasoning or interactive content → strong (best quality),
+has image → vision.
+
 ## Output Format
 
 Return a JSON object:
 - `intent`: one of "chat_smalltalk", "chat_qa", "quiz_generate", "build_workflow", "content_create", "clarify"
 - `confidence`: float 0.0–1.0
+- `model_tier`: one of "fast", "standard", "strong", "vision"
 - `should_build`: true when intent is "build_workflow" AND confidence ≥ 0.7
 - `clarifying_question`: helpful question (required for "clarify", null otherwise).
   Write in the same language as the user's message.

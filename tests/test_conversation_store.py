@@ -33,10 +33,11 @@ class TestConversationSession:
         assert session.turns[0].action == "chat_smalltalk"
 
     def test_content_truncation(self):
+        from services.conversation_store import MAX_TURN_CHARS
         session = ConversationSession(conversation_id="test-1")
-        long_message = "x" * 1000
+        long_message = "x" * 10000
         session.add_user_turn(long_message)
-        assert len(session.turns[0].content) == 500
+        assert len(session.turns[0].content) == MAX_TURN_CHARS
 
     def test_merge_context_simple(self):
         session = ConversationSession(conversation_id="test-1")

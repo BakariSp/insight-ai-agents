@@ -24,6 +24,8 @@ from pydantic_ai.messages import (
 
 logger = logging.getLogger(__name__)
 
+# Modern LLMs support 50k+ token context — be generous with per-turn storage.
+MAX_TURN_CHARS = 6000
 
 # ── Data Models ──────────────────────────────────────────────
 
@@ -50,10 +52,10 @@ class ConversationSession(BaseModel):
     updated_at: float = Field(default_factory=time.time)
 
     def add_user_turn(self, message: str, attachment_count: int = 0) -> None:
-        """Record a user message (truncated to 500 chars)."""
+        """Record a user message."""
         self.turns.append(ConversationTurn(
             role="user",
-            content=message[:500],
+            content=message[:MAX_TURN_CHARS],
             attachment_count=attachment_count,
         ))
         self.updated_at = time.time()
@@ -64,7 +66,7 @@ class ConversationSession(BaseModel):
         """Record an assistant response with its action type."""
         self.turns.append(ConversationTurn(
             role="assistant",
-            content=response_summary[:500],
+            content=response_summary[:MAX_TURN_CHARS],
             action=action,
         ))
         self.updated_at = time.time()
@@ -106,7 +108,7 @@ class ConversationSession(BaseModel):
         for turn in recent:
             prefix = "USER" if turn.role == "user" else "ASSISTANT"
             action_tag = f"[{turn.action}] " if turn.action else ""
-            content = turn.content[:200]
+            content = turn.content[:2000]
             lines.append(f"{prefix}: {action_tag}{content}")
 
         return "\n".join(lines)

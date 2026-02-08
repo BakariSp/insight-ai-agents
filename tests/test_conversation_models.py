@@ -9,6 +9,7 @@ from models.conversation import (
     ConversationResponse,
     FollowupIntentType,
     IntentType,
+    ModelTier,
     RouterResult,
 )
 
@@ -259,3 +260,61 @@ def test_legacy_action_in_serialized_output():
     data = resp.model_dump(by_alias=True)
     assert "legacyAction" in data
     assert data["legacyAction"] == "chat_smalltalk"
+
+
+# ── ModelTier tests ──────────────────────────────────────────
+
+
+def test_model_tier_enum_values():
+    assert ModelTier.FAST.value == "fast"
+    assert ModelTier.STANDARD.value == "standard"
+    assert ModelTier.STRONG.value == "strong"
+    assert ModelTier.VISION.value == "vision"
+
+
+def test_router_result_model_tier_default():
+    """RouterResult defaults to STANDARD tier."""
+    r = RouterResult(intent="content_create", confidence=0.9)
+    assert r.model_tier == ModelTier.STANDARD
+
+
+def test_router_result_model_tier_serialization():
+    """model_tier serializes to camelCase 'modelTier'."""
+    r = RouterResult(
+        intent="content_create",
+        confidence=0.9,
+        model_tier=ModelTier.STRONG,
+    )
+    data = r.model_dump(by_alias=True)
+    assert "modelTier" in data
+    assert data["modelTier"] == "strong"
+
+
+def test_router_result_model_tier_from_string():
+    """model_tier can be set from string (as LLM JSON returns)."""
+    r = RouterResult(
+        intent="content_create",
+        confidence=0.9,
+        model_tier="strong",
+    )
+    assert r.model_tier == ModelTier.STRONG
+
+
+def test_router_result_model_tier_fast():
+    r = RouterResult(
+        intent="chat_smalltalk",
+        confidence=0.95,
+        model_tier="fast",
+    )
+    assert r.model_tier == ModelTier.FAST
+    data = r.model_dump(by_alias=True)
+    assert data["modelTier"] == "fast"
+
+
+def test_router_result_model_tier_vision():
+    r = RouterResult(
+        intent="content_create",
+        confidence=0.85,
+        model_tier="vision",
+    )
+    assert r.model_tier == ModelTier.VISION

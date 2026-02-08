@@ -89,6 +89,7 @@ from api.workflow import router as workflow_router  # noqa: E402
 from api.page import router as page_router  # noqa: E402
 from api.conversation import router as conversation_router  # noqa: E402
 from api.internal import router as internal_router  # noqa: E402
+from api.files import router as files_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(chat_router)
@@ -97,6 +98,7 @@ app.include_router(workflow_router)
 app.include_router(page_router)
 app.include_router(conversation_router)
 app.include_router(internal_router)
+app.include_router(files_router)
 
 
 if __name__ == "__main__":

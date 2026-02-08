@@ -35,6 +35,22 @@ class Attachment(CamelModel):
 # ── Intent enums ──────────────────────────────────────────────
 
 
+class ModelTier(str, Enum):
+    """Model quality tier — decided by Router alongside intent classification.
+
+    Controls which LLM model is used for the task:
+    - FAST: cheap + fast for trivial tasks (chat, translation)
+    - STANDARD: balanced for general content generation (lesson plans, PPT, docs)
+    - STRONG: best quality for complex tasks (interactive content, quiz, deep analysis)
+    - VISION: multimodal model for image understanding
+    """
+
+    FAST = "fast"
+    STANDARD = "standard"
+    STRONG = "strong"
+    VISION = "vision"
+
+
 class IntentType(str, Enum):
     """Initial-mode intent types (no existing blueprint context)."""
 
@@ -70,6 +86,9 @@ class RouterResult(CamelModel):
     # ── Path routing (Agent Path) ────────────────────────────
     path: str = "skill"  # "skill" | "blueprint" | "agent" | "chat"
     suggested_tools: list[str] = Field(default_factory=list)
+
+    # ── Model routing ────────────────────────────────────────
+    model_tier: ModelTier = ModelTier.STANDARD
 
     # ── Skill / Canvas extensions ────────────────────────────
     extracted_params: dict = Field(default_factory=dict)

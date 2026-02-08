@@ -25,8 +25,13 @@ class Settings(BaseSettings):
     router_model: str = "dashscope/qwen-turbo-latest"  # Fast router (~200ms)
     vision_model: str = "dashscope/qwen-vl-max"  # Vision-capable model for multimodal
     agent_model: str = "dashscope/qwen-max"  # Agent Path: general content generation
+    strong_model: str = "anthropic/claude-opus-4-6"  # Strong tier: complex tasks (interactive, quiz)
     agent_max_iterations: int = 15  # Agent Path: max tool-use loop rounds
     max_tokens: int = 4096
+    agent_max_tokens: int = 16384  # Agent Path: higher token budget for content generation (PPT, docs)
+
+    # ── PPT Generation ────────────────────────────────────────
+    pptx_max_slides: int = 30  # Hard upper limit for any generated PPT
 
     # ── LLM Generation Defaults (all optional, None = model default) ──
     temperature: float | None = None

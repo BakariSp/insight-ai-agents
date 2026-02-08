@@ -53,6 +53,7 @@ from services.conversation_store import (
     generate_conversation_id,
     get_conversation_store,
 )
+from config.settings import get_settings
 from services.datastream import DataStreamEncoder, map_executor_event
 from services.entity_resolver import resolve_entities
 from skills.quiz_skill import build_quiz_intro, generate_quiz
@@ -283,9 +284,12 @@ async def _conversation_stream_generator(
         )
         intent = router_result.intent
 
+        tier_label = router_result.model_tier
+        if hasattr(tier_label, "value"):
+            tier_label = tier_label.value
         yield enc.reasoning_delta(
             "intent",
-            f"\nIdentified as: {intent} (confidence {router_result.confidence:.0%})",
+            f"\nIdentified as: {intent} (confidence {router_result.confidence:.0%}, model: {tier_label})",
         )
         yield enc.reasoning_end("intent")
         yield enc.finish_step()
@@ -691,13 +695,6 @@ async def _stream_quiz_generate(
         return
 
     # Completion signal
-    requested_count = params.get("count", 10)
-    if question_index < requested_count:
-        logger.warning(
-            "[QUIZ-DIAG] Count mismatch: requested=%d, generated=%d (%.0f%% yield rate)",
-            requested_count, question_index,
-            (question_index / requested_count * 100) if requested_count else 0,
-        )
     yield enc.data("quiz-complete", {
         "total": question_index,
         "message": f"{question_index} questions generated",
@@ -740,19 +737,27 @@ async def _stream_agent_mode(
     from tools.data_tools import get_teacher_classes
 
     # 1. Tell frontend we're in agent mode
+    tier_value = router_result.model_tier
+    if hasattr(tier_value, "value"):
+        tier_value = tier_value.value
     yield enc.data("action", {
         "action": "agent",
         "mode": "entry",
         "intent": router_result.intent,
+        "modelTier": tier_value,
     })
 
     # 2. Get teacher context (fast, no LLM)
     teacher_context = await _get_teacher_context(req.teacher_id)
 
-    # 3. Create Agent
+    # 3. Create Agent (model_tier from Router selects LLM quality)
+    tier = router_result.model_tier
+    if hasattr(tier, "value"):
+        tier = tier.value
     agent = create_teacher_agent(
         teacher_context=teacher_context,
         suggested_tools=router_result.suggested_tools,
+        model_tier=tier,
     )
 
     # 4. Run Agent (PydanticAI handles tool-use loop)
@@ -766,9 +771,11 @@ async def _stream_agent_mode(
     yield enc.start_step()
 
     try:
+        settings = get_settings()
         async with agent.run_stream(
             agent_input,
             message_history=message_history or [],
+            model_settings={"max_tokens": settings.agent_max_tokens},
         ) as result:
             # 4a. Stream text output
             yield enc.text_start(tid)
@@ -814,6 +821,15 @@ def _build_tool_result_events(
             "url": result.get("url", ""),
             "filename": result.get("filename", ""),
             "size": result.get("size"),
+        }))
+
+    elif tool_name == "propose_pptx_outline":
+        events.append(enc.data("pptx-outline", {
+            "title": result.get("title", ""),
+            "outline": result.get("outline", []),
+            "totalSlides": result.get("totalSlides", 0),
+            "estimatedDuration": result.get("estimatedDuration", 0),
+            "requiresConfirmation": True,
         }))
 
     elif tool_name == "save_as_assignment":

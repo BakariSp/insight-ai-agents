@@ -9,7 +9,7 @@ from agents.router import (
     classify_intent,
 )
 from models.blueprint import Blueprint
-from models.conversation import IntentType, FollowupIntentType, RouterResult
+from models.conversation import IntentType, FollowupIntentType, ModelTier, RouterResult
 from tests.test_planner import _sample_blueprint_args
 
 
@@ -294,5 +294,72 @@ async def test_followup_refine_with_scope():
     r = result.output
     assert r.intent == "refine"
     assert r.refine_scope == "patch_layout"
+
+
+# ── model_tier routing tests ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_router_model_tier_strong():
+    """Router returns strong tier for interactive content request."""
+    test_model = TestModel(
+        custom_output_args={
+            "intent": "content_create",
+            "confidence": 0.9,
+            "should_build": False,
+            "clarifying_question": None,
+            "route_hint": None,
+            "model_tier": "strong",
+        },
+    )
+    result = await _initial_agent.run(
+        "帮我做一个摩擦力的互动网页", model=test_model,
+    )
+    r = result.output
+    assert r.intent == "content_create"
+    assert r.model_tier == ModelTier.STRONG
+
+
+@pytest.mark.asyncio
+async def test_router_model_tier_fast():
+    """Router returns fast tier for greeting."""
+    test_model = TestModel(
+        custom_output_args={
+            "intent": "chat_smalltalk",
+            "confidence": 0.95,
+            "should_build": False,
+            "clarifying_question": None,
+            "route_hint": None,
+            "model_tier": "fast",
+        },
+    )
+    result = await _initial_agent.run("你好", model=test_model)
+    r = result.output
+    assert r.intent == "chat_smalltalk"
+    assert r.model_tier == ModelTier.FAST
+
+
+@pytest.mark.asyncio
+async def test_router_model_tier_standard_default():
+    """Router defaults to standard tier when not specified."""
+    test_model = TestModel(
+        custom_output_args=_router_output("content_create", 0.85),
+    )
+    result = await _initial_agent.run(
+        "帮我做一个教案", model=test_model,
+    )
+    r = result.output
+    assert r.model_tier == ModelTier.STANDARD  # default
+
+
+def test_confidence_routing_preserves_model_tier():
+    """_apply_confidence_routing preserves model_tier through confidence checks."""
+    r = RouterResult(
+        intent="content_create",
+        confidence=0.85,
+        model_tier=ModelTier.STRONG,
+    )
+    result = _apply_confidence_routing(r)
+    assert result.model_tier == ModelTier.STRONG
 
 

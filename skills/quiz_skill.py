@@ -39,7 +39,7 @@ def _build_quiz_prompt(
     type_desc = ", ".join(types)
 
     sections = [
-        f"生成 {count} 道题目，JSON 数组格式输出。",
+        f"[重要] 你必须生成恰好 {count} 道题目。不能少于 {count} 道。JSON 数组格式输出。",
         f"学科: {subject}" if subject else "",
         f"年级: {grade}" if grade else "",
         f"知识点/主题: {topic}" if topic else "",
@@ -53,9 +53,9 @@ def _build_quiz_prompt(
     if context:
         sections.append(f"\n参考材料:\n{context}")
 
-    sections.append("""
+    sections.append(f"""
 每道题的 JSON 格式:
-{
+{{
   "questionType": "SINGLE_CHOICE|FILL_IN_BLANK|TRUE_FALSE|SHORT_ANSWER",
   "question": "题目文本",
   "options": ["选项内容（不要带字母前缀）", "选项内容", "选项内容", "选项内容"],
@@ -64,7 +64,7 @@ def _build_quiz_prompt(
   "difficulty": "easy|medium|hard",
   "knowledgePoint": "知识点名称",
   "points": 1
-}
+}}
 
 要求:
 1. 题目质量要高——清晰、无歧义、答案唯一
@@ -74,9 +74,10 @@ def _build_quiz_prompt(
 5. 填空题不需要 options，correctAnswer 是答案文本
 6. 判断题 options 为 ["对", "错"]，correctAnswer 为 A 或 B
 7. **选项内容不要带字母前缀**（不要写 "A. xxx"，直接写 "xxx"），前端会自动添加字母标签
-8. **数学公式必须用 LaTeX 格式**：行内公式用 $...$ 包裹（如 $\\frac{1}{2}$、$x^2 + 1$），不要用纯文本写数学表达式
-9. 题目和选项中的数学符号一律用 LaTeX（积分 $\\int$、求导 $\\frac{dy}{dx}$、极限 $\\lim$、根号 $\\sqrt{}$ 等）
-""")
+8. **数学公式必须用 LaTeX 格式**：行内公式用 $...$ 包裹（如 $\\frac{{1}}{{2}}$、$x^2 + 1$），不要用纯文本写数学表达式
+9. 题目和选项中的数学符号一律用 LaTeX（积分 $\\int$、求导 $\\frac{{dy}}{{dx}}$、极限 $\\lim$、根号 $\\sqrt{{}}$ 等）
+
+[再次强调] 你必须输出恰好 {count} 道题目的 JSON 数组。从第1道写到第{count}道，缺少任何一道都不合格。""")
 
     return "\n".join(s for s in sections if s)
 
@@ -92,12 +93,31 @@ def _fix_invalid_json_escapes(s: str) -> str:
     ``\\``, ``\/``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\uXXXX``
     are legal).  Replace lone backslashes before non-escape characters
     with double-backslashes so ``json.loads`` succeeds.
+
+    Special handling: ``\f``, ``\b``, ``\n``, ``\r``, ``\t`` are valid
+    JSON escapes, but LLMs use them as LaTeX prefixes (``\frac``,
+    ``\begin``, ``\not``, ``\right``, ``\text``).  When followed by
+    2+ letters, these are LaTeX commands, not JSON control characters.
     """
-    return re.sub(
+    # Step 1: Fix obvious non-JSON escapes (e.g. \s, \l, \i, \(, \), \x)
+    s = re.sub(
         r'\\(?!["\\/bfnrtu])',
         r"\\\\",
         s,
     )
+    # Step 2: Fix LaTeX commands that START with valid JSON escape letters.
+    # \frac, \forall, \flat → \f + alpha  (not form-feed)
+    # \begin, \bar, \bmod   → \b + alpha  (not backspace)
+    # \not, \nu, \nabla     → \n + alpha  (not newline)
+    # \right, \rangle, \rho → \r + alpha  (not carriage-return)
+    # \text, \theta, \times → \t + alpha  (not tab)
+    # Pattern: \X followed by at least 2 ASCII letters → must be LaTeX
+    s = re.sub(
+        r'\\([bfnrt])([a-zA-Z]{2,})',
+        r'\\\\' + r'\1\2',
+        s,
+    )
+    return s
 
 
 def _try_extract_question(buffer: str) -> tuple[dict | None, str]:
@@ -150,8 +170,13 @@ def _try_extract_question(buffer: str) -> tuple[dict | None, str]:
                 try:
                     obj = json.loads(_fix_invalid_json_escapes(json_str))
                     return obj, buffer[i + 1 :]
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e2:
                     # Truly malformed — skip this block and continue
+                    logger.warning(
+                        "Dropped malformed JSON block (len=%d, err=%s). "
+                        "Content: %s",
+                        len(json_str), e2, repr(json_str[:500]),
+                    )
                     return None, buffer[i + 1 :]
 
     # No complete object found yet
@@ -233,13 +258,20 @@ async def generate_quiz(
     agent = Agent(
         model=model,
         output_type=str,
-        system_prompt="You are a professional quiz question generator. Output ONLY a JSON array.",
+        system_prompt=(
+            "You are a professional quiz question generator. "
+            "Output ONLY a JSON array containing EXACTLY the requested number of questions. "
+            "Never stop early. Always generate all questions requested."
+        ),
         retries=1,
         defer_model_check=True,
     )
 
     buffer = ""
     question_count = 0
+    _dropped_count = 0
+
+    logger.info("Quiz generation starting: requested=%d, topic='%s'", count, topic)
 
     async with agent.run_stream(prompt) as stream:
         async for chunk in stream.stream_text(delta=True):
@@ -249,6 +281,11 @@ async def generate_quiz(
             while True:
                 question_json, remaining = _try_extract_question(buffer)
                 if question_json is None:
+                    # A malformed block was skipped — keep trying
+                    if remaining != buffer:
+                        _dropped_count += 1
+                        buffer = remaining
+                        continue
                     break
 
                 buffer = remaining
@@ -260,16 +297,25 @@ async def generate_quiz(
                 except Exception as e:
                     logger.warning("Failed to parse question %d: %s", question_count, e)
 
-    # Handle any remaining content in buffer
+    # Handle any remaining content in buffer after stream ends
     if buffer.strip():
-        question_json, _ = _try_extract_question(buffer + "]")
-        if question_json:
+        while True:
+            question_json, remaining = _try_extract_question(buffer)
+            if question_json is None:
+                break
+            buffer = remaining
             question_count += 1
             try:
                 v1_question = _parse_to_v1(question_json, order=question_count)
                 yield v1_question
             except Exception as e:
                 logger.warning("Failed to parse trailing question: %s", e)
+
+    if question_count < count:
+        logger.warning(
+            "Quiz generation count mismatch: requested=%d, yielded=%d, dropped=%d",
+            count, question_count, _dropped_count,
+        )
 
 
 # ── Skill: regenerate_question ────────────────────────────────
