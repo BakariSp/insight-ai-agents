@@ -218,6 +218,7 @@ class TestTeacherAgentPrompt:
         assert "generate_pptx" in prompt
         assert "generate_docx" in prompt
         assert "render_pdf" in prompt
+        assert "generate_quiz_questions" in prompt
         assert "save_as_assignment" in prompt
 
     def test_prompt_includes_teacher_context(self):
@@ -253,6 +254,7 @@ class TestToolRegistry:
         assert "generate_pptx" in TOOL_REGISTRY
         assert "generate_docx" in TOOL_REGISTRY
         assert "render_pdf" in TOOL_REGISTRY
+        assert "generate_quiz_questions" in TOOL_REGISTRY
         assert "save_as_assignment" in TOOL_REGISTRY
         assert "create_share_link" in TOOL_REGISTRY
 
@@ -263,6 +265,7 @@ class TestToolRegistry:
         assert "generate_pptx" in names
         assert "generate_docx" in names
         assert "render_pdf" in names
+        assert "generate_quiz_questions" in names
 
 
 # ── Settings ─────────────────────────────────────────────────────
@@ -287,6 +290,13 @@ class TestSettings:
         from config.settings import Settings
         s = Settings()
         assert s.agent_max_iterations == 15
+
+    def test_unified_flags_default_off(self):
+        from config.settings import Settings
+        s = Settings()
+        assert s.agent_unified_enabled is False
+        assert s.agent_unified_quiz_enabled is False
+        assert s.agent_unified_build_enabled is False
 
 
 # ── ModelTier enum ────────────────────────────────────────────────

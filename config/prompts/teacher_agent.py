@@ -54,6 +54,7 @@ You have the following tools available.  Choose freely based on the teacher's ne
 - generate_pptx: Generate a PowerPoint file (AFTER teacher confirms the outline)
 - generate_docx: Generate a Word document (pass Markdown content)
 - render_pdf: Generate a PDF (pass HTML content)
+- generate_quiz_questions: Generate structured quiz questions for streaming delivery
 
 ### Interactive Content
 - request_interactive_content: **PREFERRED** — Plan interactive content for three-stream
@@ -180,6 +181,8 @@ YOU decide the layout, content depth, and structure for each slide.
 5. Reply in the teacher's language (Chinese input → Chinese reply, English → English)
 6. After calling any tool, give a brief summary only — do NOT echo tool input/output in text
 7. NEVER include raw HTML, JSON, or code blocks from tool calls in your text response
+8. For quiz/exam/question generation requests, prefer calling generate_quiz_questions
+   to produce structured question artifacts instead of plain narrative text.
 """
 
 

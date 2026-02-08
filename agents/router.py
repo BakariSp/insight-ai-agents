@@ -132,7 +132,7 @@ async def classify_intent(
     # Apply confidence-based routing overrides
     router_result = _apply_confidence_routing(router_result)
 
-    # Apply keyword-based quiz/content boundary correction
+    # Apply keyword-based quiz hints (without hard intent rewrite)
     router_result = _apply_quiz_keyword_correction(router_result, message)
 
     # Assign execution path based on intent
@@ -183,15 +183,15 @@ def _assign_path(result: RouterResult) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Keyword-based quiz/content boundary correction
+# Keyword-based quiz hints
 # ---------------------------------------------------------------------------
 
-# Survey/form keywords — the output format IS the intent, always quiz_generate
+# Survey/form keywords
 _QUIZ_FORM_KEYWORDS = re.compile(
     r"问卷|调查|调研|评估表|反馈表|出成题",
     re.UNICODE,
 )
-# Quiz-specific keywords — only override content_create, not clarify
+# Quiz-specific keywords
 _QUIZ_QUESTION_KEYWORDS = re.compile(
     r"出[成]?题|测验题|练习题|选择题|填空题",
     re.UNICODE,
@@ -199,38 +199,24 @@ _QUIZ_QUESTION_KEYWORDS = re.compile(
 
 
 def _apply_quiz_keyword_correction(r: RouterResult, message: str) -> RouterResult:
-    """Correct quiz/content boundary misclassification using keywords.
-
-    Two tiers:
-    - Form/survey keywords (问卷/调查/评估表/反馈表): override both
-      ``content_create`` and ``clarify`` → ``quiz_generate`` (the format IS the intent)
-    - Quiz-question keywords (出题/测验题/选择题): only override ``content_create``
-      (respect ``clarify`` for vague requests like "帮我出题" with no topic)
-    """
-    if r.intent not in (IntentType.CONTENT_CREATE.value, IntentType.CLARIFY.value):
+    """Attach quiz tool hints using keywords, without force-changing intent."""
+    if not message:
         return r
 
-    # Tier 1: form/survey keywords → always override
-    if _QUIZ_FORM_KEYWORDS.search(message):
+    is_quiz_like = bool(
+        _QUIZ_FORM_KEYWORDS.search(message)
+        or _QUIZ_QUESTION_KEYWORDS.search(message)
+    )
+    if not is_quiz_like:
+        return r
+
+    if "generate_quiz_questions" not in r.suggested_tools:
+        r.suggested_tools.append("generate_quiz_questions")
         logger.info(
-            "Quiz keyword correction: %s → quiz_generate (form/survey keyword)",
+            "Quiz keyword hint: intent=%s confidence=%.2f add suggested tool generate_quiz_questions",
             r.intent,
+            r.confidence,
         )
-        r.intent = IntentType.QUIZ_GENERATE.value
-        r.should_build = False
-        if r.confidence < 0.7:
-            r.confidence = 0.7
-        return r
-
-    # Tier 2: quiz-question keywords → only override content_create
-    if r.intent == IntentType.CONTENT_CREATE.value and _QUIZ_QUESTION_KEYWORDS.search(message):
-        logger.info(
-            "Quiz keyword correction: content_create → quiz_generate (quiz keyword)",
-        )
-        r.intent = IntentType.QUIZ_GENERATE.value
-        r.should_build = False
-        if r.confidence < 0.7:
-            r.confidence = 0.7
 
     return r
 

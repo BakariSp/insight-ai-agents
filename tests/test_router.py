@@ -5,6 +5,7 @@ from pydantic_ai.models.test import TestModel
 
 from agents.router import (
     _apply_confidence_routing,
+    _apply_quiz_keyword_correction,
     _initial_agent,
     classify_intent,
 )
@@ -68,6 +69,21 @@ def test_confidence_medium_chat_qa_passthrough():
     result = _apply_confidence_routing(r)
     assert result.intent == "chat_qa"
     assert result.should_build is False
+
+
+def test_quiz_keyword_correction_adds_tool_hint_without_rewrite():
+    """Quiz keywords should add tool hints but not force-change intent."""
+    r = RouterResult(intent="content_create", confidence=0.8, suggested_tools=[])
+    result = _apply_quiz_keyword_correction(r, "请帮我出10道二次函数选择题")
+    assert result.intent == "content_create"
+    assert "generate_quiz_questions" in result.suggested_tools
+
+
+def test_quiz_keyword_correction_keeps_non_quiz_message_untouched():
+    """Non-quiz messages should not add quiz tool hints."""
+    r = RouterResult(intent="content_create", confidence=0.8, suggested_tools=[])
+    result = _apply_quiz_keyword_correction(r, "请帮我做一个教学反思")
+    assert result.suggested_tools == []
 
 
 # ── Agent-level tests (TestModel) ─────────────────────────────

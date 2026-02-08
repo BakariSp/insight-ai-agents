@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     agent_max_iterations: int = 15  # Agent Path: max tool-use loop rounds
     max_tokens: int = 4096
     agent_max_tokens: int = 16384  # Agent Path: higher token budget for content generation (PPT, docs)
+    # Agent convergence flags (default off for safe rollout)
+    agent_unified_enabled: bool = False
+    agent_unified_quiz_enabled: bool = False
+    agent_unified_build_enabled: bool = False
 
     # ── PPT Generation ────────────────────────────────────────
     pptx_max_slides: int = 30  # Hard upper limit for any generated PPT

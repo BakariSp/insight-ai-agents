@@ -18,8 +18,10 @@ from models.blueprint import Blueprint
 from models.conversation import RouterResult
 from models.entity import EntityType, ResolvedEntity, ResolveResult
 from services.conversation_store import ConversationSession, get_conversation_store
+from services.datastream import DataStreamEncoder
 from tests.test_planner import _sample_blueprint_args
 from api.conversation import (
+    _build_tool_result_events,
     _compose_content_request_after_clarify,
     _is_ppt_confirmation,
     _outline_to_fallback_slides,
@@ -743,3 +745,22 @@ def test_outline_to_fallback_slides_generates_title_and_content():
     assert slides[0]["layout"] == "title"
     assert slides[0]["title"] == "概率统计 Lesson PPT"
     assert slides[1]["layout"] == "content"
+
+
+def test_build_tool_result_events_for_quiz_artifacts():
+    """generate_quiz_questions tool result should map to quiz SSE artifacts."""
+    enc = DataStreamEncoder()
+    events = _build_tool_result_events(
+        enc,
+        "generate_quiz_questions",
+        {
+            "questions": [
+                {"id": "q1", "question": "1+1=?", "questionType": "SINGLE_CHOICE"},
+                {"id": "q2", "question": "2+2=?", "questionType": "SINGLE_CHOICE"},
+            ],
+        },
+    )
+    payloads = _parse_sse_stream("".join(events))
+    types = _types(payloads)
+    assert types.count("data-quiz-question") == 2
+    assert "data-quiz-complete" in types

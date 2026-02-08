@@ -43,6 +43,8 @@ AGENT_TOOL_NAMES = [
     # Platform operations (new)
     "save_as_assignment",
     "create_share_link",
+    # Quiz generation (Phase 1 convergence)
+    "generate_quiz_questions",
 ]
 
 

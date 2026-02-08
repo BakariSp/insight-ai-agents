@@ -681,6 +681,85 @@ async def _stream_followup(
     yield enc.text_end(tid)
 
 
+def _is_unified_quiz_enabled() -> bool:
+    """Feature flag for Phase-1 quiz convergence."""
+    settings = get_settings()
+    return bool(settings.agent_unified_enabled and settings.agent_unified_quiz_enabled)
+
+
+def _build_unified_quiz_agent_message(
+    req: ConversationRequest,
+    router_result: RouterResult,
+) -> str:
+    """Compose a strict quiz tool-call instruction for unified agent mode."""
+    params = router_result.extracted_params or {}
+    topic = params.get("topic", "")
+    count = params.get("count", 10)
+    difficulty = params.get("difficulty", "medium")
+    subject = params.get("subject", "")
+    grade = params.get("grade", "")
+    return (
+        f"{req.message}\n\n"
+        "[Execution Requirement]\n"
+        "This is a quiz generation request.\n"
+        "You MUST call generate_quiz_questions in this turn and produce structured questions.\n"
+        "Do not respond with plan-only or plain narrative text.\n\n"
+        "[Extracted Hints]\n"
+        f"topic={topic}\ncount={count}\ndifficulty={difficulty}\nsubject={subject}\ngrade={grade}"
+    )
+
+
+async def _stream_quiz_with_unified_fallback(
+    enc: DataStreamEncoder,
+    req: ConversationRequest,
+    router_result: RouterResult,
+    history_text: str = "",
+    message_history: list[ModelMessage] | None = None,
+) -> AsyncGenerator[str, None]:
+    """Phase-1: prefer unified agent for quiz, keep legacy skill as fallback."""
+    if not _is_unified_quiz_enabled():
+        async for line in _stream_quiz_generate(enc, req, router_result):
+            yield line
+        return
+
+    # Ensure quiz tool hint is present for this turn.
+    if "generate_quiz_questions" not in router_result.suggested_tools:
+        router_result.suggested_tools.append("generate_quiz_questions")
+
+    action_payload = {
+        "action": "quiz_generate",
+        "mode": "entry",
+        "orchestrator": "unified_agent",
+    }
+    agent_message = _build_unified_quiz_agent_message(req, router_result)
+
+    buffered_lines: list[str] = []
+    saw_quiz_artifact = False
+    async for line in _stream_agent_mode(
+        enc,
+        req,
+        router_result,
+        agent_message=agent_message,
+        history_text=history_text,
+        message_history=message_history,
+        action_payload=action_payload,
+    ):
+        buffered_lines.append(line)
+        if "data-quiz-question" in line or "data-quiz-complete" in line:
+            saw_quiz_artifact = True
+
+    if saw_quiz_artifact:
+        for line in buffered_lines:
+            yield line
+        return
+
+    logger.warning(
+        "[UnifiedQuiz] No quiz artifact from unified agent; fallback to legacy quiz skill path."
+    )
+    async for line in _stream_quiz_generate(enc, req, router_result):
+        yield line
+
+
 async def _stream_quiz_generate(
     enc: DataStreamEncoder,
     req: ConversationRequest,
@@ -789,6 +868,7 @@ async def _stream_agent_mode(
     agent_message: str | None = None,
     history_text: str = "",
     message_history: list[ModelMessage] | None = None,
+    action_payload: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     """Agent Path — LLM + Tools free orchestration for content generation.
 
@@ -813,12 +893,15 @@ async def _stream_agent_mode(
     tier_value = router_result.model_tier
     if hasattr(tier_value, "value"):
         tier_value = tier_value.value
-    yield enc.data("action", {
+    payload = action_payload or {
         "action": "agent",
         "mode": "entry",
         "intent": router_result.intent,
         "modelTier": tier_value,
-    })
+    }
+    if "modelTier" not in payload:
+        payload["modelTier"] = tier_value
+    yield enc.data("action", payload)
 
     # 2. Get teacher context (fast, no LLM)
     teacher_context = await _get_teacher_context(req.teacher_id)
@@ -1369,6 +1452,20 @@ def _build_tool_result_events(
             "description": result.get("description", ""),
             "preferredHeight": result.get("preferredHeight", 500),
         }))
+
+    elif tool_name == "generate_quiz_questions":
+        questions = result.get("questions", [])
+        if isinstance(questions, list):
+            for idx, question in enumerate(questions):
+                events.append(enc.data("quiz-question", {
+                    "index": idx,
+                    "question": question if isinstance(question, dict) else {},
+                    "status": "generated",
+                }))
+            events.append(enc.data("quiz-complete", {
+                "total": len(questions),
+                "message": f"{len(questions)} questions generated",
+            }))
 
     return events
 
