@@ -29,34 +29,61 @@ Use Chinese text for UI labels when the content is for Chinese-speaking students
 Include placeholder containers (divs with IDs) for interactive elements that JS will initialize.
 Do NOT include any CSS or JavaScript — those are handled separately.
 Do NOT wrap output in markdown code blocks. Output raw HTML only.
+
+IMPORTANT — keep it concise:
+- Generate a clean, functional MVP structure. The teacher can request refinements later.
+- Prefer fewer wrapper divs. Avoid deeply nested structures.
+- For text content, write brief placeholder text rather than full paragraphs.
+- Target ~100-200 lines of HTML, not 300+.
 """
 
 CSS_SYSTEM_PROMPT = """\
 You are a CSS style generator for educational interactive content.
 Output ONLY raw CSS rules (no <style> tags, no markdown code blocks).
-Create modern, visually appealing styles:
-- Use CSS variables for theming
-- Gradients, shadows, rounded corners, smooth transitions
-- Responsive design (flexbox/grid)
-- Animations for interactive elements (@keyframes)
-- Mobile-friendly media queries
 Reference ONLY the element IDs and classes from the Element Contract.
 Do NOT output any HTML or JavaScript.
+
+Style approach — clean and functional first:
+- Define CSS variables for primary/secondary colors at :root
+- Use flexbox/grid for layout
+- Clean typography, readable font sizes
+- Rounded corners (border-radius: 8px), subtle box-shadows
+- ONE hover transition per interactive element (transition: 0.2s ease)
+- Basic responsive design (one @media breakpoint at 768px)
+
+Keep it lean:
+- Do NOT add @keyframes animations unless the Element Contract specifically lists "animation" sections.
+- Do NOT write extensive gradient layers or decorative pseudo-elements.
+- Target ~100-150 lines of CSS. The teacher can request visual enhancements later.
 """
 
 JS_SYSTEM_PROMPT = """\
 You are a JavaScript generator for educational interactive content.
 Output ONLY raw JavaScript code (no <script> tags, no markdown code blocks).
-Write clean, modern ES6+ JavaScript:
-- Use const/let, arrow functions, template literals
-- Initialize all interactive elements referenced in the Element Contract
-- Add event listeners for user interactions (click, drag, input)
-- Include smooth animations and transitions
-- Handle edge cases gracefully
-- Use requestAnimationFrame for animations
 Reference ONLY the element IDs and classes from the Element Contract.
 Do NOT output any HTML or CSS.
 Do NOT use import/export statements (code runs in a script tag).
+
+Coding approach:
+- Use const/let, arrow functions, template literals (ES6+)
+- Wrap everything in a DOMContentLoaded listener
+- Initialize all interactive elements from the Element Contract
+- Add event listeners for user interactions (click, drag, input, range)
+- Use requestAnimationFrame for animations
+- Handle errors gracefully (try/catch around DOM queries)
+
+CDN libraries available (pre-loaded in the page <head>):
+- Chart.js: `new Chart(ctx, config)` — for charts, graphs, data visualization
+- MathJax: `MathJax.typeset()` — for rendering LaTeX/math expressions
+- Matter.js: `Matter.Engine.create()` — for physics simulations with rigid bodies
+
+When a library fits the task, USE it instead of hand-coding equivalent logic.
+When no library fits (e.g. custom geometry, freeform canvas drawing, bespoke drag logic),
+write vanilla JS — that is perfectly fine.
+
+Keep it focused:
+- Implement CORE interactivity only. The teacher will iterate on details.
+- Target ~150-250 lines of JS, not 400+. Concise code is better code.
 """
 
 
@@ -108,10 +135,11 @@ Features: {', '.join(features)}
 
 Requirements:
 - Create all section containers with exact IDs from the contract
-- Add headings, paragraphs, form elements as appropriate
-- Include placeholder divs for charts/canvas/simulations
+- Add headings, form elements (input[type=range], buttons) as appropriate
+- Include <canvas> or placeholder divs for charts/simulations
 - Use semantic HTML5 elements
 - Add data attributes for JS initialization where needed
+- Keep structure minimal — avoid excessive wrapper divs
 - Output ONLY raw HTML (no doctype, no html/head/body tags)
 """
 
@@ -122,9 +150,9 @@ def _build_css_prompt(plan: dict, contract: str) -> str:
     features = plan.get("includeFeatures", [])
 
     style_guides = {
-        "modern": "Clean lines, subtle gradients, blue/indigo palette, rounded corners, shadow layers",
-        "playful": "Bright colors, bouncy animations, large rounded elements, emoji-friendly, fun transitions",
-        "scientific": "Precise layout, monospace for data, neutral palette, grid-based, chart-optimized",
+        "modern": "Clean lines, blue/indigo palette (#4f46e5), rounded corners, subtle shadows",
+        "playful": "Bright colors, large rounded elements, cheerful palette",
+        "scientific": "Precise layout, monospace for data, neutral palette, grid-based",
     }
     style_desc = style_guides.get(style, style_guides["modern"])
 
@@ -136,11 +164,9 @@ Features: {', '.join(features)}
 
 Requirements:
 - Style ALL elements from the contract
-- Use CSS variables for primary/secondary colors
-- Add hover/active/focus states for interactive elements
-- Include @keyframes for animations
-- Make it responsive (mobile + desktop)
-- Use smooth transitions (0.2-0.3s ease)
+- Define :root CSS variables for colors
+- Add hover states for interactive elements
+- One @media (max-width: 768px) for mobile
 - Output ONLY raw CSS rules
 """
 
@@ -157,6 +183,20 @@ def _build_js_prompt(plan: dict, contract: str) -> str:
         for s in sections
     )
 
+    # Detect which CDN libraries the JS should leverage
+    all_types = {s.get("type", "") for s in sections}
+    all_features = set(features)
+    lib_hints = []
+    if all_types & {"chart", "graph"} or all_features & {"chart"}:
+        lib_hints.append("- Chart.js is loaded: use `new Chart(ctx, config)` for charts/graphs")
+    if all_types & {"simulation", "physics"} or all_features & {"simulation", "physics"}:
+        lib_hints.append("- Matter.js is loaded: use `Matter.Engine.create()` for physics simulations")
+    if all_features & {"animation", "creative", "drawing"}:
+        lib_hints.append("- p5.js is loaded: use p5 instance mode for creative animations")
+    # Math rendering is almost always useful for educational content
+    lib_hints.append("- MathJax is loaded: call `MathJax.typeset()` after inserting math expressions")
+    lib_section = "\n".join(lib_hints) if lib_hints else ""
+
     return f"""Generate JavaScript for: {title}
 Description: {description}
 Topics: {', '.join(topics)}
@@ -167,8 +207,11 @@ Interactive sections:
 
 {contract}
 
+CDN libraries available in the page (use when they fit, skip when they don't):
+{lib_section}
+
 Requirements:
-- Wait for DOM ready (use DOMContentLoaded or check element existence)
+- Wrap code in DOMContentLoaded listener
 - Initialize all interactive elements from the contract
 - Implement the described interactions (sliders, drag-drop, quizzes, animations)
 - Use requestAnimationFrame for smooth animations
@@ -221,7 +264,14 @@ async def generate_interactive_stream(
 
     contract = _build_element_contract(plan)
     settings = get_settings()
-    model_name = get_model_for_tier("strong")
+
+    # All three phases use code tier (qwen3-coder-plus) —
+    # A/B test showed it produces more complete structure and richer interactivity.
+    model_for_phase = {
+        "html": get_model_for_tier("code"),
+        "css": get_model_for_tier("code"),
+        "js": get_model_for_tier("code"),
+    }
 
     # Three parallel generators writing to a shared asyncio.Queue
     queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
@@ -231,7 +281,7 @@ async def generate_interactive_stream(
     ) -> None:
         """Run one LLM stream and push deltas to the shared queue."""
         try:
-            model = create_model(model_name)
+            model = create_model(model_for_phase[phase])
             agent = Agent(
                 model=model,
                 output_type=str,

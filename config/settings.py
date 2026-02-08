@@ -25,16 +25,21 @@ class Settings(BaseSettings):
     router_model: str = "dashscope/qwen-turbo-latest"  # Fast router (~200ms)
     vision_model: str = "dashscope/qwen-vl-max"  # Vision-capable model for multimodal
     agent_model: str = "dashscope/qwen-max"  # Agent Path: general content generation
-    strong_model: str = "anthropic/claude-opus-4-6"  # Strong tier: complex tasks (interactive, quiz)
+    strong_model: str = "dashscope/qwen3-coder-plus"  # Strong tier: complex tasks (interactive, quiz)
+    code_model: str = "dashscope/qwen3-coder-plus"  # Code tier: HTML/CSS/JS generation (interactive pages)
     # Fallback chain: if primary model fails, try these in order
     strong_model_fallback: str = "dashscope/qwen-max"
     agent_model_fallback: str = "dashscope/qwen-max"
+    code_model_fallback: str = "dashscope/qwen-max"
     agent_max_iterations: int = 15  # Agent Path: max tool-use loop rounds
     max_tokens: int = 4096
     agent_max_tokens: int = 16384  # Agent Path: higher token budget for content generation (PPT, docs)
     # Agent convergence flags (default off for safe rollout)
     agent_unified_enabled: bool = False
     agent_unified_quiz_enabled: bool = False
+    agent_unified_content_enabled: bool = False
+    # Use LLM planner to decide required content tools (language-agnostic).
+    agent_unified_content_tool_planner_enabled: bool = True
     agent_unified_build_enabled: bool = False
     # Unified quiz grace window before fallback (milliseconds)
     agent_unified_quiz_grace_ms: int = 4000

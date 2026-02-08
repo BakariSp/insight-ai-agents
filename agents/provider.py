@@ -78,10 +78,11 @@ def get_model_for_tier(tier: str) -> str:
     - fast     → router_model   (qwen-turbo-latest)
     - standard → agent_model    (qwen-max)
     - strong   → strong_model   (anthropic/claude-opus-4-6)
+    - code     → code_model     (qwen3-coder-plus)
     - vision   → vision_model   (qwen-vl-max)
 
     Args:
-        tier: One of "fast", "standard", "strong", "vision".
+        tier: One of "fast", "standard", "strong", "code", "vision".
 
     Returns:
         Model name string in ``"provider/model"`` format.
@@ -91,6 +92,7 @@ def get_model_for_tier(tier: str) -> str:
         "fast": settings.router_model,
         "standard": settings.agent_model,
         "strong": settings.strong_model,
+        "code": settings.code_model,
         "vision": settings.vision_model,
     }.get(tier, settings.agent_model)
 
@@ -115,6 +117,7 @@ def get_model_chain_for_tier(tier: str) -> list[str]:
     fallback = {
         "strong": settings.strong_model_fallback,
         "standard": settings.agent_model_fallback,
+        "code": settings.code_model_fallback,
     }.get(tier)
 
     if fallback and fallback != primary:

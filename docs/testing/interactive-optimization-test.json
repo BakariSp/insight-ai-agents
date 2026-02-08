@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-02-09 02:38:45",
+  "duration_s": 117.6,
+  "baseline_s": 131.2,
+  "speedup": 1.1,
+  "html_len": 4935,
+  "css_len": 7265,
+  "js_len": 19439,
+  "total_len": 31639,
+  "quality_score": 1.0,
+  "uses_cdn": {
+    "chartjs": false,
+    "mathjax": true,
+    "matterjs": false
+  },
+  "event_count": 1061,
+  "action": {
+    "action": "agent",
+    "orchestrator": "unified_agent",
+    "mode": "entry",
+    "intent": "content_create",
+    "modelTier": "strong"
+  }
+}

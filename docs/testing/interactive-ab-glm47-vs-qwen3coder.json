@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-02-09 03:12:33",
+  "prompt": "请制作一个可以拖拽观察抛物线变化的互动网页，适合初二。",
+  "results": [
+    {
+      "label": "glm-4.7",
+      "js_model": "zai/glm-4.7",
+      "duration_s": 79.0,
+      "http_status": 200,
+      "event_count": 354,
+      "html_len": 1418,
+      "css_len": 1262,
+      "js_len": 13024,
+      "total_len": 15704,
+      "js_quality": {
+        "non_empty": true,
+        "has_dom_ready": true,
+        "braces_balanced": true,
+        "not_truncated": true,
+        "has_error_handling": true,
+        "uses_modern_js": true,
+        "has_event_listeners": true,
+        "has_canvas_or_svg": true,
+        "has_interactivity": true,
+        "uses_mathjax": true,
+        "uses_chartjs": false,
+        "uses_matterjs": false,
+        "runnable_score": 1.0
+      },
+      "error": null
+    },
+    {
+      "label": "qwen3-coder",
+      "js_model": "dashscope/qwen3-coder-plus",
+      "duration_s": 50.6,
+      "http_status": 200,
+      "event_count": 401,
+      "html_len": 1345,
+      "css_len": 1705,
+      "js_len": 12190,
+      "total_len": 15240,
+      "js_quality": {
+        "non_empty": true,
+        "has_dom_ready": true,
+        "braces_balanced": true,
+        "not_truncated": true,
+        "has_error_handling": true,
+        "uses_modern_js": true,
+        "has_event_listeners": true,
+        "has_canvas_or_svg": true,
+        "has_interactivity": true,
+        "uses_mathjax": false,
+        "uses_chartjs": false,
+        "uses_matterjs": false,
+        "runnable_score": 1.0
+      },
+      "error": null
+    }
+  ],
+  "js_code_samples": {
+    "glm-4.7": "document.addEventListener('DOMContentLoaded', () => {\n    try {\n        // --- Section 1: Intro ---\n        const initIntro = () => {\n            const introSection = document.getElementById('intro-section');\n            if (!introSection) return;\n            introSection.innerHTML = `\n                <h3>抛物线基础</h3>\n                <p>抛物线是二次函数的图像。标准顶点式为：</p>\n                <div id=\"intro-formula\" style=\"font-size: 1.2em; text-align: center; margin: 10px 0;\">\n                    $$ y = a(x-h)^2 + k $$\n                </div>\n                <p>其中：</p>\n                <ul>\n                    <li><strong>(h, k)</strong> 是抛物线的顶点坐标。</li>\n                    <li><strong>a</strong> 决定了开口方向和宽度：\n                        <ul>\n                            <li>a > 0：开口向上</li>\n                            <li>a < 0：开口向下</li>\n                            <li>|a| 越大，开口越窄</li>\n                        </ul>\n                    </li>\n                </ul>\n                <p>请在下方模拟器中拖动顶点或调整参数来观察变化。</p>\n            `;\n            MathJax.typesetPromise([introSection]);\n        };\n\n        // --- Section 2: Parabola Simulator ---\n        const initSimulator = () => {\n            const container = document.getElementById('parabola-simulator');\n            if (!container) return;\n\n            // Create internal structure\n            container.innerHTML = `\n                <div style=\"display: flex; flex-direction: column; gap: 15px; align-items: center;\">\n                    <div id=\"formula-display\" style=\"font-size: 1.5em; font-weight: bold; color: #333; height: 40px;\"></div>\n                    <div style=\"position: relative; border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1);\">\n                        <canvas id=\"sim-canvas\" width=\"600\" height=\"400\"></canvas>\n                    </div>\n                    <div style=\"width: 100%; max-width: 600px; display: grid; grid-template-columns: 100px 1fr 40px; gap: 10px; align-items: center;\">\n                        <label for=\"slider-a\">参数 a:</label>\n                        <input type=\"range\" id=\"slider-a\" min=\"-2\" max=\"2\" step=\"0.1\" value=\"1\">\n                        <span id=\"val-a\">1.0</span>\n                    </div>\n                    <div style=\"font-size: 0.9em; color: #666;\">提示：直接在画布上拖动红色的顶点 (h, k)</div>\n                </div>\n            `;\n\n            const canvas = document.getElementById('sim-canvas');\n            const ctx = canvas.getContext('2d');\n            const sliderA = document.getElementById('slider-a');\n            const valA = document.getElementById('val-a');\n            const formulaDisplay = document.getElementById('formula-display');\n\n            // State\n            let params = { a: 1, h: 0, k: 0 };\n            const scale = 40; // pixels per unit\n            let isDragging = false;\n            let dragTarget = null; // 'vertex'\n\n            // Coordinate helpers\n            const toScreen = (x, y) => ({\n                x: canvas.width / 2 + x * scale,\n                y: canvas.hei",
+    "qwen3-coder": "document.addEventListener('DOMContentLoaded', () => {\n    // Initialize elements\n    try {\n        // Intro section\n        const introSection = document.getElementById('intro-section');\n        if (introSection) {\n            introSection.innerHTML = `\n                <h3>抛物线简介</h3>\n                <p>抛物线是二次函数 y = ax² + bx + c 的图像。它具有一个顶点，对称轴通过该顶点。</p>\n                <p>参数 a 控制开口方向和宽度，b 和 c 影响位置。</p>\n                <p>在下面的演示中，你可以拖拽滑块来观察不同参数如何影响抛物线的形状。</p>\n            `;\n        }\n\n        // Parabola demo section\n        const parabolaDemo = document.getElementById('parabola-demo');\n        if (parabolaDemo) {\n            parabolaDemo.innerHTML = `\n                <div style=\"display:flex; flex-direction:column; align-items:center;\">\n                    <canvas id=\"parabola-canvas\" width=\"600\" height=\"400\" style=\"border:1px solid #ccc;\"></canvas>\n                    <div style=\"margin-top:20px; display:flex; gap:20px; align-items:center;\">\n                        <label>a: <input type=\"range\" id=\"a-slider\" min=\"-2\" max=\"2\" step=\"0.1\" value=\"1\"></label>\n                        <span id=\"a-value\">1.0</span>\n                    </div>\n                    <div style=\"margin-top:10px; display:flex; gap:20px; align-items:center;\">\n                        <label>b: <input type=\"range\" id=\"b-slider\" min=\"-5\" max=\"5\" step=\"0.1\" value=\"0\"></label>\n                        <span id=\"b-value\">0.0</span>\n                    </div>\n                    <div style=\"margin-top:10px; display:flex; gap:20px; align-items:center;\">\n                        <label>c: <input type=\"range\" id=\"c-slider\" min=\"-5\" max=\"5\" step=\"0.1\" value=\"0\"></label>\n                        <span id=\"c-value\">0.0</span>\n                    </div>\n                    <div style=\"margin-top:10px; font-family: serif;\">\n                        <p>方程: y = <span id=\"equation-a\">1.0</span>x² + <span id=\"equation-b\">0.0</span>x + <span id=\"equation-c\">0.0</span></p>\n                    </div>\n                </div>\n            `;\n\n            const canvas = document.getElementById('parabola-canvas');\n            const ctx = canvas.getContext('2d');\n            \n            // Parameters\n            let a = 1;\n            let b = 0;\n            let c = 0;\n            \n            // Slider elements\n            const aSlider = document.getElementById('a-slider');\n            const bSlider = document.getElementById('b-slider');\n            const cSlider = document.getElementById('c-slider');\n            const aValue = document.getElementById('a-value');\n            const bValue = document.getElementById('b-value');\n            const cValue = document.getElementById('c-value');\n            const equationA = document.getElementById('equation-a');\n            const equationB = document.getElementById('equation-b');\n            const equationC = document.getElementById('equation-c');\n            \n            // Update values from sliders\n            function updateValues() {\n                a = parseFl"
+  }
+}

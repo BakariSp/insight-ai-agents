@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>A/B Test — glm-4.7</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19/build/matter.min.js"></script>
+    
+<style>
+:root {
+  --primary-color: #4f46e5;
+  --secondary-color: #ffffff;
+  --background-color: #f9f9f9;
+  --text-color: #333333;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+#intro-section {
+  padding: 2rem;
+  border-radius: 8px;
+  background-color: var(--secondary-color);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: 2rem;
+}
+
+#parabola-simulator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+  background-color: var(--secondary-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: 2rem;
+}
+
+#quiz-section {
+  padding: 2rem;
+  border-radius: 8px;
+  background-color: var(--secondary-color);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: 2rem;
+}
+
+button {
+  background-color: var(--primary-color);
+  color: var(--secondary-color);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #3b30c3;
+}
+
+@media (max-width: 768px) {
+  #intro-section, #parabola-simulator, #quiz-section {
+    margin: 1rem;
+    padding: 1rem;
+  }
+
+  #parabola-simulator {
+    height: 300px;
+  }
+}
+</style>
+</head>
+<body>
+<section id="intro-section">
+  <h1>抛物线模拟</h1>
+  <p>介绍抛物线的基本概念。通过拖拽调整参数观察抛物线变化。</p>
+</section>
+
+<section id="parabola-simulator">
+  <h2>抛物线模拟器</h2>
+  <div class="controls">
+    <label for="a-value">a值:</label>
+    <input type="range" id="a-value" min="-5" max="5" value="1" data-param="a">
+    <label for="b-value">b值:</label>
+    <input type="range" id="b-value" min="-5" max="5" value="0" data-param="b">
+    <label for="c-value">c值:</label>
+    <input type="range" id="c-value" min="-5" max="5" value="0" data-param="c">
+  </div>
+  <canvas id="parabola-canvas" width="600" height="400"></canvas>
+</section>
+
+<section id="quiz-section">
+  <h2>抛物线小测验</h2>
+  <form id="quiz-form">
+    <fieldset>
+      <legend>选择题</legend>
+      <div>
+        <p>1. 抛物线的顶点坐标公式是？</p>
+        <label><input type="radio" name="q1" value="a"> (a, b)</label><br>
+        <label><input type="radio" name="q1" value="b"> (-b/2a, c)</label><br>
+        <label><input type="radio" name="q1" value="c"> (-b/2a, f(-b/2a))</label><br>
+      </div>
+      <div>
+        <p>2. 当a > 0时，抛物线开口方向为？</p>
+        <label><input type="radio" name="q2" value="a"> 向上</label><br>
+        <label><input type="radio" name="q2" value="b"> 向下</label><br>
+        <label><input type="radio" name="q2" value="c"> 向左</label><br>
+      </div>
+    </fieldset>
+    <button type="submit">提交答案</button>
+  </form>
+  <div id="quiz-result" aria-live="polite"></div>
+</section>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        // --- Section 1: Intro ---
+        const initIntro = () => {
+            const introSection = document.getElementById('intro-section');
+            if (!introSection) return;
+            introSection.innerHTML = `
+                <h3>抛物线基础</h3>
+                <p>抛物线是二次函数的图像。标准顶点式为：</p>
+                <div id="intro-formula" style="font-size: 1.2em; text-align: center; margin: 10px 0;">
+                    $$ y = a(x-h)^2 + k $$
+                </div>
+                <p>其中：</p>
+                <ul>
+                    <li><strong>(h, k)</strong> 是抛物线的顶点坐标。</li>
+                    <li><strong>a</strong> 决定了开口方向和宽度：
+                        <ul>
+                            <li>a > 0：开口向上</li>
+                            <li>a < 0：开口向下</li>
+                            <li>|a| 越大，开口越窄</li>
+                        </ul>
+                    </li>
+                </ul>
+                <p>请在下方模拟器中拖动顶点或调整参数来观察变化。</p>
+            `;
+            MathJax.typesetPromise([introSection]);
+        };
+
+        // --- Section 2: Parabola Simulator ---
+        const initSimulator = () => {
+            const container = document.getElementById('parabola-simulator');
+            if (!container) return;
+
+            // Create internal structure
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 15px; align-items: center;">
+                    <div id="formula-display" style="font-size: 1.5em; font-weight: bold; color: #333; height: 40px;"></div>
+                    <div style="position: relative; border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <canvas id="sim-canvas" width="600" height="400"></canvas>
+                    </div>
+                    <div style="width: 100%; max-width: 600px; display: grid; grid-template-columns: 100px 1fr 40px; gap: 10px; align-items: center;">
+                        <label for="slider-a">参数 a:</label>
+                        <input type="range" id="slider-a" min="-2" max="2" step="0.1" value="1">
+                        <span id="val-a">1.0</span>
+                    </div>
+                    <div style="font-size: 0.9em; color: #666;">提示：直接在画布上拖动红色的顶点 (h, k)</div>
+                </div>
+            `;
+
+            const canvas = document.getElementById('sim-canvas');
+            const ctx = canvas.getContext('2d');
+            const sliderA = document.getElementById('slider-a');
+            const valA = document.getElementById('val-a');
+            const formulaDisplay = document.getElementById('formula-display');
+
+            // State
+            let params = { a: 1, h: 0, k: 0 };
+            const scale = 40; // pixels per unit
+            let isDragging = false;
+            let dragTarget = null; // 'vertex'
+
+            // Coordinate helpers
+            const toScreen = (x, y) => ({
+                x: canvas.width / 2 + x * scale,
+                y: canvas.height / 2 - y * scale
+            });
+            const toMath = (px, py) => ({
+                x: (px - canvas.width / 2) / scale,
+                y: (canvas.height / 2 - py) / scale
+            });
+
+            // Drawing
+            const draw = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw Grid
+                ctx.strokeStyle = '#e0e0e0';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                // Vertical lines
+                for (let x = 0; x <= canvas.width / 2; x += scale) {
+                    ctx.moveTo(canvas.width / 2 + x, 0); ctx.lineTo(canvas.width / 2 + x, canvas.height);
+                    ctx.moveTo(canvas.width / 2 - x, 0); ctx.lineTo(canvas.width / 2 - x, canvas.height);
+                }
+                // Horizontal lines
+                for (let y = 0; y <= canvas.height / 2; y += scale) {
+                    ctx.moveTo(0, canvas.height / 2 + y); ctx.lineTo(canvas.width, canvas.height / 2 + y);
+                    ctx.moveTo(0, canvas.height / 2 - y); ctx.lineTo(canvas.width, canvas.height / 2 - y);
+                }
+                ctx.stroke();
+
+                // Draw Axes
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2); // X Axis
+                ctx.moveTo(canvas.width / 2, 0); ctx.lineTo(canvas.width / 2, canvas.height); // Y Axis
+                ctx.stroke();
+
+                // Draw Parabola
+                ctx.strokeStyle = '#2196F3';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                const startMath = toMath(0, 0);
+                const endMath = toMath(canvas.width, 0);
+                
+                // Iterate screen pixels for smoothness
+                let firstPoint = true;
+                for (let px = 0; px <= canvas.width; px += 2) {
+                    const mx = (px - canvas.width / 2) / scale;
+                    const my = params.a * Math.pow(mx - params.h, 2) + params.k;
+                    const py = canvas.height / 2 - my * scale;
+                    
+                    if (py > -100 && py < canvas.height + 100) { // Avoid drawing way off screen
+                        if (firstPoint) { ctx.moveTo(px, py); firstPoint = false; }
+                        else { ctx.lineTo(px, py); }
+                    } else {
+                        firstPoint = true; // Reset if line jumps off screen
+                    }
+                }
+                ctx.stroke();
+
+                // Draw Vertex (Draggable)
+                const vScreen = toScreen(params.h, params.k);
+                ctx.fillStyle = '#F44336';
+                ctx.beginPath();
+                ctx.arc(vScreen.x, vScreen.y, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(vScreen.x, vScreen.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Update Formula Display
+                // Using simple HTML string replacement to avoid heavy MathJax re-render on every frame
+                const signH = params.h >= 0 ? '-' : '+';
+                const signK = params.k >= 0 ? '+' : '-';
+                const displayH = Math.abs(params.h).toFixed(1);
+                const displayK = Math.abs(params.k).toFixed(1);
+                const displayA = parseFloat(params.a).toFixed(1);
+                
+                formulaDisplay.innerHTML = `$$ y = ${displayA}(x ${signH} ${displayH})^2 ${signK} ${displayK} $$`;
+                
+                // Throttle MathJax render slightly or just run it (v3 is fast enough usually)
+                // For performance, we might only typeset on mouse up, but let's try real-time
+                requestAnimationFrame(() => {
+                   if(MathJax.typesetPromise) MathJax.typesetPromise([formulaDisplay]);
+                });
+            };
+
+            // Event Handlers
+            const getMousePos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            };
+
+            canvas.addEventListener('mousedown', (e) => {
+                const pos = getMousePos(e);
+                const vScreen = toScreen(params.h, params.k);
+                const dist = Math.hypot(pos.x - vScreen.x, pos.y - vScreen.y);
+                
+                if (dist < 15) {
+                    isDragging = true;
+                    dragTarget = 'vertex';
+                    canvas.style.cursor = 'grabbing';
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) {
+                    // Hover effect cursor
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const vScreen = toScreen(params.h, params.k);
+                    const dist = Math.hypot(x - vScreen.x, y - vScreen.y);
+                    canvas.style.cursor = dist < 15 ? 'grab' : 'default';
+                    return;
+                }
+
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                
+                if (dragTarget === 'vertex') {
+                    const mathPos = toMath(mx, my);
+                    // Snap to 0.1 grid for cleaner values
+                    params.h = Math.round(mathPos.x * 10) / 10;
+                    params.k = Math.round(mathPos.y * 10) / 10;
+                    requestAnimationFrame(draw);
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+                dragTarget = null;
+                canvas.style.cursor = 'default';
+            });
+
+            sliderA.addEventListener('input', (e) => {
+                params.a = parseFloat(e.target.value);
+                valA.textContent = params.a.toFixed(1);
+                requestAnimationFrame(draw);
+            });
+
+            // Initial Draw
+            draw();
+        };
+
+        // --- Section 3: Quiz ---
+        const initQuiz = () => {
+            const quizSection = document.getElementById('quiz-section');
+            if (!quizSection) return;
+
+            const questions = [
+                {
+                    id: 1,
+                    text: "当参数 a > 0 时，抛物线的开口方向是？",
+                    options: ["向上", "向下", "向左", "向右"],
+                    correct: 0
+                },
+                {
+                    id: 2,
+                    text: "在方程 y = a(x-h)^2 + k 中，点 (h, k) 被称为什么？",
+                    options: ["原点", "焦点", "顶点", "截距"],
+                    correct: 2
+                },
+                {
+                    id: 3,
+                    text: "如果 |a| 变大（例如从 1 变为 3），抛物线的开口会怎样？",
+                    options: ["变宽", "变窄", "不变", "消失"],
+                    correct: 1
+                }
+            ];
+
+            quizSection.innerHTML = '<h3>小测验</h3><div id="quiz-container"></div>';
+            const container = document.getElementById('quiz-container');
+
+            questions.forEach((q, index) => {
+                const qDiv = document.createElement('div');
+                qDiv.className = 'quiz-item';
+                qDiv.style.marginBottom = '20px';
+                qDiv.style.padding = '10px';
+                qDiv.style.border = '1px solid #eee';
+                qDiv.style.borderRadius = '5px';
+
+                const title = document.createElement('p');
+                title.textContent = `${index + 1}. ${q.text}`;
+                title.style.fontWeight = 'bold';
+                qDiv.appendChild(title);
+
+                const optionsDiv = document.createElement('div');
+                optionsDiv.style.display = 'flex';
+                optionsDiv.style.flexWrap = 'wrap';
+                optionsDiv.style.gap = '10px';
+
+                q.options.forEach((opt, optIndex) => {
+                    const btn = document.createElement('button');
+                    btn.textContent = opt;
+                    btn.className = 'quiz-btn';
+                    btn.style.padding = '5px 15px';
+                    btn.style.cursor = 'pointer';
+                    btn.style.border = '1px solid #ccc';
+                    btn.style.borderRadius = '4px';
+                    btn.style.background = '#fff';
+                    
+                    btn.onclick = () => {
+                        // Disable all buttons in this question
+                        const allBtns = optionsDiv.querySelectorAll('button');
+                        allBtns.forEach(b => b.disabled = true);
+
+                        if (optIndex === q.correct) {
+                            btn.style.background = '#4CAF50';
+                            btn.style.color = 'white';
+                            btn.textContent += ' (正确)';
+                        } else {
+                            btn.style.background = '#f44336';
+                            btn.style.color = 'white';
+                            btn.textContent += ' (错误)';
+                            // Highlight correct one
+                            allBtns[q.correct].style.background = '#4CAF50';
+                            allBtns[q.correct].style.color = 'white';
+                            allBtns[q.correct].textContent += ' (正确答案)';
+                        }
+                    };
+                    optionsDiv.appendChild(btn);
+                });
+                qDiv.appendChild(optionsDiv);
+                container.appendChild(qDiv);
+            });
+        };
+
+        // Initialize All
+        initIntro();
+        initSimulator();
+        initQuiz();
+
+    } catch (error) {
+        console.error('Initialization Error:', error);
+    }
+});
+</script>
+</body>
+</html>

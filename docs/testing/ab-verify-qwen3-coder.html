@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>A/B Test — qwen3-coder</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19/build/matter.min.js"></script>
+    
+<style>
+:root {
+  --primary-color: #4f46e5;
+  --secondary-color: #8b5cf6;
+  --background-color: #f9fafb;
+  --text-color: #111827;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+#intro-section {
+  padding: 2rem;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 1rem;
+}
+
+#parabola-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 1rem;
+}
+
+#parabola-demo .drag-handle {
+  cursor: grab;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background-color: var(--primary-color);
+  color: #fff;
+  transition: background-color 0.2s ease;
+}
+
+#parabola-demo .drag-handle:hover {
+  background-color: var(--secondary-color);
+}
+
+#quiz-section {
+  padding: 2rem;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 1rem;
+}
+
+#quiz-section .question {
+  margin-bottom: 1rem;
+}
+
+#quiz-section .options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#quiz-section .option {
+  padding: 0.5rem;
+  border: 1px solid var(--primary-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+#quiz-section .option:hover {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  #intro-section,
+  #parabola-demo,
+  #quiz-section {
+    padding: 1rem;
+  }
+
+  #parabola-demo .drag-handle {
+    padding: 0.3rem;
+  }
+
+  #quiz-section .options {
+    gap: 0.3rem;
+  }
+
+  #quiz-section .option {
+    padding: 0.3rem;
+  }
+}
+</style>
+</head>
+<body>
+<section id="intro-section">
+  <h1>抛物线互动演示</h1>
+  <p>抛物线是一种常见的二次函数图形，通过本互动演示，你可以观察不同参数对抛物线形状的影响。</p>
+</section>
+
+<section id="parabola-demo" data-type="simulation">
+  <h2>抛物线参数调整</h2>
+  <div class="controls">
+    <label for="a-value">a 值:</label>
+    <input type="range" id="a-value" min="-5" max="5" value="1" step="0.1" data-param="a">
+    
+    <label for="b-value">b 值:</label>
+    <input type="range" id="b-value" min="-5" max="5" value="0" step="0.1" data-param="b">
+    
+    <label for="c-value">c 值:</label>
+    <input type="range" id="c-value" min="-5" max="5" value="0" step="0.1" data-param="c">
+  </div>
+  <canvas id="parabola-canvas" width="600" height="400"></canvas>
+</section>
+
+<section id="quiz-section" data-type="quiz">
+  <h2>抛物线性质小测验</h2>
+  <form id="quiz-form">
+    <fieldset>
+      <legend>选择题</legend>
+      <p>1. 抛物线的顶点坐标是？</p>
+      <label><input type="radio" name="q1" value="A"> A. (0, 0)</label><br>
+      <label><input type="radio" name="q1" value="B"> B. (-b/2a, c)</label><br>
+      <label><input type="radio" name="q1" value="C"> C. (b/2a, c - b^2/4a)</label><br>
+    </fieldset>
+    <fieldset>
+      <legend>填空题</legend>
+      <p>2. 抛物线 y = ax^2 + bx + c 的开口方向由 ______ 决定。</p>
+      <input type="text" id="q2-answer" placeholder="填写答案">
+    </fieldset>
+    <button type="submit">提交答案</button>
+  </form>
+</section>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize elements
+    try {
+        // Intro section
+        const introSection = document.getElementById('intro-section');
+        if (introSection) {
+            introSection.innerHTML = `
+                <h3>抛物线简介</h3>
+                <p>抛物线是二次函数 y = ax² + bx + c 的图像。它具有一个顶点，对称轴通过该顶点。</p>
+                <p>参数 a 控制开口方向和宽度，b 和 c 影响位置。</p>
+                <p>在下面的演示中，你可以拖拽滑块来观察不同参数如何影响抛物线的形状。</p>
+            `;
+        }
+
+        // Parabola demo section
+        const parabolaDemo = document.getElementById('parabola-demo');
+        if (parabolaDemo) {
+            parabolaDemo.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center;">
+                    <canvas id="parabola-canvas" width="600" height="400" style="border:1px solid #ccc;"></canvas>
+                    <div style="margin-top:20px; display:flex; gap:20px; align-items:center;">
+                        <label>a: <input type="range" id="a-slider" min="-2" max="2" step="0.1" value="1"></label>
+                        <span id="a-value">1.0</span>
+                    </div>
+                    <div style="margin-top:10px; display:flex; gap:20px; align-items:center;">
+                        <label>b: <input type="range" id="b-slider" min="-5" max="5" step="0.1" value="0"></label>
+                        <span id="b-value">0.0</span>
+                    </div>
+                    <div style="margin-top:10px; display:flex; gap:20px; align-items:center;">
+                        <label>c: <input type="range" id="c-slider" min="-5" max="5" step="0.1" value="0"></label>
+                        <span id="c-value">0.0</span>
+                    </div>
+                    <div style="margin-top:10px; font-family: serif;">
+                        <p>方程: y = <span id="equation-a">1.0</span>x² + <span id="equation-b">0.0</span>x + <span id="equation-c">0.0</span></p>
+                    </div>
+                </div>
+            `;
+
+            const canvas = document.getElementById('parabola-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Parameters
+            let a = 1;
+            let b = 0;
+            let c = 0;
+            
+            // Slider elements
+            const aSlider = document.getElementById('a-slider');
+            const bSlider = document.getElementById('b-slider');
+            const cSlider = document.getElementById('c-slider');
+            const aValue = document.getElementById('a-value');
+            const bValue = document.getElementById('b-value');
+            const cValue = document.getElementById('c-value');
+            const equationA = document.getElementById('equation-a');
+            const equationB = document.getElementById('equation-b');
+            const equationC = document.getElementById('equation-c');
+            
+            // Update values from sliders
+            function updateValues() {
+                a = parseFloat(aSlider.value);
+                b = parseFloat(bSlider.value);
+                c = parseFloat(cSlider.value);
+                
+                aValue.textContent = a.toFixed(1);
+                bValue.textContent = b.toFixed(1);
+                cValue.textContent = c.toFixed(1);
+                
+                equationA.textContent = a.toFixed(1);
+                equationB.textContent = b.toFixed(1);
+                equationC.textContent = c.toFixed(1);
+                
+                drawParabola();
+            }
+            
+            // Draw the parabola
+            function drawParabola() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw grid
+                ctx.strokeStyle = '#eee';
+                ctx.lineWidth = 1;
+                
+                // Vertical grid lines
+                for (let x = 0; x <= canvas.width; x += 50) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.stroke();
+                }
+                
+                // Horizontal grid lines
+                for (let y = 0; y <= canvas.height; y += 50) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // Draw axes
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                
+                // X axis
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height / 2);
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
+                
+                // Y axis
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2, 0);
+                ctx.lineTo(canvas.width / 2, canvas.height);
+                ctx.stroke();
+                
+                // Draw parabola
+                ctx.strokeStyle = '#f00';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                
+                for (let x = -300; x <= 300; x += 2) {
+                    const scaledX = x / 50; // Scale to match coordinate system
+                    const y = a * scaledX * scaledX + b * scaledX + c;
+                    
+                    const canvasX = centerX + x;
+                    const canvasY = centerY - (y * 50); // Invert y-axis
+                    
+                    if (x === -300) {
+                        ctx.moveTo(canvasX, canvasY);
+                    } else {
+                        ctx.lineTo(canvasX, canvasY);
+                    }
+                }
+                
+                ctx.stroke();
+                
+                // Calculate and draw vertex
+                if (a !== 0) {
+                    const vertexX = -b / (2 * a);
+                    const vertexY = a * vertexX * vertexX + b * vertexX + c;
+                    
+                    const canvasVertexX = centerX + vertexX * 50;
+                    const canvasVertexY = centerY - vertexY * 50;
+                    
+                    // Draw vertex point
+                    ctx.fillStyle = '#00f';
+                    ctx.beginPath();
+                    ctx.arc(canvasVertexX, canvasVertexY, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Draw vertex label
+                    ctx.fillStyle = '#000';
+                    ctx.font = '12px Arial';
+                    ctx.fillText(`顶点: (${vertexX.toFixed(2)}, ${vertexY.toFixed(2)})`, canvasVertexX + 10, canvasVertexY - 10);
+                }
+            }
+            
+            // Initial draw
+            drawParabola();
+            
+            // Add event listeners to sliders
+            aSlider.addEventListener('input', updateValues);
+            bSlider.addEventListener('input', updateValues);
+            cSlider.addEventListener('input', updateValues);
+        }
+
+        // Quiz section
+        const quizSection = document.getElementById('quiz-section');
+        if (quizSection) {
+            quizSection.innerHTML = `
+                <h3>抛物线小测验</h3>
+                <div id="question-container">
+                    <p id="question-text">当 a > 0 时，抛物线的开口方向是？</p>
+                    <div id="options-container">
+                        <label><input type="radio" name="answer" value="up"> 向上</label><br>
+                        <label><input type="radio" name="answer" value="down"> 向下</label><br>
+                        <label><input type="radio" name="answer" value="left"> 向左</label><br>
+                        <label><input type="radio" name="answer" value="right"> 向右</label><br>
+                    </div>
+                    <button id="submit-answer">提交答案</button>
+                    <div id="feedback"></div>
+                </div>
+                <div id="score-display">得分: <span id="score">0</span>/3</div>
+            `;
+            
+            // Quiz questions
+            const questions = [
+                {
+                    question: "当 a > 0 时，抛物线的开口方向是？",
+                    options: ["向上", "向下", "向左", "向右"],
+                    correct: 0,
+                    values: ["up", "down", "left", "right"]
+                },
+                {
+                    question: "二次函数 y = ax² + bx + c 中，哪个参数控制开口宽度？",
+                    options: ["b", "c", "a", "x"],
+                    correct: 2,
+                    values: ["b", "c", "a", "x"]
+                },
+                {
+                    question: "抛物线的对称轴通过哪个特殊点？",
+                    options: ["焦点", "顶点", "准线", "原点"],
+                    correct: 1,
+                    values: ["focus", "vertex", "directrix", "origin"]
+                }
+            ];
+            
+            let currentQuestion = 0;
+            let score = 0;
+            let answered = false;
+            
+            const questionText = document.getElementById('question-text');
+            const optionsContainer = document.getElementById('options-container');
+            const submitButton = document.getElementById('submit-answer');
+            const feedback = document.getElementById('feedback');
+            const scoreDisplay = document.getElementById('score');
+            
+            function loadQuestion() {
+                const q = questions[currentQuestion];
+                questionText.textContent = q.question;
+                
+                optionsContainer.innerHTML = '';
+                q.options.forEach((option, index) => {
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = 'answer';
+                    radio.value = q.values[index];
+                    radio.id = `option-${index}`;
+                    
+                    const label = document.createElement('label');
+                    label.htmlFor = `option-${index}`;
+                    label.textContent = ` ${option}`;
+                    
+                    const div = document.createElement('div');
+                    div.appendChild(radio);
+                    div.appendChild(label);
+                    
+                    optionsContainer.appendChild(div);
+                });
+                
+                feedback.textContent = '';
+                answered = false;
+            }
+            
+            submitButton.addEventListener('click', () => {
+                if (answered) return;
+                
+                const selectedOption = document.querySelector('input[name="answer"]:checked');
+                if (!selectedOption) {
+                    feedback.textContent = '请选择一个答案！';
+                    feedback.style.color = 'red';
+                    return;
+                }
+                
+                answered = true;
+                const selectedIndex = Array.from(document.querySelectorAll('input[name="answer"]')).findIndex(radio => radio.checked);
+                const q = questions[currentQuestion];
+                
+                if (selectedIndex === q.correct) {
+                    feedback.textContent = '正确！';
+                    feedback.style.color = 'green';
+                    score++;
+                } else {
+                    feedback.textContent = `错误！正确答案是：${q.options[q.correct]}`;
+                    feedback.style.color = 'red';
+                }
+                
+                scoreDisplay.textContent = score;
+                
+                setTimeout(() => {
+                    currentQuestion++;
+                    if (currentQuestion < questions.length) {
+                        loadQuestion();
+                    } else {
+                        feedback.textContent = `测验完成！总分：${score}/${questions.length}`;
+                        submitButton.disabled = true;
+                    }
+                }, 1500);
+            });
+            
+            loadQuestion();
+        }
+        
+    } catch (error) {
+        console.error('Error initializing parabola demo:', error);
+    }
+});
+</script>
+</body>
+</html>

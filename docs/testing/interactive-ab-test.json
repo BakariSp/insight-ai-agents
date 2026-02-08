@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-02-09 02:50:16",
+  "prompt": "请制作一个可以拖拽观察抛物线变化的互动网页，适合初二。",
+  "results": [
+    {
+      "label": "qwen-max",
+      "js_model": "dashscope/qwen-max",
+      "duration_s": 48.9,
+      "http_status": 200,
+      "event_count": 233,
+      "html_len": 860,
+      "css_len": 1105,
+      "js_len": 2026,
+      "total_len": 3991,
+      "js_quality": {
+        "non_empty": true,
+        "has_dom_ready": true,
+        "braces_balanced": true,
+        "not_truncated": true,
+        "has_error_handling": true,
+        "uses_modern_js": true,
+        "has_event_listeners": true,
+        "has_canvas_or_svg": true,
+        "has_interactivity": true,
+        "uses_mathjax": true,
+        "uses_chartjs": false,
+        "uses_matterjs": false,
+        "runnable_score": 1.0
+      },
+      "error": null
+    },
+    {
+      "label": "qwen3-coder",
+      "js_model": "dashscope/qwen3-coder-plus",
+      "duration_s": 50.7,
+      "http_status": 200,
+      "event_count": 469,
+      "html_len": 1534,
+      "css_len": 2456,
+      "js_len": 8106,
+      "total_len": 12096,
+      "js_quality": {
+        "non_empty": true,
+        "has_dom_ready": true,
+        "braces_balanced": true,
+        "not_truncated": true,
+        "has_error_handling": true,
+        "uses_modern_js": true,
+        "has_event_listeners": true,
+        "has_canvas_or_svg": true,
+        "has_interactivity": true,
+        "uses_mathjax": true,
+        "uses_chartjs": false,
+        "uses_matterjs": false,
+        "runnable_score": 1.0
+      },
+      "error": null
+    }
+  ],
+  "js_code_samples": {
+    "qwen-max": "document.addEventListener('DOMContentLoaded', () => {\n  try {\n    const instructionSection = document.querySelector('#instruction-section');\n    const parabolaDemo = document.querySelector('#parabola-demo');\n    const equationDisplay = document.querySelector('#equation-display');\n\n    let a = 1, b = 0, c = 0;\n    let isDragging = false;\n    let dragStartX = 0;\n    let dragStartA = 0;\n    let dragStartB = 0;\n\n    const p5Instance = new p5((p) => {\n      p.setup = () => {\n        p.createCanvas(600, 400).parent(parabolaDemo);\n        p.noLoop();\n      };\n\n      p.draw = () => {\n        p.background(255);\n        p.stroke(0);\n        p.strokeWeight(2);\n        p.translate(p.width / 2, p.height / 2);\n        p.scale(1, -1);\n\n        for (let x = -p.width / 2; x <= p.width / 2; x++) {\n          const y = a * (x * x) / (p.width * p.width) + b * x / p.width + c;\n          p.line(x, y, x + 1, a * ((x + 1) * (x + 1)) / (p.width * p.width) + b * (x + 1) / p.width + c);\n        }\n\n        p.fill(255, 0, 0);\n        p.ellipse(0, 0, 10, 10);\n      };\n    });\n\n    parabolaDemo.addEventListener('mousedown', (event) => {\n      isDragging = true;\n      dragStartX = event.clientX;\n      dragStartA = a;\n      dragStartB = b;\n    });\n\n    parabolaDemo.addEventListener('mousemove', (event) => {\n      if (isDragging) {\n        const dx = event.clientX - dragStartX;\n        a = dragStartA + dx * 0.01;\n        b = dragStartB + dx * 0.01;\n        p5Instance.redraw();\n        updateEquation();\n      }\n    });\n\n    parabolaDemo.addEventListener('mouseup', () => {\n      isDragging = false;\n    });\n\n    parabolaDemo.addEventListener('mouseleave', () => {\n      isDragging = false;\n    });\n\n    function updateEquation() {\n      equationDisplay.innerHTML = `y = ${a.toFixed(2)}x^2 + ${b.toFixed(2)}x + ${c.toFixed(2)}`;\n      MathJax.typeset();\n    }\n\n    updateEquation();\n\n    instructionSection.innerHTML = '操作说明：拖拽抛物线以观察其变化。';\n  } catch (error) {\n    console.error('Error initializing interactive elements:', error);\n  }\n});",
+    "qwen3-coder": "document.addEventListener('DOMContentLoaded', () => {\n  try {\n    // Initialize intro section\n    const introSection = document.getElementById('intro-section');\n    if (introSection) {\n      introSection.innerHTML = `\n        <h3>抛物线简介</h3>\n        <p>抛物线是二次函数的图像，其标准形式为 y = ax² + bx + c。</p>\n        <p>在这个互动演示中，你可以通过拖拽控制点来改变抛物线的形状，并观察参数对曲线的影响。</p>\n      `;\n    }\n\n    // Initialize equation explainer\n    const equationExplainer = document.getElementById('equation-explainer');\n    if (equationExplainer) {\n      equationExplainer.innerHTML = `\n        <h3>二次方程解析</h3>\n        <p><strong>y = ax² + bx + c</strong></p>\n        <ul>\n          <li><strong>a</strong>: 决定开口方向和宽度（a > 0 开口向上，a < 0 开口向下）</li>\n          <li><strong>b</strong>: 影响对称轴位置</li>\n          <li><strong>c</strong>: 决定y轴截距</li>\n        </ul>\n        <p>当a的绝对值增大时，抛物线变得更窄；当a的绝对值减小时，抛物线变得更宽。</p>\n      `;\n      MathJax.typeset();\n    }\n\n    // Initialize parabola demo canvas\n    const parabolaDemo = document.getElementById('parabola-demo');\n    if (parabolaDemo) {\n      parabolaDemo.innerHTML = `\n        <div style=\"position: relative; width: 100%; height: 400px;\">\n          <canvas id=\"parabola-canvas\" width=\"800\" height=\"400\" \n                  style=\"border: 1px solid #ccc; display: block;\"></canvas>\n          <div id=\"control-points\" style=\"position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;\"></div>\n        </div>\n        <div id=\"equation-display\" style=\"margin-top: 10px; font-family: monospace; font-size: 18px; text-align: center;\"></div>\n      `;\n\n      const canvas = document.getElementById('parabola-canvas');\n      const ctx = canvas.getContext('2d');\n      const equationDisplay = document.getElementById('equation-display');\n\n      // Parabola parameters\n      let a = -0.01;\n      let b = 0.4;\n      let c = 100;\n      \n      // Control points for dragging\n      const controlPoints = [\n        { x: 100, y: 300, id: 'point-a', label: 'A' },\n        { x: 400, y: 100, id: 'point-b', label: 'B' },\n        { x: 700, y: 300, id: 'point-c', label: 'C' }\n      ];\n\n      // Draw parabola and control points\n      function drawParabola() {\n        ctx.clearRect(0, 0, canvas.width, canvas.height);\n        \n        // Draw grid\n        ctx.strokeStyle = '#eee';\n        ctx.lineWidth = 1;\n        for (let x = 0; x < canvas.width; x += 50) {\n          ctx.beginPath();\n          ctx.moveTo(x, 0);\n          ctx.lineTo(x, canvas.height);\n          ctx.stroke();\n        }\n        for (let y = 0; y < canvas.height; y += 50) {\n          ctx.beginPath();\n          ctx.moveTo(0, y);\n          ctx.lineTo(canvas.width, y);\n          ctx.stroke();\n        }\n\n        // Draw axes\n        ctx.strokeStyle = '#999';\n        ctx.lineWidth = 2;\n        ctx.beginPath();\n        ctx.moveTo(0, canvas.height / 2);\n        ctx.lineTo(canvas.width, canvas.height / 2); // x-axis\n        ctx.moveTo(canvas.width / 2, 0);\n        ctx.lineTo(canvas.width / 2, canvas.height); // y-axis\n       "
+  }
+}
