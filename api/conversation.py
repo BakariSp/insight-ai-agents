@@ -735,9 +735,16 @@ async def _stream_agent_mode(
 
     Includes automatic fallback: if the primary model fails (connection error,
     rate limit, auth), retries with the next model in the tier's fallback chain.
+
+    When the agent calls ``request_interactive_content``, the three-stream
+    parallel generator is launched after the agent completes, yielding
+    progressive HTML/CSS/JS delta events.
     """
+    import asyncio as _asyncio
+
     from agents.provider import get_model_chain_for_tier
     from agents.teacher_agent import create_teacher_agent
+    from services.tool_tracker import ToolTracker, ToolEvent
 
     # 1. Tell frontend we're in agent mode
     tier_value = router_result.model_tier
@@ -770,6 +777,9 @@ async def _stream_agent_mode(
     settings = get_settings()
     last_error = None
 
+    # Tool tracker for real-time progress events
+    tracker = ToolTracker()
+
     for attempt, model_name in enumerate(model_chain):
         try:
             agent = create_teacher_agent(
@@ -777,6 +787,7 @@ async def _stream_agent_mode(
                 suggested_tools=router_result.suggested_tools,
                 model_tier=tier,
                 _override_model=model_name if attempt > 0 else None,
+                tool_tracker=tracker,
             )
 
             if attempt > 0:
@@ -791,24 +802,121 @@ async def _stream_agent_mode(
                 )
                 yield enc.reasoning_end("fallback")
 
-            async with agent.run_stream(
-                agent_input,
-                message_history=message_history or [],
-                model_settings={"max_tokens": settings.agent_max_tokens},
-            ) as result:
-                yield enc.text_start(tid)
-                async for chunk in result.stream_text(delta=True):
-                    yield enc.text_delta(tid, chunk)
-                yield enc.text_end(tid)
+            # Run agent stream + tool tracker concurrently via merged queue
+            merged_queue: _asyncio.Queue[tuple[str, object]] = _asyncio.Queue()
+            agent_done = _asyncio.Event()
+            _agent_result_holder: list = []
+
+            async def _agent_runner():
+                try:
+                    async with agent.run_stream(
+                        agent_input,
+                        message_history=message_history or [],
+                        model_settings={"max_tokens": settings.agent_max_tokens},
+                    ) as stream_result:
+                        await merged_queue.put(("text-start", tid))
+                        async for chunk in stream_result.stream_text(delta=True):
+                            await merged_queue.put(("text-delta", chunk))
+                        await merged_queue.put(("text-end", None))
+                        _agent_result_holder.append(stream_result)
+                except Exception as exc:
+                    await merged_queue.put(("error", exc))
+                finally:
+                    agent_done.set()
+
+            async def _tool_monitor():
+                while not agent_done.is_set():
+                    try:
+                        event = await _asyncio.wait_for(tracker.queue.get(), timeout=1.0)
+                        await merged_queue.put(("tool-progress", event))
+                    except _asyncio.TimeoutError:
+                        continue
+                # Drain remaining events
+                while not tracker.queue.empty():
+                    event = tracker.queue.get_nowait()
+                    await merged_queue.put(("tool-progress", event))
+
+            runner_task = _asyncio.create_task(_agent_runner())
+            monitor_task = _asyncio.create_task(_tool_monitor())
+
+            last_heartbeat = time.monotonic()
+
+            while not agent_done.is_set() or not merged_queue.empty():
+                try:
+                    msg_type, payload = await _asyncio.wait_for(merged_queue.get(), timeout=5.0)
+                except _asyncio.TimeoutError:
+                    now = time.monotonic()
+                    if now - last_heartbeat > _SSE_HEARTBEAT_INTERVAL:
+                        yield ": heartbeat\n\n"
+                        last_heartbeat = now
+                    continue
+
+                if msg_type == "text-start":
+                    yield enc.text_start(str(payload))
+                elif msg_type == "text-delta":
+                    yield enc.text_delta(tid, str(payload))
+                elif msg_type == "text-end":
+                    yield enc.text_end(tid)
+                elif msg_type == "tool-progress":
+                    if isinstance(payload, ToolEvent):
+                        yield enc.data("tool-progress", {
+                            "tool": payload.tool,
+                            "status": payload.status,
+                            "message": payload.message,
+                            "duration_ms": payload.duration_ms,
+                        })
+                elif msg_type == "error":
+                    raise payload  # type: ignore[misc]
+
+                last_heartbeat = time.monotonic()
+
+            await runner_task
+            await monitor_task
+
+            agent_result = _agent_result_holder[0] if _agent_result_holder else None
 
             # 5. Check tool call results and push structured events
-            for call in result.all_messages():
-                if hasattr(call, "parts"):
-                    for part in call.parts:
-                        if hasattr(part, "tool_name") and hasattr(part, "content"):
-                            events = _build_tool_result_events(enc, part.tool_name, part.content)
-                            for event in events:
-                                yield event
+            # Also detect request_interactive_content for three-stream follow-up
+            interactive_plan = None
+            if agent_result is not None:
+                for call in agent_result.all_messages():
+                    if hasattr(call, "parts"):
+                        for part in call.parts:
+                            if hasattr(part, "tool_name") and hasattr(part, "content"):
+                                if part.tool_name == "request_interactive_content":
+                                    interactive_plan = part.content
+                                else:
+                                    events = _build_tool_result_events(
+                                        enc, part.tool_name, part.content
+                                    )
+                                    for event in events:
+                                        yield event
+
+            # 6. If agent planned interactive content, launch three-stream generation
+            if interactive_plan and isinstance(interactive_plan, dict):
+                from skills.interactive_skill import generate_interactive_stream
+
+                async for event in generate_interactive_stream(
+                    interactive_plan, teacher_context
+                ):
+                    if event["type"] == "start":
+                        yield enc.data("interactive-content-start", event)
+                    elif event["type"].endswith("-delta"):
+                        yield enc.data(f"interactive-{event['type']}", {
+                            "content": event["content"],
+                        })
+                    elif event["type"].endswith("-complete") and event["type"] != "complete":
+                        phase = event["type"].replace("-complete", "")
+                        yield enc.data(f"interactive-{phase}-complete", {})
+                    elif event["type"] == "complete":
+                        yield enc.data("interactive-content", {
+                            "html": event.get("html", ""),
+                            "css": event.get("css", ""),
+                            "js": event.get("js", ""),
+                            "title": event.get("title", "Interactive Content"),
+                            "description": event.get("description", ""),
+                            "preferredHeight": event.get("preferredHeight", 500),
+                        })
 
             last_error = None
             break  # success — exit the fallback loop
