@@ -17,7 +17,13 @@ from main import app
 from models.blueprint import Blueprint
 from models.conversation import RouterResult
 from models.entity import EntityType, ResolvedEntity, ResolveResult
+from services.conversation_store import ConversationSession, get_conversation_store
 from tests.test_planner import _sample_blueprint_args
+from api.conversation import (
+    _compose_content_request_after_clarify,
+    _is_ppt_confirmation,
+    _outline_to_fallback_slides,
+)
 
 
 @pytest.fixture
@@ -661,3 +667,79 @@ async def test_legacy_json_endpoint_still_works(client):
     data = resp.json()
     assert data["action"] == "chat"
     assert data["chatKind"] == "smalltalk"
+
+
+def test_compose_content_request_after_clarify():
+    """Clarify reply should be expanded into an actionable content prompt."""
+    session = ConversationSession(conversation_id="conv-test")
+    session.add_user_turn("生成一个实验课课程计划")
+    session.add_assistant_turn("请补充年级和时长", action="clarify")
+    session.add_user_turn("中学二年级，90分钟，先讲后练")
+
+    expanded = _compose_content_request_after_clarify(
+        session,
+        "中学二年级，90分钟，先讲后练",
+    )
+    assert expanded != "中学二年级，90分钟，先讲后练"
+    assert "Original request" in expanded
+    assert "生成一个实验课课程计划" in expanded
+    assert "Additional details from user" in expanded
+
+
+@pytest.mark.asyncio
+async def test_stream_persists_last_intent_and_action(client):
+    """Stream endpoint should persist last_intent/last_action in session state."""
+    mock_router = RouterResult(
+        intent="chat_smalltalk", confidence=0.95, should_build=False
+    )
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ),
+        patch(
+            "api.conversation.chat_response",
+            new_callable=AsyncMock,
+            return_value="Hello!",
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation/stream",
+            json={"message": "hello"},
+        )
+
+    payloads = _parse_sse_stream(resp.text)
+    conversation_events = [
+        p for p in payloads
+        if isinstance(p, dict) and p.get("type") == "data-conversation"
+    ]
+    assert conversation_events, "missing data-conversation event"
+    conv_id = conversation_events[0]["data"]["conversationId"]
+
+    store = get_conversation_store()
+    session = await store.get(conv_id)
+    assert session is not None
+    assert session.last_intent == "chat_smalltalk"
+    assert session.last_action == "chat_smalltalk"
+
+
+def test_is_ppt_confirmation_detects_cn_and_en():
+    assert _is_ppt_confirmation("确认生成PPT")
+    assert _is_ppt_confirmation("Please go ahead and generate the slides")
+    assert not _is_ppt_confirmation("先给我看一个大纲")
+
+
+def test_outline_to_fallback_slides_generates_title_and_content():
+    payload = {
+        "title": "概率统计 Lesson PPT",
+        "outline": [
+            {"title": "导入", "key_points": ["目标", "背景"]},
+            {"title": "讲解", "key_points": ["公式", "例题"]},
+        ],
+    }
+    slides = _outline_to_fallback_slides(payload)
+    assert len(slides) >= 3
+    assert slides[0]["layout"] == "title"
+    assert slides[0]["title"] == "概率统计 Lesson PPT"
+    assert slides[1]["layout"] == "content"

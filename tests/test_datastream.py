@@ -61,7 +61,7 @@ class TestMessageControl:
         result = enc.finish()
         payloads = _parse_sse(result)
         assert len(payloads) == 2
-        assert payloads[0] == {"type": "finish"}
+        assert payloads[0] == {"type": "finish", "finishReason": "stop"}
         assert payloads[1] == "[DONE]"
 
     def test_start_step(self):
@@ -355,7 +355,9 @@ class TestMapExecutorEvent:
             payloads.extend(_parse_sse(line))
 
         assert len(payloads) == 1
-        assert payloads[0]["type"] == "error"
+        assert payloads[0]["type"] == "data-error"
+        assert payloads[0]["data"]["errorType"] == "data_error"
+        assert payloads[0]["data"]["message"] == "get_class_detail timed out"
 
     def test_message_event(self):
         event = {"type": "MESSAGE", "message": "Processing..."}
