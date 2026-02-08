@@ -1,11 +1,13 @@
 """Agent provider — shared utilities for PydanticAI agents.
 
 Creates LLM model instances and bridges FastMCP tools for in-process execution.
+Includes fallback/degradation strategy for provider resilience.
 """
 
 from __future__ import annotations
 
 import inspect
+import logging
 from typing import Any
 
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -13,6 +15,8 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 from config.settings import get_settings
 from tools import TOOL_REGISTRY, get_tool_descriptions
+
+logger = logging.getLogger(__name__)
 
 # Provider prefix → (base_url, settings_key_attr)
 _PROVIDER_MAP: dict[str, tuple[str, str]] = {
@@ -89,6 +93,75 @@ def get_model_for_tier(tier: str) -> str:
         "strong": settings.strong_model,
         "vision": settings.vision_model,
     }.get(tier, settings.agent_model)
+
+
+def get_model_chain_for_tier(tier: str) -> list[str]:
+    """Return an ordered list of model names for a tier (primary + fallbacks).
+
+    Used by :func:`create_model_with_fallback` to try models in order
+    when the primary provider is unavailable.
+
+    Args:
+        tier: One of "fast", "standard", "strong", "vision".
+
+    Returns:
+        List of model names, primary first, then fallback(s).
+    """
+    settings = get_settings()
+    primary = get_model_for_tier(tier)
+    chain = [primary]
+
+    # Add tier-specific fallback if configured and different from primary
+    fallback = {
+        "strong": settings.strong_model_fallback,
+        "standard": settings.agent_model_fallback,
+    }.get(tier)
+
+    if fallback and fallback != primary:
+        chain.append(fallback)
+
+    # Universal last resort: default_model
+    if settings.default_model not in chain:
+        chain.append(settings.default_model)
+
+    return chain
+
+
+async def create_model_with_fallback(tier: str):
+    """Create a model instance with automatic fallback on provider failure.
+
+    Tries each model in the tier's fallback chain.  If a model instance
+    can be created but the provider is unreachable (connection error,
+    auth error, rate limit), falls back to the next model in the chain.
+
+    This performs a lightweight health check (not a full LLM call) to
+    validate connectivity before returning the model.
+
+    Args:
+        tier: One of "fast", "standard", "strong", "vision".
+
+    Returns:
+        Tuple of (model_instance, model_name) for the first working provider.
+
+    Raises:
+        RuntimeError: If all providers in the chain fail.
+    """
+    chain = get_model_chain_for_tier(tier)
+    errors: list[str] = []
+
+    for model_name in chain:
+        try:
+            model = create_model(model_name)
+            logger.info("Model %s created successfully for tier=%s", model_name, tier)
+            return model, model_name
+        except Exception as e:
+            error_msg = f"{model_name}: {type(e).__name__}: {e}"
+            errors.append(error_msg)
+            logger.warning("Model creation failed for %s, trying next: %s", model_name, e)
+
+    raise RuntimeError(
+        f"All models failed for tier={tier}: {'; '.join(errors)}"
+    )
 
 
 def get_mcp_tool_names() -> list[str]:

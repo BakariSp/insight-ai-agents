@@ -732,9 +732,12 @@ async def _stream_agent_mode(
     The PydanticAI Agent autonomously decides which tools to call based on the
     teacher's request.  Supports lesson plans, slides, worksheets, feedback,
     translations, and any other content generation task.
+
+    Includes automatic fallback: if the primary model fails (connection error,
+    rate limit, auth), retries with the next model in the tier's fallback chain.
     """
+    from agents.provider import get_model_chain_for_tier
     from agents.teacher_agent import create_teacher_agent
-    from tools.data_tools import get_teacher_classes
 
     # 1. Tell frontend we're in agent mode
     tier_value = router_result.model_tier
@@ -750,53 +753,113 @@ async def _stream_agent_mode(
     # 2. Get teacher context (fast, no LLM)
     teacher_context = await _get_teacher_context(req.teacher_id)
 
-    # 3. Create Agent (model_tier from Router selects LLM quality)
-    tier = router_result.model_tier
-    if hasattr(tier, "value"):
-        tier = tier.value
-    agent = create_teacher_agent(
-        teacher_context=teacher_context,
-        suggested_tools=router_result.suggested_tools,
-        model_tier=tier,
-    )
-
-    # 4. Run Agent (PydanticAI handles tool-use loop)
-    #    Enrich with attachment content when available
+    # 3. Prepare agent input (enrich with attachments)
     from services.multimodal import build_user_content, has_attachments
     agent_input: str | list = req.message
     if req.attachments and has_attachments(req.attachments):
         agent_input = await build_user_content(req.message, req.attachments)
 
+    # 4. Run Agent with fallback chain
+    tier = router_result.model_tier
+    if hasattr(tier, "value"):
+        tier = tier.value
+    model_chain = get_model_chain_for_tier(tier)
+
     tid = enc._id()
     yield enc.start_step()
+    settings = get_settings()
+    last_error = None
 
-    try:
-        settings = get_settings()
-        async with agent.run_stream(
-            agent_input,
-            message_history=message_history or [],
-            model_settings={"max_tokens": settings.agent_max_tokens},
-        ) as result:
-            # 4a. Stream text output
-            yield enc.text_start(tid)
-            async for chunk in result.stream_text(delta=True):
-                yield enc.text_delta(tid, chunk)
-            yield enc.text_end(tid)
+    for attempt, model_name in enumerate(model_chain):
+        try:
+            agent = create_teacher_agent(
+                teacher_context=teacher_context,
+                suggested_tools=router_result.suggested_tools,
+                model_tier=tier,
+                _override_model=model_name if attempt > 0 else None,
+            )
 
-        # 5. Check tool call results and push structured events
-        for call in result.all_messages():
-            if hasattr(call, "parts"):
-                for part in call.parts:
-                    if hasattr(part, "tool_name") and hasattr(part, "content"):
-                        events = _build_tool_result_events(enc, part.tool_name, part.content)
-                        for event in events:
-                            yield event
+            if attempt > 0:
+                logger.warning(
+                    "Agent fallback: attempt %d using %s (previous failed: %s)",
+                    attempt + 1, model_name, last_error,
+                )
+                yield enc.reasoning_start("fallback")
+                yield enc.reasoning_delta(
+                    "fallback",
+                    f"Primary model unavailable, switching to backup: {model_name}",
+                )
+                yield enc.reasoning_end("fallback")
 
-    except Exception as e:
-        logger.exception("Agent path error")
-        yield enc.error(f"Agent path error: {e}")
+            async with agent.run_stream(
+                agent_input,
+                message_history=message_history or [],
+                model_settings={"max_tokens": settings.agent_max_tokens},
+            ) as result:
+                yield enc.text_start(tid)
+                async for chunk in result.stream_text(delta=True):
+                    yield enc.text_delta(tid, chunk)
+                yield enc.text_end(tid)
+
+            # 5. Check tool call results and push structured events
+            for call in result.all_messages():
+                if hasattr(call, "parts"):
+                    for part in call.parts:
+                        if hasattr(part, "tool_name") and hasattr(part, "content"):
+                            events = _build_tool_result_events(enc, part.tool_name, part.content)
+                            for event in events:
+                                yield event
+
+            last_error = None
+            break  # success — exit the fallback loop
+
+        except Exception as e:
+            last_error = f"{model_name}: {type(e).__name__}: {e}"
+            is_provider_error = _is_provider_error(e)
+            if is_provider_error and attempt < len(model_chain) - 1:
+                logger.warning(
+                    "Agent model %s failed (provider error), will try fallback: %s",
+                    model_name, e,
+                )
+                continue  # try next model in chain
+            else:
+                # Non-provider error or last model in chain — give up
+                logger.exception("Agent path error (attempt %d/%d)", attempt + 1, len(model_chain))
+                yield enc.error(f"Agent path error: {e}")
+                break
 
     yield enc.finish_step()
+
+
+def _is_provider_error(exc: Exception) -> bool:
+    """Check if an exception is a provider-level error (connection, auth, rate limit).
+
+    These errors indicate the model provider is unavailable and fallback
+    should be attempted.  Application-level errors (e.g. tool failures,
+    prompt too long) should NOT trigger fallback.
+    """
+    exc_name = type(exc).__name__
+    exc_msg = str(exc).lower()
+
+    # PydanticAI wraps provider errors
+    provider_error_types = {
+        "ModelAPIError", "ModelHTTPError", "APIConnectionError",
+        "RateLimitError", "AuthenticationError", "APIStatusError",
+        "RemoteProtocolError", "ConnectError", "TimeoutException",
+    }
+    if exc_name in provider_error_types:
+        return True
+
+    # Check wrapped cause
+    cause = getattr(exc, "__cause__", None)
+    if cause and type(cause).__name__ in provider_error_types:
+        return True
+
+    # Check message patterns
+    if any(p in exc_msg for p in ("connection error", "rate limit", "429", "401", "403", "503")):
+        return True
+
+    return False
 
 
 def _build_tool_result_events(

@@ -11,7 +11,7 @@ import logging
 
 from pydantic_ai import Agent
 
-from agents.provider import create_model, get_model_for_tier
+from agents.provider import create_model, get_model_chain_for_tier, get_model_for_tier
 from config.prompts.teacher_agent import build_teacher_agent_prompt
 from config.settings import get_settings
 from tools import TOOL_REGISTRY
@@ -49,6 +49,7 @@ def create_teacher_agent(
     teacher_context: dict,
     suggested_tools: list[str] | None = None,
     model_tier: str = "standard",
+    _override_model: str | None = None,
 ) -> Agent:
     """Create a universal teacher Agent instance.
 
@@ -57,11 +58,16 @@ def create_teacher_agent(
         suggested_tools: Optional tool hints from the Router
         model_tier: Model quality tier from Router (fast/standard/strong/vision).
                     Controls which LLM is used for this agent session.
+        _override_model: If set, use this model name instead of tier mapping.
+                         Used internally by the fallback mechanism.
 
     Returns:
         PydanticAI Agent instance with tools + system prompt
     """
-    model_name = get_model_for_tier(model_tier)
+    if _override_model:
+        model_name = _override_model
+    else:
+        model_name = get_model_for_tier(model_tier)
     model = create_model(model_name)
     logger.info("Agent using model_tier=%s → model=%s", model_tier, model_name)
 

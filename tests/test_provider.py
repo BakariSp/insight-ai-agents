@@ -6,6 +6,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from agents.provider import (
     create_model,
     execute_mcp_tool,
+    get_model_chain_for_tier,
     get_model_for_tier,
     get_mcp_tool_descriptions,
     get_mcp_tool_names,
@@ -137,3 +138,60 @@ def test_tier_to_model_creates_valid_model():
         model_name = get_model_for_tier(tier)
         model = create_model(model_name)
         assert model is not None
+
+
+# ── Fallback chain ───────────────────────────────────────────
+
+
+def test_get_model_chain_strong():
+    """Strong tier chain has primary + fallback."""
+    chain = get_model_chain_for_tier("strong")
+    assert len(chain) >= 2
+    assert chain[0] == get_model_for_tier("strong")  # primary first
+
+
+def test_get_model_chain_fast():
+    """Fast tier chain starts with router_model."""
+    chain = get_model_chain_for_tier("fast")
+    assert chain[0] == get_model_for_tier("fast")
+
+
+def test_get_model_chain_no_duplicates():
+    """Chain should not contain duplicates."""
+    for tier in ("fast", "standard", "strong", "vision"):
+        chain = get_model_chain_for_tier(tier)
+        assert len(chain) == len(set(chain)), f"Duplicates in {tier} chain: {chain}"
+
+
+def test_get_model_chain_default_model_last_resort():
+    """default_model is always in the chain as last resort."""
+    from config.settings import get_settings
+    settings = get_settings()
+    for tier in ("fast", "standard", "strong", "vision"):
+        chain = get_model_chain_for_tier(tier)
+        assert settings.default_model in chain
+
+
+def test_override_model_in_create_teacher_agent():
+    """_override_model bypasses tier mapping."""
+    from agents.teacher_agent import create_teacher_agent
+    agent = create_teacher_agent(
+        teacher_context={"teacher_id": "t1", "classes": []},
+        model_tier="strong",
+        _override_model="dashscope/qwen-turbo-latest",
+    )
+    assert agent is not None
+
+
+def test_is_provider_error():
+    """_is_provider_error correctly identifies provider errors."""
+    from api.conversation import _is_provider_error
+
+    # Connection errors should trigger fallback
+    assert _is_provider_error(ConnectionError("Connection refused")) is False
+    # But known patterns in message should
+    assert _is_provider_error(Exception("connection error")) is True
+    assert _is_provider_error(Exception("rate limit exceeded")) is True
+    assert _is_provider_error(Exception("Status 429")) is True
+    # Normal errors should not trigger fallback
+    assert _is_provider_error(ValueError("invalid input")) is False

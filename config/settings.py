@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     vision_model: str = "dashscope/qwen-vl-max"  # Vision-capable model for multimodal
     agent_model: str = "dashscope/qwen-max"  # Agent Path: general content generation
     strong_model: str = "anthropic/claude-opus-4-6"  # Strong tier: complex tasks (interactive, quiz)
+    # Fallback chain: if primary model fails, try these in order
+    strong_model_fallback: str = "dashscope/qwen-max"
+    agent_model_fallback: str = "dashscope/qwen-max"
     agent_max_iterations: int = 15  # Agent Path: max tool-use loop rounds
     max_tokens: int = 4096
     agent_max_tokens: int = 16384  # Agent Path: higher token budget for content generation (PPT, docs)
