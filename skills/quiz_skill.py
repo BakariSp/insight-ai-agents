@@ -58,7 +58,7 @@ def _build_quiz_prompt(
 {
   "questionType": "SINGLE_CHOICE|FILL_IN_BLANK|TRUE_FALSE|SHORT_ANSWER",
   "question": "题目文本",
-  "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
+  "options": ["选项内容（不要带字母前缀）", "选项内容", "选项内容", "选项内容"],
   "correctAnswer": "B",
   "explanation": "解析",
   "difficulty": "easy|medium|hard",
@@ -72,7 +72,10 @@ def _build_quiz_prompt(
 3. 直接输出 JSON 数组，不要任何其他文字
 4. 选择题必须有 options 字段（4个选项），correctAnswer 是选项字母
 5. 填空题不需要 options，correctAnswer 是答案文本
-6. 判断题 options 为 ["A. 对", "B. 错"]，correctAnswer 为 A 或 B
+6. 判断题 options 为 ["对", "错"]，correctAnswer 为 A 或 B
+7. **选项内容不要带字母前缀**（不要写 "A. xxx"，直接写 "xxx"），前端会自动添加字母标签
+8. **数学公式必须用 LaTeX 格式**：行内公式用 $...$ 包裹（如 $\\frac{1}{2}$、$x^2 + 1$），不要用纯文本写数学表达式
+9. 题目和选项中的数学符号一律用 LaTeX（积分 $\\int$、求导 $\\frac{dy}{dx}$、极限 $\\lim$、根号 $\\sqrt{}$ 等）
 """)
 
     return "\n".join(s for s in sections if s)
@@ -297,6 +300,8 @@ async def regenerate_question(
 1. 与原题不同但考察相同知识点
 2. 输出格式与原题相同（单个 JSON 对象）
 3. 不要输出任何其他文字
+4. 选项不要带字母前缀（不要写 "A. xxx"）
+5. 数学公式用 LaTeX 格式：行内用 $...$ 包裹
 """
 
     settings = get_settings()
