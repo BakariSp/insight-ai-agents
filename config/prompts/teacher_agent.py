@@ -192,6 +192,29 @@ YOU decide the layout, content depth, and structure for each slide.
    to produce structured question artifacts instead of plain narrative text.
 9. End each turn with a structured final result that matches one of:
    answer_ready / artifact_ready / clarify_needed.
+
+## REQUIRED Output Structure
+
+Every response MUST end with a structured result matching this schema exactly:
+- `status`: one of "answer_ready", "artifact_ready", "clarify_needed"
+- `message`: brief summary of what you did or what you need
+- `artifacts`: list of artifact IDs (only when status is "artifact_ready")
+- `clarify`: object with `question` field (REQUIRED when status is "clarify_needed")
+
+### Example: clarify_needed
+```json
+{{"status": "clarify_needed", "message": "Need more details to proceed.", "clarify": {{"question": "What grade level and duration should this lesson plan cover?", "options": ["Grade 7, 40 min", "Grade 8, 45 min"]}}}}
+```
+
+### Example: artifact_ready
+```json
+{{"status": "artifact_ready", "message": "Generated your 10-slide physics PPT.", "artifacts": ["pptx-abc123"]}}
+```
+
+**Hard rules:**
+- If status is "clarify_needed", `clarify.question` MUST be a specific question about missing information, NOT a generic "please provide more details".
+- If status is "artifact_ready", you MUST have called at least one generation tool in this turn.
+- NEVER output partial JSON or unstructured text as your final result.
 """
 
 

@@ -8,6 +8,7 @@ follow-up chat, refine, rebuild, and error handling.
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -21,11 +22,15 @@ from services.conversation_store import ConversationSession, get_conversation_st
 from services.datastream import DataStreamEncoder
 from tests.test_planner import _sample_blueprint_args
 from api.conversation import (
+    _attempt_output_repair,
     _build_tool_result_events,
     _compose_content_request_after_clarify,
-    _is_ppt_confirmation,
-    _outline_to_fallback_slides,
+    _run_unified_quiz_direct_tool,
+    _stream_followup_artifact,
+    _stream_unified_agent_mode,
 )
+from config.settings import get_settings
+from models.conversation import ConversationRequest
 
 
 @pytest.fixture
@@ -675,6 +680,7 @@ def test_compose_content_request_after_clarify():
     """Clarify reply should be expanded into an actionable content prompt."""
     session = ConversationSession(conversation_id="conv-test")
     session.add_user_turn("生成一个实验课课程计划")
+    # Both "clarify" (router-level) and "clarify_needed" (agent-path) should work
     session.add_assistant_turn("请补充年级和时长", action="clarify")
     session.add_user_turn("中学二年级，90分钟，先讲后练")
 
@@ -685,7 +691,9 @@ def test_compose_content_request_after_clarify():
     assert expanded != "中学二年级，90分钟，先讲后练"
     assert "Original request" in expanded
     assert "生成一个实验课课程计划" in expanded
-    assert "Additional details from user" in expanded
+    assert "Assistant asked" in expanded
+    assert "请补充年级和时长" in expanded
+    assert "User's answer" in expanded
 
 
 @pytest.mark.asyncio
@@ -726,27 +734,6 @@ async def test_stream_persists_last_intent_and_action(client):
     assert session.last_action == "chat_smalltalk"
 
 
-def test_is_ppt_confirmation_detects_cn_and_en():
-    assert _is_ppt_confirmation("确认生成PPT")
-    assert _is_ppt_confirmation("Please go ahead and generate the slides")
-    assert not _is_ppt_confirmation("先给我看一个大纲")
-
-
-def test_outline_to_fallback_slides_generates_title_and_content():
-    payload = {
-        "title": "概率统计 Lesson PPT",
-        "outline": [
-            {"title": "导入", "key_points": ["目标", "背景"]},
-            {"title": "讲解", "key_points": ["公式", "例题"]},
-        ],
-    }
-    slides = _outline_to_fallback_slides(payload)
-    assert len(slides) >= 3
-    assert slides[0]["layout"] == "title"
-    assert slides[0]["title"] == "概率统计 Lesson PPT"
-    assert slides[1]["layout"] == "content"
-
-
 def test_build_tool_result_events_for_quiz_artifacts():
     """generate_quiz_questions tool result should map to quiz SSE artifacts."""
     enc = DataStreamEncoder()
@@ -764,3 +751,337 @@ def test_build_tool_result_events_for_quiz_artifacts():
     types = _types(payloads)
     assert types.count("data-quiz-question") == 2
     assert "data-quiz-complete" in types
+
+
+@pytest.mark.asyncio
+async def test_run_unified_quiz_direct_tool_respects_model_override():
+    old_model = os.environ.get("AGENT_UNIFIED_QUIZ_MODEL")
+    os.environ["AGENT_UNIFIED_QUIZ_MODEL"] = "zai/glm-4.7"
+    get_settings.cache_clear()
+
+    router_result = RouterResult(
+        intent="quiz_generate",
+        confidence=0.95,
+        extracted_params={
+            "topic": "一元二次方程",
+            "count": 5,
+            "difficulty": "medium",
+            "types": ["SINGLE_CHOICE"],
+            "subject": "math",
+            "grade": "G8",
+            "weakness_focus": [],
+        },
+    )
+    req = ConversationRequest(message="请出5道题")
+
+    try:
+        with patch(
+            "tools.quiz_tools.generate_quiz_questions",
+            new_callable=AsyncMock,
+            return_value={"questions": [], "total": 0},
+        ) as mock_generate:
+            await _run_unified_quiz_direct_tool(req, router_result)
+            kwargs = mock_generate.await_args.kwargs
+            assert kwargs["model_name"] == "zai/glm-4.7"
+            assert kwargs["count"] == 5
+            assert kwargs["topic"] == "一元二次方程"
+    finally:
+        if old_model is None:
+            os.environ.pop("AGENT_UNIFIED_QUIZ_MODEL", None)
+        else:
+            os.environ["AGENT_UNIFIED_QUIZ_MODEL"] = old_model
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_unified_agent_mode_quiz_fallbacks_to_legacy_on_failure():
+    old_unified = os.environ.get("AGENT_UNIFIED_ENABLED")
+    old_content = os.environ.get("AGENT_UNIFIED_CONTENT_ENABLED")
+    old_planner = os.environ.get("AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED")
+    os.environ["AGENT_UNIFIED_ENABLED"] = "true"
+    os.environ["AGENT_UNIFIED_CONTENT_ENABLED"] = "true"
+    os.environ["AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED"] = "false"
+    get_settings.cache_clear()
+
+    req = ConversationRequest(message="请出5道数学选择题")
+    router_result = RouterResult(intent="quiz_generate", confidence=0.9)
+    enc = DataStreamEncoder()
+    fallback_called = {"value": False}
+
+    async def _broken_agent(*args, **kwargs):
+        raise RuntimeError("agent failed")
+        yield ""  # pragma: no cover
+
+    async def _legacy_quiz(*args, **kwargs):
+        fallback_called["value"] = True
+        yield "legacy-line"
+
+    try:
+        with (
+            patch("api.conversation._stream_agent_mode", new=_broken_agent),
+            patch("api.conversation._stream_quiz_with_unified_fallback", new=_legacy_quiz),
+        ):
+            lines = []
+            async for line in _stream_unified_agent_mode(
+                enc=enc,
+                req=req,
+                router_result=router_result,
+                intent="quiz_generate",
+            ):
+                lines.append(line)
+
+        assert fallback_called["value"] is True
+        assert lines == ["legacy-line"]
+        # BUG-4 fix: original router_result must NOT be mutated
+        assert router_result.suggested_tools == []
+        assert router_result.candidate_tools == []
+    finally:
+        if old_unified is None:
+            os.environ.pop("AGENT_UNIFIED_ENABLED", None)
+        else:
+            os.environ["AGENT_UNIFIED_ENABLED"] = old_unified
+        if old_content is None:
+            os.environ.pop("AGENT_UNIFIED_CONTENT_ENABLED", None)
+        else:
+            os.environ["AGENT_UNIFIED_CONTENT_ENABLED"] = old_content
+        if old_planner is None:
+            os.environ.pop("AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED", None)
+        else:
+            os.environ["AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED"] = old_planner
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_unified_agent_mode_content_create_uses_unified_action_payload():
+    old_unified = os.environ.get("AGENT_UNIFIED_ENABLED")
+    old_content = os.environ.get("AGENT_UNIFIED_CONTENT_ENABLED")
+    old_planner = os.environ.get("AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED")
+    os.environ["AGENT_UNIFIED_ENABLED"] = "true"
+    os.environ["AGENT_UNIFIED_CONTENT_ENABLED"] = "true"
+    os.environ["AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED"] = "false"
+    get_settings.cache_clear()
+
+    req = ConversationRequest(message="生成一个初中物理教案")
+    router_result = RouterResult(intent="content_create", confidence=0.9)
+    enc = DataStreamEncoder()
+    captured: dict = {}
+
+    async def _capture_agent(*args, **kwargs):
+        captured.update(kwargs)
+        yield "agent-line"
+
+    try:
+        with patch("api.conversation._stream_agent_mode", new=_capture_agent):
+            lines = []
+            async for line in _stream_unified_agent_mode(
+                enc=enc,
+                req=req,
+                router_result=router_result,
+                intent="content_create",
+            ):
+                lines.append(line)
+
+        assert lines == ["agent-line"]
+        assert captured["action_payload"]["orchestrator"] == "unified_agent"
+        assert captured["action_payload"]["action"] == "agent"
+        assert captured["raise_on_error"] is True
+    finally:
+        if old_unified is None:
+            os.environ.pop("AGENT_UNIFIED_ENABLED", None)
+        else:
+            os.environ["AGENT_UNIFIED_ENABLED"] = old_unified
+        if old_content is None:
+            os.environ.pop("AGENT_UNIFIED_CONTENT_ENABLED", None)
+        else:
+            os.environ["AGENT_UNIFIED_CONTENT_ENABLED"] = old_content
+        if old_planner is None:
+            os.environ.pop("AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED", None)
+        else:
+            os.environ["AGENT_UNIFIED_CONTENT_TOOL_PLANNER_ENABLED"] = old_planner
+        get_settings.cache_clear()
+
+
+# ── Clarify chain optimization tests ──
+
+
+def test_compose_content_request_after_clarify_with_agent_path_action():
+    """Agent-path clarify (action='clarify_needed') should also trigger expansion."""
+    session = ConversationSession(conversation_id="conv-test-agent")
+    session.add_user_turn("Make a physics PPT")
+    session.add_assistant_turn(
+        "What grade level and how many slides?", action="clarify_needed"
+    )
+    session.add_user_turn("Grade 8, about 15 slides")
+
+    expanded = _compose_content_request_after_clarify(
+        session,
+        "Grade 8, about 15 slides",
+    )
+    assert "What grade level and how many slides?" in expanded
+    assert "Make a physics PPT" in expanded
+    assert "Grade 8, about 15 slides" in expanded
+    assert "MUST" in expanded
+
+
+def test_compose_content_request_no_expansion_for_non_clarify():
+    """If last assistant action is not clarify, return message unchanged."""
+    session = ConversationSession(conversation_id="conv-test-noclarify")
+    session.add_user_turn("Make a physics PPT")
+    session.add_assistant_turn("Here is your PPT!", action="content_create")
+    session.add_user_turn("Thanks, now add more slides")
+
+    result = _compose_content_request_after_clarify(
+        session,
+        "Thanks, now add more slides",
+    )
+    assert result == "Thanks, now add more slides"
+
+
+def test_clarify_question_min_length_validation():
+    """clarify.question shorter than 5 chars should trigger RetryNeeded."""
+    from models.agent_output import ClarifyPayload, FinalResult
+    from services.agent_validation import RetryNeeded, validate_terminal_state
+
+    result = FinalResult(
+        status="clarify_needed",
+        message="Need info",
+        clarify=ClarifyPayload(question="嗯？"),
+    )
+    with pytest.raises(RetryNeeded, match="too short"):
+        validate_terminal_state(result, set(), set(), "artifact")
+
+
+def test_clarify_question_generic_rejection():
+    """Generic template clarify questions should trigger RetryNeeded."""
+    from models.agent_output import ClarifyPayload, FinalResult
+    from services.agent_validation import RetryNeeded, validate_terminal_state
+
+    result = FinalResult(
+        status="clarify_needed",
+        message="Need more",
+        clarify=ClarifyPayload(question="请补充更多信息"),
+    )
+    with pytest.raises(RetryNeeded, match="too generic"):
+        validate_terminal_state(result, set(), set(), "artifact")
+
+
+def test_clarify_question_specific_passes_validation():
+    """A specific, non-generic clarify question should pass validation."""
+    from models.agent_output import ClarifyPayload, FinalResult
+    from services.agent_validation import validate_terminal_state
+
+    result = FinalResult(
+        status="clarify_needed",
+        message="Need details",
+        clarify=ClarifyPayload(question="请问您希望覆盖哪个年级的内容？初一还是初二？"),
+    )
+    # Should not raise
+    validate_terminal_state(result, set(), set(), "artifact")
+
+
+@pytest.mark.asyncio
+async def test_output_repair_pass_success():
+    """UnexpectedModelBehavior with raw body -> repair pass extracts valid FinalResult."""
+    from models.agent_output import FinalResult
+
+    mock_result = AsyncMock()
+    mock_result.output = FinalResult(
+        status="artifact_ready",
+        message="Generated PPT",
+        artifacts=["pptx-123"],
+    )
+    mock_agent_instance = AsyncMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_result)
+
+    with patch("pydantic_ai.Agent", return_value=mock_agent_instance):
+        result = await _attempt_output_repair(
+            '{"status": "artifact_ready", "msg": "bad format"}',
+            "dashscope/qwen-max",
+        )
+    assert result is not None
+    assert result.status == "artifact_ready"
+    assert result.message == "Generated PPT"
+
+
+@pytest.mark.asyncio
+async def test_output_repair_pass_failure_returns_none():
+    """When repair pass itself fails, return None to allow normal fallback."""
+    mock_agent_instance = AsyncMock()
+    mock_agent_instance.run = AsyncMock(side_effect=RuntimeError("repair failed"))
+
+    with patch("pydantic_ai.Agent", return_value=mock_agent_instance):
+        result = await _attempt_output_repair(
+            "some garbled output that is not JSON",
+            "dashscope/qwen-max",
+        )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_output_repair_pass_empty_body_returns_none():
+    """Repair pass with empty/None body should return None immediately."""
+    result = await _attempt_output_repair(None, "dashscope/qwen-max")
+    assert result is None
+
+    result = await _attempt_output_repair("", "dashscope/qwen-max")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_stream_followup_artifact_pptx_refine_falls_back_to_rebuild_action():
+    """Unsupported artifact refine should emit rebuild action for semantic consistency."""
+    enc = DataStreamEncoder()
+    req = ConversationRequest(
+        message="把第一页改成封面图",
+        artifact_type="pptx",
+        artifacts={"pptx": {"title": "My Slides"}},
+    )
+    router_result = RouterResult(intent="refine", confidence=0.9)
+
+    async def _fake_initial(*args, **kwargs):
+        yield "SENTINEL"
+
+    with patch("api.conversation._stream_initial", new=_fake_initial):
+        lines = []
+        async for line in _stream_followup_artifact(
+            enc=enc,
+            req=req,
+            intent="refine",
+            router_result=router_result,
+        ):
+            lines.append(line)
+
+    payloads = _parse_sse_stream("".join(lines))
+    action_events = [p for p in payloads if isinstance(p, dict) and p.get("type") == "data-action"]
+    assert action_events
+    assert action_events[0]["data"]["action"] == "rebuild"
+
+
+@pytest.mark.asyncio
+async def test_stream_followup_artifact_interactive_refine_keeps_refine_action():
+    """Interactive artifact refine should keep refine action and go incremental path."""
+    enc = DataStreamEncoder()
+    req = ConversationRequest(
+        message="改成蓝色",
+        artifact_type="interactive",
+        artifacts={"interactive": {"html": "<div/>", "css": "", "js": "", "title": "Demo"}},
+    )
+    router_result = RouterResult(intent="refine", confidence=0.9)
+
+    async def _fake_modify(*args, **kwargs):
+        yield "SENTINEL"
+
+    with patch("api.conversation._stream_modify_interactive", new=_fake_modify):
+        lines = []
+        async for line in _stream_followup_artifact(
+            enc=enc,
+            req=req,
+            intent="refine",
+            router_result=router_result,
+        ):
+            lines.append(line)
+
+    payloads = _parse_sse_stream("".join(lines))
+    action_events = [p for p in payloads if isinstance(p, dict) and p.get("type") == "data-action"]
+    assert action_events
+    assert action_events[0]["data"]["action"] == "refine"

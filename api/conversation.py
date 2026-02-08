@@ -292,7 +292,16 @@ async def _conversation_stream_generator(
         session, history_text, message_history = await _load_session(store, req)
         yield enc.data("conversation", {"conversationId": req.conversation_id})
 
-        is_followup = req.blueprint is not None
+        is_followup = req.blueprint is not None or req.artifact_type is not None
+
+        # Build artifact summary from session context for router prompt
+        _artifact_summary = ""
+        if req.artifact_type and session:
+            ctx = session.accumulated_context or {}
+            _artifact_summary = (
+                ctx.get("last_artifact_summary")
+                or f"Current artifact type: {ctx.get('last_artifact_type', req.artifact_type)}"
+            )
 
         # ── Step 1: Intent classification (Reasoning) ──
         yield enc.start_step()
@@ -305,6 +314,8 @@ async def _conversation_stream_generator(
             page_context=req.page_context,
             conversation_history=history_text,
             skill_config=req.skill_config,
+            artifact_type=req.artifact_type,
+            artifact_summary=_artifact_summary,
         )
         intent = router_result.intent
 
@@ -319,8 +330,13 @@ async def _conversation_stream_generator(
         yield enc.finish_step()
 
         # ── Step 2: Dispatch ──
-        if is_followup:
+        if is_followup and req.blueprint is not None:
             async for line in _stream_followup(enc, req, intent, router_result, history_text, message_history):
+                yield line
+        elif is_followup and req.artifact_type is not None:
+            async for line in _stream_followup_artifact(
+                enc, req, intent, router_result, history_text, message_history, session
+            ):
                 yield line
         else:
             async for line in _stream_initial(
@@ -342,11 +358,26 @@ async def _conversation_stream_generator(
     if session is not None:
         streamed_text = "".join(streamed_text_parts).strip()
         response_summary = streamed_text or f"[streamed: {intent}]"
-        session.add_assistant_turn(response_summary, action=intent)
+        # Detect agent-path clarify: if the agent returned clarify_needed,
+        # override stored action so _compose_content_request_after_clarify fires
+        # on the next user turn.
+        effective_action = intent
+        if intent in (IntentType.CONTENT_CREATE.value, IntentType.QUIZ_GENERATE.value):
+            lower_text = streamed_text.lower()[:300]
+            if "clarify_needed" in lower_text or "clarify" in lower_text:
+                effective_action = "clarify_needed"
+        session.add_assistant_turn(response_summary, action=effective_action)
         session.last_intent = intent
-        session.last_action = intent
+        session.last_action = effective_action
         if req.context:
             session.merge_context(req.context)
+        # Record last artifact type for follow-up context detection
+        _artifact_type = _detect_artifact_type_from_intent(intent, streamed_text)
+        if _artifact_type:
+            session.merge_context({
+                "last_artifact_type": _artifact_type,
+                "last_artifact_summary": response_summary[:1200],
+            })
         try:
             await get_conversation_store().save(session)
             logger.info(
@@ -682,6 +713,243 @@ async def _stream_followup(
     yield enc.text_start(tid)
     yield enc.text_delta(tid, text)
     yield enc.text_end(tid)
+
+
+async def _stream_followup_artifact(
+    enc: DataStreamEncoder,
+    req: ConversationRequest,
+    intent: str,
+    router_result,
+    history_text: str = "",
+    message_history: list | None = None,
+    session=None,
+) -> AsyncGenerator[str, None]:
+    """Stream follow-up for non-blueprint artifact types (interactive, quiz, pptx, document)."""
+
+    artifact_type = req.artifact_type or ""
+    artifacts = req.artifacts or {}
+
+    if intent == "chat":
+        # Answer questions about the artifact using chat
+        yield enc.data("action", {"action": "chat", "chatKind": "page"})
+        text = await _artifact_chat_response(
+            req.message,
+            artifact_type=artifact_type,
+            artifacts=artifacts,
+            language=req.language,
+            message_history=message_history,
+        )
+        tid = enc._id()
+        yield enc.text_start(tid)
+        yield enc.text_delta(tid, text)
+        yield enc.text_end(tid)
+        return
+
+    if intent == "rebuild":
+        # Full regeneration — re-enter initial mode
+        yield enc.data("action", {"action": "rebuild"})
+        async for line in _stream_initial(
+            enc, req, "content_create", router_result, history_text, message_history,
+            session=session,
+        ):
+            yield line
+        return
+
+    # intent == "refine" — incremental modification when supported
+    # For unsupported types in phase-1, fallback to rebuild action + full regeneration.
+    if artifact_type not in ("interactive", "quiz"):
+        yield enc.data("action", {"action": "rebuild"})
+    else:
+        yield enc.data("action", {"action": "refine"})
+
+    if artifact_type == "interactive":
+        async for line in _stream_modify_interactive(enc, req, artifacts):
+            yield line
+    elif artifact_type == "quiz":
+        async for line in _stream_modify_quiz(enc, req, artifacts):
+            yield line
+    elif artifact_type == "pptx":
+        # PPT modification — for now, rebuild (Phase 2 TODO)
+        async for line in _stream_initial(
+            enc, req, "content_create", router_result, history_text, message_history,
+            session=session,
+        ):
+            yield line
+    elif artifact_type == "document":
+        # Document modification — for now, rebuild (Phase 2 TODO)
+        async for line in _stream_initial(
+            enc, req, "content_create", router_result, history_text, message_history,
+            session=session,
+        ):
+            yield line
+    else:
+        # Unknown artifact type — fallback to rebuild
+        async for line in _stream_initial(
+            enc, req, "content_create", router_result, history_text, message_history,
+            session=session,
+        ):
+            yield line
+
+
+async def _stream_modify_interactive(
+    enc: DataStreamEncoder,
+    req: ConversationRequest,
+    artifacts: dict,
+) -> AsyncGenerator[str, None]:
+    """Incrementally modify interactive HTML content."""
+    from skills.interactive_modify_skill import modify_interactive_stream
+
+    interactive = artifacts.get("interactive", {})
+    current_html = interactive.get("html", "")
+    current_css = interactive.get("css", "")
+    current_js = interactive.get("js", "")
+    title = interactive.get("title", "Interactive Content")
+
+    if not current_html and not current_css and not current_js:
+        # No existing content to modify — fall back to text response
+        tid = enc._id()
+        yield enc.text_start(tid)
+        yield enc.text_delta(tid, "No existing interactive content found to modify.")
+        yield enc.text_end(tid)
+        return
+
+    async for event in modify_interactive_stream(
+        current_html=current_html,
+        current_css=current_css,
+        current_js=current_js,
+        modification_request=req.message,
+        title=title,
+    ):
+        if event["type"] == "start":
+            line = enc.data("interactive-content-start", event)
+        elif event["type"] == "complete":
+            line = enc.data(
+                "interactive-content",
+                {
+                    "html": event.get("html", ""),
+                    "css": event.get("css", ""),
+                    "js": event.get("js", ""),
+                    "title": event.get("title", "Interactive Content"),
+                    "description": event.get("description", ""),
+                    "preferredHeight": event.get("preferredHeight", 500),
+                },
+            )
+            enc.append_to_sink(
+                f"\n[已修改互动内容: {event.get('title', '')}]\n"
+                f"修改: {req.message[:200]}\n"
+                f"变更: {', '.join(event.get('changed', []))}"
+            )
+        else:
+            continue
+        yield line
+
+    # Emit a text summary
+    tid = enc._id()
+    yield enc.text_start(tid)
+    yield enc.text_delta(tid, f"已根据您的要求修改了互动内容。")
+    yield enc.text_end(tid)
+
+
+async def _stream_modify_quiz(
+    enc: DataStreamEncoder,
+    req: ConversationRequest,
+    artifacts: dict,
+) -> AsyncGenerator[str, None]:
+    """Incrementally modify quiz questions."""
+    import re
+    from skills.quiz_skill import regenerate_question
+    from models.quiz_output import QuizQuestionV1
+
+    quiz_data = artifacts.get("quiz", {})
+    questions = quiz_data.get("questions", [])
+    modification = req.message
+
+    if not questions:
+        tid = enc._id()
+        yield enc.text_start(tid)
+        yield enc.text_delta(tid, "No existing quiz questions found to modify.")
+        yield enc.text_end(tid)
+        return
+
+    # Detect single question replacement: "第3题...", "question 3..."
+    index_match = re.search(r"第\s*(\d+)\s*[题道]|question\s*(\d+)", modification, re.IGNORECASE)
+    if index_match:
+        idx_str = index_match.group(1) or index_match.group(2)
+        target_index = int(idx_str) - 1  # 0-based
+        if 0 <= target_index < len(questions):
+            try:
+                original = QuizQuestionV1(**questions[target_index])
+                new_q = await regenerate_question(original, feedback=modification)
+                yield enc.data("quiz-replace", {
+                    "index": target_index,
+                    "question": new_q.model_dump(by_alias=True),
+                    "status": "replaced",
+                })
+                enc.append_to_sink(
+                    f"\n[已替换第{target_index + 1}题: {new_q.question[:80]}]"
+                )
+                tid = enc._id()
+                yield enc.text_start(tid)
+                yield enc.text_delta(tid, f"已替换第{target_index + 1}题。")
+                yield enc.text_end(tid)
+                return
+            except Exception as e:
+                logger.exception("Quiz question replacement failed: %s", e)
+
+    # Fallback: can't parse specific modification — inform user
+    tid = enc._id()
+    yield enc.text_start(tid)
+    yield enc.text_delta(
+        tid,
+        "请指定要修改的题目编号，例如「第3题太简单了，换一道」。"
+        "或者说「重新出题」来全部重新生成。",
+    )
+    yield enc.text_end(tid)
+
+
+async def _artifact_chat_response(
+    message: str,
+    *,
+    artifact_type: str,
+    artifacts: dict,
+    language: str = "zh",
+    message_history: list | None = None,  # noqa: ARG001 — reserved for future use
+) -> str:
+    """Generate a chat response about the current artifact."""
+    from pydantic_ai import Agent as PydanticAgent
+    from agents.provider import create_model, get_model_for_tier
+
+    model_name = get_model_for_tier("fast")
+    model = create_model(model_name)
+
+    # Build artifact context summary
+    artifact_desc = f"Current artifact type: {artifact_type}"
+    artifact_data = artifacts.get(artifact_type, {})
+    if artifact_type == "interactive":
+        artifact_desc += f"\nTitle: {artifact_data.get('title', '')}"
+        artifact_desc += f"\nDescription: {artifact_data.get('description', '')}"
+    elif artifact_type == "quiz":
+        qs = artifact_data.get("questions", [])
+        artifact_desc += f"\nTotal questions: {len(qs)}"
+        for i, q in enumerate(qs[:3]):
+            artifact_desc += f"\nQ{i+1}: {str(q.get('question', ''))[:100]}"
+    elif artifact_type == "pptx":
+        artifact_desc += f"\nTitle: {artifact_data.get('title', '')}"
+        artifact_desc += f"\nSlides: {artifact_data.get('totalSlides', 0)}"
+
+    agent = PydanticAgent(
+        model=model,
+        output_type=str,
+        system_prompt=(
+            "You are a helpful educational AI assistant. The teacher has generated "
+            f"content and is asking about it.\n\n{artifact_desc}\n\n"
+            f"Answer in {'Chinese' if language == 'zh' else 'English'}."
+        ),
+        retries=1,
+        defer_model_check=True,
+    )
+    result = await agent.run(message)
+    return result.output
 
 
 def _is_unified_quiz_enabled() -> bool:
@@ -1204,7 +1472,8 @@ async def _stream_agent_mode(
                 yield enc.reasoning_end("fallback")
 
             loop_history: list[ModelMessage] = list(message_history or [])
-            validation_retry_budget = 1
+            output_repair_budget = 1    # structured output repair (UnexpectedModelBehavior)
+            validation_retry_budget = 1  # terminal state validation (RetryNeeded/SoftRetryNeeded)
 
             while True:
                 tracker = ToolTracker()
@@ -1367,6 +1636,12 @@ async def _stream_agent_mode(
                                     "preferredHeight": event.get("preferredHeight", 500),
                                 },
                             )
+                            # Store summary in session for follow-up context
+                            enc.append_to_sink(
+                                f"\n[已生成互动内容: {event.get('title', '')}]\n"
+                                f"描述: {event.get('description', '')}\n"
+                                f"包含: HTML({len(event.get('html', ''))}字符) + CSS + JS"
+                            )
                         else:
                             continue
                         event_type = _extract_sse_event_type(line)
@@ -1413,6 +1688,27 @@ async def _stream_agent_mode(
 
         except Exception as e:
             last_error = f"{model_name}: {type(e).__name__}: {e}"
+            exc_name = type(e).__name__
+
+            # ── Output Repair Pass: try to salvage structured output ──
+            if exc_name == "UnexpectedModelBehavior" and output_repair_budget > 0:
+                output_repair_budget -= 1
+                raw_body = getattr(e, "body", None)
+                if isinstance(raw_body, bytes):
+                    raw_body = raw_body.decode("utf-8", errors="replace")
+                elif not isinstance(raw_body, str):
+                    raw_body = str(raw_body) if raw_body else None
+                logger.warning(
+                    "[UnifiedAgent] Structured output failed, attempting repair pass. "
+                    "raw_body_len=%d",
+                    len(raw_body) if raw_body else 0,
+                )
+                repaired = await _attempt_output_repair(raw_body, model_name)
+                if repaired is not None:
+                    final_result = repaired
+                    completed = True
+                    break
+
             is_provider_error = _is_provider_error(e)
             if is_provider_error and attempt < len(model_chain) - 1:
                 logger.warning(
@@ -1427,6 +1723,28 @@ async def _stream_agent_mode(
             break
 
     yield enc.finish_step()
+
+
+def _detect_artifact_type_from_intent(intent: str, streamed_text: str) -> str | None:
+    """Infer the artifact type produced during this turn from intent + text cues."""
+    if intent == "quiz_generate":
+        return "quiz"
+    if intent == "content_create":
+        lower = streamed_text.lower()
+        if "互动" in lower or "interactive" in lower:
+            return "interactive"
+        if "ppt" in lower or "演示" in lower or "slides" in lower:
+            return "pptx"
+        if "已生成" in lower and ("文档" in lower or "docx" in lower or "pdf" in lower):
+            return "document"
+        # Fallback: check for known markers injected by append_to_sink
+        if "[已生成互动内容" in streamed_text:
+            return "interactive"
+        if "[已生成PPT大纲" in streamed_text:
+            return "pptx"
+        if "[已生成" in streamed_text and "文档" in streamed_text:
+            return "document"
+    return None
 
 
 def _extract_sse_event_type(line: str) -> str | None:
@@ -1470,8 +1788,13 @@ def _compose_content_request_after_clarify(
         return current_message
 
     last_action = (turns[last_assistant_idx].action or "").strip().lower()
-    if last_action != IntentType.CLARIFY.value:
+    # Detect both router-level clarify and agent-path clarify (stored as "clarify_needed")
+    is_clarify_turn = last_action in (IntentType.CLARIFY.value, "clarify_needed")
+    if not is_clarify_turn:
         return current_message
+
+    # Extract the assistant's clarify question text
+    assistant_question = turns[last_assistant_idx].content.strip()
 
     original_request = ""
     for idx in range(last_assistant_idx - 1, -1, -1):
@@ -1484,15 +1807,20 @@ def _compose_content_request_after_clarify(
         return current_message
 
     logger.info(
-        "[Continuity] Expanding post-clarify content request. original=%.80s details=%.80s",
+        "[Continuity] Expanding post-clarify content request. original=%.80s question=%.80s details=%.80s",
         original_request,
+        assistant_question,
         current_message,
     )
     return (
         "Continue the previous request with the provided details and generate the final output now.\n\n"
         f"Original request:\n{original_request}\n\n"
-        f"Additional details from user:\n{current_message}\n\n"
-        "Do not only acknowledge. Produce the complete deliverable directly."
+        f"Assistant asked:\n{assistant_question}\n\n"
+        f"User's answer:\n{current_message}\n\n"
+        "You MUST now either:\n"
+        "1. Produce the complete deliverable by calling the appropriate tool(s), OR\n"
+        "2. Ask another clarify question ONLY if specific critical information is still missing.\n"
+        "Do NOT merely acknowledge the answer. Take action immediately."
     )
 
 
@@ -1533,6 +1861,51 @@ def _is_provider_error(exc: Exception) -> bool:
     return False
 
 
+async def _attempt_output_repair(
+    raw_body: str | None,
+    model_name: str,
+) -> FinalResult | None:
+    """Attempt to repair a malformed FinalResult from raw model output.
+
+    Makes a single non-streaming LLM call asking the model to extract/reformat
+    the raw output into a valid FinalResult JSON.
+
+    Returns FinalResult if repair succeeds, None otherwise.
+    """
+    if not raw_body or not raw_body.strip():
+        return None
+
+    from pydantic_ai import Agent
+    from agents.provider import create_model
+
+    repair_prompt = (
+        "The following text is a malformed response from an AI assistant. "
+        "Extract the intent and reformat it as valid JSON matching this exact schema:\n\n"
+        '{"status": "answer_ready"|"artifact_ready"|"clarify_needed", '
+        '"message": "...", "artifacts": [...], "clarify": {"question": "..."} | null}\n\n'
+        "Rules:\n"
+        "- If the text contains a question for the user, status=clarify_needed and set clarify.question\n"
+        "- If the text mentions generated files/content, status=artifact_ready\n"
+        "- Otherwise, status=answer_ready\n"
+        "- Output ONLY the JSON object, nothing else.\n\n"
+        f"Raw text:\n{raw_body[:3000]}"
+    )
+
+    try:
+        repair_agent = Agent(
+            model=create_model(model_name),
+            output_type=FinalResult,
+            retries=0,
+            defer_model_check=True,
+        )
+        result = await repair_agent.run(repair_prompt)
+        logger.info("[RepairPass] Successfully repaired output: status=%s", result.output.status)
+        return result.output
+    except Exception as exc:
+        logger.warning("[RepairPass] Repair failed: %s", exc)
+        return None
+
+
 def _build_tool_result_events(
     enc: DataStreamEncoder,
     tool_name: str,
@@ -1556,6 +1929,10 @@ def _build_tool_result_events(
             "filename": result.get("filename", ""),
             "size": result.get("size"),
         }))
+        # Store summary in session for follow-up context
+        enc.append_to_sink(
+            f"\n[已生成{file_type}文档: {result.get('filename', '')}]"
+        )
 
     elif tool_name == "propose_pptx_outline":
         events.append(enc.data("pptx-outline", {
@@ -1565,6 +1942,15 @@ def _build_tool_result_events(
             "estimatedDuration": result.get("estimatedDuration", 0),
             "requiresConfirmation": True,
         }))
+        # Store summary in session for follow-up context
+        outline_titles = ", ".join(
+            s.get("title", "") for s in (result.get("outline") or [])[:5]
+        )
+        enc.append_to_sink(
+            f"\n[已生成PPT大纲: {result.get('title', '')}，"
+            f"共{result.get('totalSlides', 0)}页，"
+            f"包含: {outline_titles}]"
+        )
 
     elif tool_name == "save_as_assignment":
         events.append(enc.data("assignment-saved", {
@@ -1585,6 +1971,10 @@ def _build_tool_result_events(
             "description": result.get("description", ""),
             "preferredHeight": result.get("preferredHeight", 500),
         }))
+        enc.append_to_sink(
+            f"\n[已生成互动内容: {result.get('title', '')}]\n"
+            f"描述: {result.get('description', '')}"
+        )
 
     elif tool_name == "generate_quiz_questions":
         questions = result.get("questions", [])
