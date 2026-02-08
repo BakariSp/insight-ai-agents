@@ -15,6 +15,7 @@ content generation intents route to ``content_create`` (Agent Path).
 from __future__ import annotations
 
 import logging
+import re
 
 from pydantic_ai import Agent
 
@@ -131,6 +132,9 @@ async def classify_intent(
     # Apply confidence-based routing overrides
     router_result = _apply_confidence_routing(router_result)
 
+    # Apply keyword-based quiz/content boundary correction
+    router_result = _apply_quiz_keyword_correction(router_result, message)
+
     # Assign execution path based on intent
     router_result.path = _assign_path(router_result)
 
@@ -176,6 +180,59 @@ def _assign_path(result: RouterResult) -> str:
 
     # Fallback: unknown intents go to agent (not degraded to chat)
     return "agent"
+
+
+# ---------------------------------------------------------------------------
+# Keyword-based quiz/content boundary correction
+# ---------------------------------------------------------------------------
+
+# Survey/form keywords — the output format IS the intent, always quiz_generate
+_QUIZ_FORM_KEYWORDS = re.compile(
+    r"问卷|调查|调研|评估表|反馈表|出成题",
+    re.UNICODE,
+)
+# Quiz-specific keywords — only override content_create, not clarify
+_QUIZ_QUESTION_KEYWORDS = re.compile(
+    r"出[成]?题|测验题|练习题|选择题|填空题",
+    re.UNICODE,
+)
+
+
+def _apply_quiz_keyword_correction(r: RouterResult, message: str) -> RouterResult:
+    """Correct quiz/content boundary misclassification using keywords.
+
+    Two tiers:
+    - Form/survey keywords (问卷/调查/评估表/反馈表): override both
+      ``content_create`` and ``clarify`` → ``quiz_generate`` (the format IS the intent)
+    - Quiz-question keywords (出题/测验题/选择题): only override ``content_create``
+      (respect ``clarify`` for vague requests like "帮我出题" with no topic)
+    """
+    if r.intent not in (IntentType.CONTENT_CREATE.value, IntentType.CLARIFY.value):
+        return r
+
+    # Tier 1: form/survey keywords → always override
+    if _QUIZ_FORM_KEYWORDS.search(message):
+        logger.info(
+            "Quiz keyword correction: %s → quiz_generate (form/survey keyword)",
+            r.intent,
+        )
+        r.intent = IntentType.QUIZ_GENERATE.value
+        r.should_build = False
+        if r.confidence < 0.7:
+            r.confidence = 0.7
+        return r
+
+    # Tier 2: quiz-question keywords → only override content_create
+    if r.intent == IntentType.CONTENT_CREATE.value and _QUIZ_QUESTION_KEYWORDS.search(message):
+        logger.info(
+            "Quiz keyword correction: content_create → quiz_generate (quiz keyword)",
+        )
+        r.intent = IntentType.QUIZ_GENERATE.value
+        r.should_build = False
+        if r.confidence < 0.7:
+            r.confidence = 0.7
+
+    return r
 
 
 def _apply_confidence_routing(r: RouterResult) -> RouterResult:

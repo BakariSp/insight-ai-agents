@@ -31,7 +31,7 @@ def _parse_classroom(raw: dict[str, Any]) -> ClassInfo:
         student_count=raw.get("studentCount", 0),
         assignment_count=raw.get("assignmentCount", 0),
         description=raw.get("description", ""),
-        semester_label=raw.get("semesterLabel", ""),
+        semester_label=raw.get("semesterLabel") or "",
     )
 
 
@@ -40,13 +40,13 @@ def _parse_assignment(raw: dict[str, Any]) -> AssignmentInfo:
     return AssignmentInfo(
         assignment_id=str(raw.get("assignmentId") or raw.get("uid") or raw.get("id", "")),
         title=raw.get("title", ""),
-        type=raw.get("assignmentType", raw.get("type", "")),
-        max_score=raw.get("total_points", raw.get("totalPoints", raw.get("maxScore", 100))),
-        status=raw.get("status", ""),
+        type=raw.get("assignmentType") or raw.get("type") or "",
+        max_score=raw.get("total_points") or raw.get("totalPoints") or raw.get("maxScore") or 100,
+        status=raw.get("status") or "",
         due_date=str(raw["due_date"]) if raw.get("due_date") else (str(raw["dueDate"]) if raw.get("dueDate") else None),
-        submission_count=raw.get("submission_count", raw.get("submissionCount", 0)),
-        total_students=raw.get("total_students", raw.get("totalStudents", 0)),
-        average_score=raw.get("average_score", raw.get("averageScore")),
+        submission_count=raw.get("submission_count") or raw.get("submissionCount") or 0,
+        total_students=raw.get("total_students") or raw.get("totalStudents") or 0,
+        average_score=raw.get("average_score") or raw.get("averageScore"),
     )
 
 

@@ -51,6 +51,16 @@ _CLASS_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\b(\d[A-Za-z])\b", re.UNICODE),
 ]
 
+# Chinese-style class name patterns: "高一数学班", "高三语文班", etc.
+_CN_CLASS_NAME_PATTERNS: list[re.Pattern[str]] = [
+    # "高一数学班", "高二英语班", "初三语文班"
+    re.compile(r"((?:高|初)[一二三四五六][\u4e00-\u9fff]*班)", re.UNICODE),
+    # "数学班", "英语班" (bare subject + 班)
+    re.compile(r"([\u4e00-\u9fff]{2,4}班)", re.UNICODE),
+    # "高一数学", "高三语文" (without 班 — handles partial/truncated names)
+    re.compile(r"((?:高|初)[一二三四五六][\u4e00-\u9fff]{1,2})(?![\u4e00-\u9fff])", re.UNICODE),
+]
+
 _GRADE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(
         r"[Ff](?:orm)?\s*(\d)\s*(?:全年级|全部|all\s*classes?)",
@@ -133,6 +143,25 @@ def _extract_class_mentions(text: str) -> list[str]:
             if code and code not in seen:
                 seen.add(code)
                 result.append(code)
+
+    return result
+
+
+def _extract_cn_class_name_mentions(text: str) -> list[str]:
+    """Extract Chinese-style class name mentions like '高一数学班'.
+
+    Returns raw mention strings (not normalized to codes) for direct
+    matching against the alias map which stores full class names.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+
+    for pat in _CN_CLASS_NAME_PATTERNS:
+        for m in pat.finditer(text):
+            name = m.group(1).strip()
+            if name and name not in seen:
+                seen.add(name)
+                result.append(name)
 
     return result
 
@@ -340,6 +369,68 @@ def _match_class_mentions(
         best_cls: dict[str, Any] | None = None
         for alias_key, alias_cls in alias_map.items():
             score = _fuzzy_score(mention, alias_key)
+            if score > best_score:
+                best_score = score
+                best_cls = alias_cls
+
+        if best_cls and best_score >= 0.6:
+            cid = best_cls.get("class_id", "")
+            if cid and cid not in matched_ids:
+                matched_ids.add(cid)
+                matched.append(
+                    ResolvedEntity(
+                        entity_type=EntityType.CLASS,
+                        entity_id=cid,
+                        display_name=best_cls.get("name", cid),
+                        confidence=round(best_score, 2),
+                        match_type="fuzzy",
+                    )
+                )
+
+    return matched
+
+
+# ---------------------------------------------------------------------------
+# Chinese class name matching
+# ---------------------------------------------------------------------------
+
+
+def _match_cn_class_names(
+    mentions: list[str],
+    alias_map: dict[str, dict[str, Any]],
+) -> list[ResolvedEntity]:
+    """Match Chinese class name mentions against the alias map.
+
+    Tries exact match first (case-insensitive), then fuzzy.
+    """
+    matched: list[ResolvedEntity] = []
+    matched_ids: set[str] = set()
+
+    for mention in mentions:
+        mention_upper = mention.upper()
+
+        # Exact match
+        cls = alias_map.get(mention_upper)
+        if cls:
+            cid = cls.get("class_id", "")
+            if cid and cid not in matched_ids:
+                matched_ids.add(cid)
+                matched.append(
+                    ResolvedEntity(
+                        entity_type=EntityType.CLASS,
+                        entity_id=cid,
+                        display_name=cls.get("name", cid),
+                        confidence=1.0,
+                        match_type="exact",
+                    )
+                )
+            continue
+
+        # Fuzzy match against all alias keys
+        best_score = 0.0
+        best_cls: dict[str, Any] | None = None
+        for alias_key, alias_cls in alias_map.items():
+            score = _fuzzy_score(mention_upper, alias_key)
             if score > best_score:
                 best_score = score
                 best_cls = alias_cls
@@ -576,18 +667,31 @@ async def resolve_entities(
     # ── 1. Class resolution (always attempted) ──
 
     class_mentions = _extract_class_mentions(query_text)
+    cn_class_mentions = _extract_cn_class_name_mentions(query_text)
     grade_mentions = _extract_grade_mentions(query_text)
 
     classes: list[dict[str, Any]] = []
     class_entities: list[ResolvedEntity] = []
 
-    if class_mentions or grade_mentions:
+    if class_mentions or cn_class_mentions or grade_mentions:
         classes = await _fetch_teacher_classes(teacher_id)
         if classes:
             alias_map, grade_idx = _build_class_alias_map(classes)
+            # Match code-based mentions (1A, Form 1A, etc.)
             class_entities = _match_class_mentions(
                 class_mentions, grade_mentions, alias_map, grade_idx
             )
+            # Match Chinese class name mentions (高一数学班, etc.)
+            if cn_class_mentions:
+                cn_entities = _match_cn_class_names(
+                    cn_class_mentions, alias_map
+                )
+                # Avoid duplicates
+                existing_ids = {e.entity_id for e in class_entities}
+                for e in cn_entities:
+                    if e.entity_id not in existing_ids:
+                        class_entities.append(e)
+                        existing_ids.add(e.entity_id)
             all_entities.extend(class_entities)
 
     # Determine class scope mode

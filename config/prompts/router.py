@@ -14,19 +14,26 @@ extract parameters, and decide the response strategy.
 
 ## Intent Types
 
-1. **chat_smalltalk** — Greetings, casual chat, thanks, unrelated topics.
-   Examples: "你好", "天气怎么样", "谢谢", "Hello"
-   Confidence guidance: high (≥0.8) when clearly social/casual.
+1. **chat_smalltalk** — Greetings, casual chat, thanks, questions about the AI itself,
+   unrelated topics.
+   Examples: "你好", "天气怎么样", "谢谢", "Hello", "你是什么模型？", "你是谁",
+   "你能做什么", "再见"
+   Confidence guidance: high (≥0.8) when clearly social/casual or asking about the AI.
 
 2. **chat_qa** — Questions about the platform, educational concepts, or general
    knowledge that do NOT require generating content.
    Examples: "KPI 是什么意思", "怎么使用这个功能", "什么是标准差"
    Confidence guidance: high (≥0.8) when asking about concepts or usage.
 
-3. **quiz_generate** — The user wants to generate quiz questions, practice
-   exercises, or test papers.  This is the **fast path** — no Blueprint needed.
+3. **quiz_generate** — The user wants to generate **structured question-based content**:
+   quiz questions, practice exercises, test papers, surveys, questionnaires,
+   evaluation forms, feedback forms, or satisfaction surveys.
+   Key signal: the output is a set of structured questions/items with options or blanks.
+   This is the **fast path** — no Blueprint needed.
    Examples: "帮我出10道语法选择题", "Generate 5 MCQs on grammar",
-   "给 1B 出一套阅读题", "出一份 Unit 5 练习", "出10道一元二次方程的选择题"
+   "给 1B 出一套阅读题", "出一份 Unit 5 练习", "出10道一元二次方程的选择题",
+   "出一份调研问卷", "设计一份教学反馈问卷", "做一份满意度调查",
+   "准备一些调研题目", "帮我设计一个课程评估表", "把这些内容出成题"
    Confidence guidance: high (≥0.7) when topic/subject is clear or inferable.
 
 4. **build_workflow** — The user wants to generate a data analysis page or
@@ -43,9 +50,12 @@ extract parameters, and decide the response strategy.
    "做一个工作纸", "翻译这段文字", "写一份评分标准", "帮我设计课件"
    Confidence guidance: high (≥0.7) when the request clearly asks for content creation.
 
-6. **clarify** — The message looks like a task request but is missing critical
-   parameters (which class, which assignment, which time range, etc.).
-   Examples: "分析英语表现", "看看成绩", "帮我出题" (no topic at all)
+6. **clarify** — The message looks like a task request but is **too vague** —
+   missing critical parameters (which class, which assignment, which time range,
+   which topic, etc.).  Use `clarify` when the user's intent is recognizable but
+   the request cannot be executed without more information.
+   Examples: "分析英语表现" (missing class), "看看成绩" (missing class and subject),
+   "帮我出题" (no topic at all), "分析一下成绩" (missing class), "看看数据" (missing everything)
    Confidence guidance: medium (0.4–0.7).
 
 ## Model Tier (choose alongside intent)
@@ -94,9 +104,16 @@ Return a JSON object:
 4. If requesting data analysis or report → `build_workflow`.
 5. If requesting content generation (lesson plan, PPT, worksheet, feedback,
    translation, parent letter, rubric, etc.) → `content_create`.
-6. Only "出题/quiz/MCQ/exercise" goes to `quiz_generate`; all other generation → `content_create`.
+6. "出题/quiz/MCQ/exercise" AND "问卷/调查/调研/评估表/反馈表/survey/questionnaire/出成题"
+   all go to `quiz_generate` (any output that is **structured questions/items**).
+   Only free-form prose generation (教案/PPT/信/报告/大纲/反思/评语) → `content_create`.
+   Rule of thumb: if the output is a **list of questions or items** → `quiz_generate`;
+   if the output is **continuous text or a document** → `content_create`.
 7. For `quiz_generate`: do NOT require ALL parameters — use reasonable defaults.
    Only classify as `clarify` if topic/subject is completely absent.
+7b. For `build_workflow`: if the user mentions data analysis/grades/performance but
+   does NOT specify which class or subject, classify as `clarify` (not `build_workflow`).
+   e.g. "分析一下成绩" → clarify (missing class); "分析1A班的成绩" → build_workflow.
 8. Always write `clarifying_question` in the user's language.
 9. If conversation history is provided below, use it to disambiguate short messages.
    A reply like "是的", "好的", "1A班", "对" following a clarify turn means the user
