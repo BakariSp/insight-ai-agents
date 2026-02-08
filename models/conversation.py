@@ -150,6 +150,8 @@ class ConversationRequest(CamelModel):
     conversation_id: str | None = None
     skill_config: SkillConfig | None = None  # Skill toggles (RAG, file context)
     recent_history: list[RecentHistoryItem] | None = None  # Fallback when session is lost
+    artifact_type: str | None = None  # "interactive" | "quiz" | "pptx" | "document" | None
+    artifacts: dict | None = None  # Active artifact data for incremental modification
 
 
 class ConversationResponse(CamelModel):

@@ -188,6 +188,63 @@ Return a JSON object with these fields:
 """
 
 
+_ARTIFACT_TYPE_LABELS = {
+    "interactive": "interactive web page (互动网页)",
+    "quiz": "quiz / question set (题目/练习)",
+    "pptx": "PowerPoint presentation (PPT演示文稿)",
+    "document": "document / file (文档/文件)",
+}
+
+ROUTER_ARTIFACT_FOLLOWUP_PROMPT = """\
+You are an **intent classifier** for an educational AI platform.
+The user is in **follow-up mode** — they have an existing **{artifact_label}** artifact
+and are asking a follow-up question or requesting a modification.
+
+## Current Artifact
+Type: {artifact_type}
+Summary: {artifact_summary}
+
+## Intent Types (Artifact Follow-up Mode)
+
+1. **chat** — The user asks a question about the existing content.
+   They want a text answer, not a content modification.
+   Examples: "这个内容怎么样？", "里面有什么？", "第3题考的是什么知识点？"
+
+2. **refine** — The user wants to **modify** the existing content incrementally.
+   Keep the base content and apply targeted changes.
+   Examples: "把颜色改成蓝色", "第3题太简单了换一道", "加一个练习环节",
+   "标题改一下", "内容再详细一点", "加坐标轴标签"
+
+3. **rebuild** — The user wants to **completely regenerate** from scratch,
+   or the requested change is so fundamental that incremental modification is impossible.
+   Examples: "重新做一个", "换个主题", "不要这个了，改成...", "全部重来"
+
+## Refine Scope (for intent="refine" only)
+
+- **patch_content** — Modify specific parts of the artifact content.
+  Most modification requests fall here.
+
+## Output Format
+
+Return a JSON object:
+- `intent`: one of "chat", "refine", "rebuild"
+- `confidence`: float 0.0–1.0
+- `should_build`: true for refine/rebuild
+- `expected_mode`: "answer" for chat, "artifact" for refine/rebuild
+- `candidate_tools`: [] (not used in artifact follow-up)
+- `clarifying_question`: null
+- `route_hint`: null
+- `refine_scope`: "patch_content" or null
+
+## Rules
+
+1. Default to `refine` when the user wants any modification — most changes can be done incrementally.
+2. Only use `rebuild` when the user explicitly says "重新/重做/从头/rebuild" or wants a completely different topic.
+3. For `chat`, the user is asking about the content, not requesting changes.
+4. Always write output in the same language context as the conversation.
+"""
+
+
 CONVERSATION_HISTORY_SECTION = """
 
 ## Recent Conversation History
@@ -206,13 +263,25 @@ def build_router_prompt(
     blueprint_description: str | None = None,
     page_summary: str | None = None,
     conversation_history: str = "",
+    artifact_type: str | None = None,
+    artifact_summary: str = "",
 ) -> str:
     """Build the appropriate router prompt based on mode.
 
-    If blueprint_name is provided, uses follow-up mode; otherwise initial mode.
+    Priority:
+    1. artifact_type set (no blueprint) → artifact follow-up mode
+    2. blueprint_name set → blueprint follow-up mode
+    3. Neither → initial mode
+
     Appends conversation history section when history is provided.
     """
-    if blueprint_name is not None:
+    if artifact_type is not None and blueprint_name is None:
+        prompt = ROUTER_ARTIFACT_FOLLOWUP_PROMPT.format(
+            artifact_type=artifact_type,
+            artifact_label=_ARTIFACT_TYPE_LABELS.get(artifact_type, artifact_type),
+            artifact_summary=artifact_summary or "No summary available.",
+        )
+    elif blueprint_name is not None:
         prompt = ROUTER_FOLLOWUP_PROMPT.format(
             blueprint_name=blueprint_name or "",
             blueprint_description=blueprint_description or "",

@@ -62,21 +62,52 @@ async def classify_intent(
     page_context: dict | None = None,
     conversation_history: str = "",
     skill_config: SkillConfig | None = None,
+    artifact_type: str | None = None,
+    artifact_summary: str = "",
 ) -> RouterResult:
     """Classify user intent, with confidence-based routing adjustments.
 
     Args:
         message: The user's message.
-        blueprint: If provided, switches to follow-up mode.
+        blueprint: If provided, switches to follow-up mode (Blueprint path).
         page_context: Page summary dict for follow-up context.
         conversation_history: Formatted recent turns for context.
         skill_config: Skill toggles from the frontend (RAG, file context).
+        artifact_type: If provided (no blueprint), switches to artifact follow-up mode.
+        artifact_summary: Short summary of the current artifact for prompt context.
 
     Returns:
         A :class:`RouterResult` with adjusted intent and confidence.
     """
     router_model = _get_router_model_name()
-    is_followup = blueprint is not None
+    is_followup = blueprint is not None or artifact_type is not None
+
+    if is_followup and artifact_type and blueprint is None:
+        # ── Artifact follow-up mode (non-blueprint content) ──
+        followup_agent = Agent(
+            model=create_model(router_model),
+            output_type=RouterResult,
+            system_prompt=build_router_prompt(
+                artifact_type=artifact_type,
+                artifact_summary=artifact_summary,
+                conversation_history=conversation_history,
+            ),
+            retries=1,
+            defer_model_check=True,
+        )
+        result = await followup_agent.run(
+            message,
+            model_settings=ROUTER_LLM_CONFIG.to_litellm_kwargs(),
+        )
+        router_result = _normalize_router_fields(result.output)
+        router_result.expected_mode = _infer_expected_mode(router_result.intent)
+        logger.info(
+            "Router (artifact-followup, type=%s): intent=%s confidence=%.2f",
+            artifact_type,
+            router_result.intent,
+            router_result.confidence,
+        )
+        return router_result
 
     if is_followup:
         page_summary = ""
