@@ -25,6 +25,8 @@ from tools.assessment_tools import (
 )
 from tools.rubric_tools import get_rubric, list_available_rubrics
 from tools.document_tools import search_teacher_documents
+from tools.render_tools import generate_pptx, generate_docx, render_pdf
+from tools.platform_tools import save_as_assignment, create_share_link
 
 mcp = FastMCP("insight-ai-tools")
 
@@ -44,6 +46,13 @@ mcp.tool()(get_rubric)
 mcp.tool()(list_available_rubrics)
 # Knowledge Base: Document search
 mcp.tool()(search_teacher_documents)
+# Agent Path: Render tools
+mcp.tool()(generate_pptx)
+mcp.tool()(generate_docx)
+mcp.tool()(render_pdf)
+# Agent Path: Platform operations
+mcp.tool()(save_as_assignment)
+mcp.tool()(create_share_link)
 
 # In-process tool registry: name → callable
 TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
@@ -62,6 +71,13 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     "list_available_rubrics": list_available_rubrics,
     # Knowledge Base: Document search
     "search_teacher_documents": search_teacher_documents,
+    # Agent Path: Render tools
+    "generate_pptx": generate_pptx,
+    "generate_docx": generate_docx,
+    "render_pdf": render_pdf,
+    # Agent Path: Platform operations
+    "save_as_assignment": save_as_assignment,
+    "create_share_link": create_share_link,
 }
 
 

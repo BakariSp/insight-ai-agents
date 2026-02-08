@@ -19,8 +19,9 @@ requests>=2.31
 fastmcp>=2.0
 numpy>=1.26
 
-# Document parsing (chat attachments)
+# Document generation & parsing
 python-pptx>=1.0
+python-docx>=1.0
 openpyxl>=3.1
 
 # RAG / Knowledge Base

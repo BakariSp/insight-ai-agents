@@ -2,23 +2,19 @@
 
 Automatically detects initial vs follow-up mode based on whether a blueprint
 is provided, and applies confidence-based routing:
-- confidence >= 0.7  ->  direct action (build / quiz_generate)
+- confidence >= 0.7  ->  direct action (build / quiz_generate / content_create)
 - 0.4 <= confidence < 0.7  ->  force clarify
 - confidence < 0.4  ->  treat as chat
 
 Uses the fast ``router_model`` (qwen-turbo, ~200ms) for initial classification.
 Quiz-related intents route to ``quiz_generate`` (Skill fast path);
-data-analysis intents route to ``build_workflow`` (Blueprint path).
-
-Phase 1 V1 capability guard:
-- Only quiz_generate / build_workflow intents trigger actions
-- Non-quiz build intents degrade to chat with friendly message
+data-analysis intents route to ``build_workflow`` (Blueprint path);
+content generation intents route to ``content_create`` (Agent Path).
 """
 
 from __future__ import annotations
 
 import logging
-import re
 
 from pydantic_ai import Agent
 
@@ -31,29 +27,6 @@ from models.conversation import IntentType, RouterResult
 from models.skill_config import SkillConfig
 
 logger = logging.getLogger(__name__)
-
-# ── V1 Capability Guard ──────────────────────────────────────
-
-V1_QUIZ_KEYWORDS = re.compile(
-    r"(出题|生成.*题|练习|quiz|question|MCQ|选择题|填空题|判断题|简答题"
-    r"|exercise|practice|test\s*paper|assessment|考试|测验|题目)",
-    re.IGNORECASE,
-)
-
-V1_NON_QUIZ_HINTS = {
-    "lesson_plan", "grading", "ppt_generation", "report_generation",
-    "attendance", "scheduling",
-}
-
-V1_DEGRADATION_MESSAGE = (
-    "当前版本聚焦于题目生成功能。该功能将在后续版本支持。\n"
-    "你可以试试：「帮我出10道语法选择题」或「Generate 5 MCQs on Unit 5 grammar」"
-)
-
-V1_DEGRADATION_MESSAGE_EN = (
-    "The current version focuses on quiz generation. This feature will be available in future versions.\n"
-    "Try: 'Generate 10 grammar MCQs' or 'Create a Unit 5 practice quiz'"
-)
 
 # Light, fast classification — low temperature for consistency
 ROUTER_LLM_CONFIG = LLMConfig(
@@ -158,8 +131,8 @@ async def classify_intent(
     # Apply confidence-based routing overrides
     router_result = _apply_confidence_routing(router_result)
 
-    # Apply V1 capability guard
-    router_result = _apply_v1_guard(router_result, message)
+    # Assign execution path based on intent
+    router_result.path = _assign_path(router_result)
 
     # Apply skill_config overrides (e.g. file upload auto-enables RAG)
     if skill_config:
@@ -169,19 +142,46 @@ async def classify_intent(
             router_result.enable_rag = True
 
     logger.info(
-        "Router (initial): intent=%s confidence=%.2f should_build=%s strategy=%s",
+        "Router (initial): intent=%s confidence=%.2f path=%s should_build=%s strategy=%s",
         router_result.intent,
         router_result.confidence,
+        router_result.path,
         router_result.should_build,
         router_result.strategy,
     )
     return router_result
 
 
+def _assign_path(result: RouterResult) -> str:
+    """Assign execution path based on classified intent.
+
+    Returns one of: "skill", "blueprint", "agent", "chat".
+    """
+    intent = result.intent
+
+    if intent == IntentType.QUIZ_GENERATE.value:
+        return "skill"
+
+    if intent == IntentType.BUILD_WORKFLOW.value:
+        return "blueprint"
+
+    if intent == IntentType.CONTENT_CREATE.value:
+        return "agent"
+
+    if intent in (IntentType.CHAT_SMALLTALK.value, IntentType.CHAT_QA.value):
+        return "chat"
+
+    if intent == IntentType.CLARIFY.value:
+        return "chat"
+
+    # Fallback: unknown intents go to agent (not degraded to chat)
+    return "agent"
+
+
 def _apply_confidence_routing(r: RouterResult) -> RouterResult:
     """Apply confidence thresholds to adjust routing decisions.
 
-    - confidence >= 0.7 and intent is build_workflow/quiz_generate -> allow action
+    - confidence >= 0.7 and intent is actionable -> allow action
     - 0.4 <= confidence < 0.7 -> force clarify
     - confidence < 0.4 -> treat as chat
     """
@@ -189,6 +189,7 @@ def _apply_confidence_routing(r: RouterResult) -> RouterResult:
     actionable_intents = {
         IntentType.BUILD_WORKFLOW.value,
         IntentType.QUIZ_GENERATE.value,
+        IntentType.CONTENT_CREATE.value,
     }
 
     if confidence >= 0.7 and r.intent in actionable_intents:
@@ -214,41 +215,4 @@ def _apply_confidence_routing(r: RouterResult) -> RouterResult:
             return r
 
     r.should_build = r.intent == IntentType.BUILD_WORKFLOW.value
-    return r
-
-
-def _apply_v1_guard(r: RouterResult, message: str) -> RouterResult:
-    """Apply V1 capability guard — only quiz and data-analysis intents are supported.
-
-    The LLM now distinguishes between quiz_generate (fast path) and
-    build_workflow (Blueprint path).  The guard trusts the LLM classification:
-    - quiz_generate → always passes
-    - build_workflow with non-quiz hints → degrades to chat
-    - build_workflow otherwise → passes (data analysis is supported)
-    """
-    # quiz_generate always passes the guard
-    if r.intent == IntentType.QUIZ_GENERATE.value:
-        return r
-
-    if not r.should_build:
-        return r
-
-    # Check if the route_hint suggests a non-supported intent
-    if r.route_hint and r.route_hint.lower() in V1_NON_QUIZ_HINTS:
-        return _degrade_to_chat(r, message)
-
-    # build_workflow is a supported intent (data analysis) — allow it
-    return r
-
-
-def _degrade_to_chat(r: RouterResult, message: str) -> RouterResult:
-    """Degrade a build intent to chat with a V1 capability message."""
-    logger.info("V1 guard: degrading non-quiz build intent to chat")
-    r.intent = IntentType.CHAT_QA.value
-    r.should_build = False
-
-    has_chinese = any("\u4e00" <= ch <= "\u9fff" for ch in message[:50])
-    r.clarifying_question = (
-        V1_DEGRADATION_MESSAGE if has_chinese else V1_DEGRADATION_MESSAGE_EN
-    )
     return r

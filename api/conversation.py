@@ -1,15 +1,17 @@
 """Conversation API — unified entry point for all user interactions.
 
 Routes requests through the RouterAgent to determine intent, then dispatches
-to the appropriate agent (ChatAgent, PlannerAgent, PageChatAgent) based on
-the classified intent and confidence level.
+to the appropriate agent (ChatAgent, PlannerAgent, PageChatAgent, TeacherAgent)
+based on the classified intent and confidence level.
 
 Supports two modes:
-- **Initial mode** (no blueprint): chat / quiz_generate / build / clarify
+- **Initial mode** (no blueprint): chat / quiz_generate / build / content_create / clarify
 - **Follow-up mode** (with blueprint): chat / refine / rebuild
 
-Quiz generation uses the Skill fast path (single LLM call, ~5s) instead of
-the full Blueprint pipeline (~100s).
+Three execution paths:
+- **Skill Path**: quiz_generate → single LLM call (~5s)
+- **Blueprint Path**: build_workflow → Blueprint + Executor pipeline (~100s)
+- **Agent Path**: content_create → PydanticAI Agent + tool-use loop (~10-60s)
 
 Endpoints:
 - ``POST /api/conversation``         — JSON response (legacy, backward-compat)
@@ -304,6 +306,12 @@ async def _stream_initial(
     # ── Quiz Generate (Skill fast path) ──
     if intent == IntentType.QUIZ_GENERATE.value:
         async for line in _stream_quiz_generate(enc, req, router_result):
+            yield line
+        return
+
+    # ── Content Create (Agent Path) ──
+    if intent == IntentType.CONTENT_CREATE.value:
+        async for line in _stream_agent_mode(enc, req, router_result):
             yield line
         return
 
@@ -612,6 +620,116 @@ async def _stream_quiz_generate(
     })
 
 
+async def _stream_agent_mode(
+    enc: DataStreamEncoder,
+    req: ConversationRequest,
+    router_result: RouterResult,
+) -> AsyncGenerator[str, None]:
+    """Agent Path — LLM + Tools free orchestration for content generation.
+
+    The PydanticAI Agent autonomously decides which tools to call based on the
+    teacher's request.  Supports lesson plans, slides, worksheets, feedback,
+    translations, and any other content generation task.
+    """
+    from agents.teacher_agent import create_teacher_agent
+    from tools.data_tools import get_teacher_classes
+
+    # 1. Tell frontend we're in agent mode
+    yield enc.data("action", {
+        "action": "agent",
+        "mode": "entry",
+        "intent": router_result.intent,
+    })
+
+    # 2. Get teacher context (fast, no LLM)
+    teacher_context = await _get_teacher_context(req.teacher_id)
+
+    # 3. Create Agent
+    agent = create_teacher_agent(
+        teacher_context=teacher_context,
+        suggested_tools=router_result.suggested_tools,
+    )
+
+    # 4. Run Agent (PydanticAI handles tool-use loop)
+    tid = enc._id()
+    yield enc.start_step()
+
+    try:
+        async with agent.run_stream(req.message) as result:
+            # 4a. Stream text output
+            yield enc.text_start(tid)
+            async for chunk in result.stream_text(delta=True):
+                yield enc.text_delta(tid, chunk)
+            yield enc.text_end(tid)
+
+        # 5. Check tool call results and push structured events
+        for call in result.all_messages():
+            if hasattr(call, "parts"):
+                for part in call.parts:
+                    if hasattr(part, "tool_name") and hasattr(part, "content"):
+                        events = _build_tool_result_events(enc, part.tool_name, part.content)
+                        for event in events:
+                            yield event
+
+    except Exception as e:
+        logger.exception("Agent path error")
+        yield enc.error(f"Agent path error: {e}")
+
+    yield enc.finish_step()
+
+
+def _build_tool_result_events(
+    enc: DataStreamEncoder,
+    tool_name: str,
+    result: object,
+) -> list[str]:
+    """Convert tool call results into frontend-renderable SSE events."""
+    events: list[str] = []
+
+    if not isinstance(result, dict):
+        return events
+
+    if tool_name in ("generate_pptx", "generate_docx", "render_pdf"):
+        file_type = {
+            "generate_pptx": "pptx",
+            "generate_docx": "docx",
+            "render_pdf": "pdf",
+        }.get(tool_name, "unknown")
+        events.append(enc.data("file-ready", {
+            "type": file_type,
+            "url": result.get("url", ""),
+            "filename": result.get("filename", ""),
+            "size": result.get("size"),
+        }))
+
+    elif tool_name == "save_as_assignment":
+        events.append(enc.data("assignment-saved", {
+            "assignmentId": result.get("assignment_id"),
+            "message": result.get("message", "Saved"),
+        }))
+
+    elif tool_name == "create_share_link":
+        events.append(enc.data("share-link-created", {
+            "shareUrl": result.get("share_url"),
+            "qrCodeUrl": result.get("qr_code_url"),
+        }))
+
+    return events
+
+
+async def _get_teacher_context(teacher_id: str) -> dict:
+    """Get teacher context quickly (no LLM call)."""
+    try:
+        from tools.data_tools import get_teacher_classes
+        classes_data = await get_teacher_classes(teacher_id)
+        return {
+            "teacher_id": teacher_id,
+            "classes": classes_data.get("classes", []) if isinstance(classes_data, dict) else [],
+        }
+    except Exception:
+        return {"teacher_id": teacher_id, "classes": []}
+
+
 async def _stream_build(
     enc: DataStreamEncoder,
     req: ConversationRequest,
@@ -727,6 +845,16 @@ async def _handle_initial(
             action="build",
             chat_response="Quiz generation is best experienced via the streaming endpoint. "
             "Use POST /api/conversation/stream for real-time question delivery.",
+            conversation_id=req.conversation_id,
+        )
+
+    if intent == IntentType.CONTENT_CREATE.value:
+        # Agent Path — not fully supported in JSON mode (use /stream).
+        return ConversationResponse(
+            mode="entry",
+            action="build",
+            chat_response="Content generation is best experienced via the streaming endpoint. "
+            "Use POST /api/conversation/stream for real-time content delivery.",
             conversation_id=req.conversation_id,
         )
 

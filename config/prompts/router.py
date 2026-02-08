@@ -1,7 +1,7 @@
 """RouterAgent system prompt — intent classification for unified conversation gateway.
 
 Provides two prompt variants:
-- **Initial mode**: classifies into chat_smalltalk / chat_qa / quiz_generate / build_workflow / clarify
+- **Initial mode**: classifies into chat_smalltalk / chat_qa / quiz_generate / build_workflow / content_create / clarify
 - **Follow-up mode**: classifies into chat / refine / rebuild (with existing blueprint context)
 """
 
@@ -34,7 +34,16 @@ extract parameters, and decide the response strategy.
    Examples: "分析 1A 班英语成绩", "帮我看看这次考试情况", "对比两个班的表现"
    Confidence guidance: high (≥0.7) when the request clearly specifies data analysis.
 
-5. **clarify** — The message looks like a task request but is missing critical
+5. **content_create** — The user wants to generate content that is NOT quiz
+   questions and NOT data analysis.  This is the **Agent Path** — covers all
+   other generation tasks: lesson plans, slides, worksheets, feedback,
+   translations, parent letters, rubric design, etc.
+   Examples: "帮我做一个教案", "生成一个PPT", "写一份学生评语",
+   "Generate a lesson plan for Unit 5", "帮我写一封家长信",
+   "做一个工作纸", "翻译这段文字", "写一份评分标准", "帮我设计课件"
+   Confidence guidance: high (≥0.7) when the request clearly asks for content creation.
+
+6. **clarify** — The message looks like a task request but is missing critical
    parameters (which class, which assignment, which time range, etc.).
    Examples: "分析英语表现", "看看成绩", "帮我出题" (no topic at all)
    Confidence guidance: medium (0.4–0.7).
@@ -42,7 +51,7 @@ extract parameters, and decide the response strategy.
 ## Output Format
 
 Return a JSON object:
-- `intent`: one of "chat_smalltalk", "chat_qa", "quiz_generate", "build_workflow", "clarify"
+- `intent`: one of "chat_smalltalk", "chat_qa", "quiz_generate", "build_workflow", "content_create", "clarify"
 - `confidence`: float 0.0–1.0
 - `should_build`: true when intent is "build_workflow" AND confidence ≥ 0.7
 - `clarifying_question`: helpful question (required for "clarify", null otherwise).
@@ -70,15 +79,18 @@ Return a JSON object:
 2. If asking a knowledge/usage question → `chat_qa`.
 3. If requesting quiz/questions/exercises → `quiz_generate`.
 4. If requesting data analysis or report → `build_workflow`.
-5. For `quiz_generate`: do NOT require ALL parameters — use reasonable defaults.
+5. If requesting content generation (lesson plan, PPT, worksheet, feedback,
+   translation, parent letter, rubric, etc.) → `content_create`.
+6. Only "出题/quiz/MCQ/exercise" goes to `quiz_generate`; all other generation → `content_create`.
+7. For `quiz_generate`: do NOT require ALL parameters — use reasonable defaults.
    Only classify as `clarify` if topic/subject is completely absent.
-6. Always write `clarifying_question` in the user's language.
-7. If conversation history is provided below, use it to disambiguate short messages.
+8. Always write `clarifying_question` in the user's language.
+9. If conversation history is provided below, use it to disambiguate short messages.
    A reply like "是的", "好的", "1A班", "对" following a clarify turn means the user
    is providing the requested information — classify with high confidence (≥0.8).
-8. If the previous assistant turn was a `clarify` and the user responds with what
+10. If the previous assistant turn was a `clarify` and the user responds with what
    looks like the requested parameter, classify as the original intent with high confidence.
-9. `enable_rag` should be false by default. Only set true when the teacher explicitly
+11. `enable_rag` should be false by default. Only set true when the teacher explicitly
    says "搜索/查找/参考课纲/我的资料/search my docs" or has uploaded a file.
 """
 

@@ -42,6 +42,7 @@ class IntentType(str, Enum):
     CHAT_QA = "chat_qa"
     BUILD_WORKFLOW = "build_workflow"
     QUIZ_GENERATE = "quiz_generate"  # Skill fast-path: direct quiz generation
+    CONTENT_CREATE = "content_create"  # Agent Path: general content generation
     CLARIFY = "clarify"
 
 
@@ -65,6 +66,10 @@ class RouterResult(CamelModel):
     clarifying_question: str | None = None
     route_hint: str | None = None
     refine_scope: str | None = None  # Phase 6.4: "patch_layout", "patch_compose", or "full_rebuild"
+
+    # ── Path routing (Agent Path) ────────────────────────────
+    path: str = "skill"  # "skill" | "blueprint" | "agent" | "chat"
+    suggested_tools: list[str] = Field(default_factory=list)
 
     # ── Skill / Canvas extensions ────────────────────────────
     extracted_params: dict = Field(default_factory=dict)
