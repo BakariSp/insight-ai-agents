@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage
 
 from agents.provider import create_model
 from config.llm_config import LLMConfig
@@ -48,6 +49,7 @@ async def generate_response(
     page_context: dict[str, Any] | None = None,
     language: str = "en",
     attachments: list[Attachment] | None = None,
+    message_history: list[ModelMessage] | None = None,
 ) -> str:
     """Generate a response to a follow-up question about the current page.
 
@@ -57,6 +59,7 @@ async def generate_response(
         page_context: Summary of the page's data points.
         language: Language hint for response generation.
         attachments: Optional image attachments for multimodal input.
+        message_history: Structured PydanticAI message history for proper multi-turn context.
 
     Returns:
         A Markdown-formatted text response grounded in page data.
@@ -90,13 +93,15 @@ async def generate_response(
     user_content = await build_user_content(run_prompt, attachments or [])
 
     logger.info(
-        "PageChatAgent: blueprint=%s message=%.60s",
+        "PageChatAgent: blueprint=%s message=%.60s history_turns=%d",
         blueprint.id,
         message,
+        len(message_history or []),
     )
 
     result = await agent.run(
         user_content,
+        message_history=message_history or [],
         model_settings=PAGE_CHAT_LLM_CONFIG.to_litellm_kwargs(),
     )
     response = str(result.output)

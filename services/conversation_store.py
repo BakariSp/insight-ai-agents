@@ -14,6 +14,13 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from pydantic import BaseModel, Field
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +89,7 @@ class ConversationSession(BaseModel):
         """Return the last *n* turns."""
         return self.turns[-n:]
 
-    def format_history_for_prompt(self, max_turns: int = 5) -> str:
+    def format_history_for_prompt(self, max_turns: int = 10) -> str:
         """Format recent history as concise text for prompt injection.
 
         Returns an empty string if there are no previous turns.
@@ -103,6 +110,33 @@ class ConversationSession(BaseModel):
             lines.append(f"{prefix}: {action_tag}{content}")
 
         return "\n".join(lines)
+
+    def to_pydantic_messages(self, max_turns: int = 20) -> list[ModelMessage]:
+        """Convert recent turns into PydanticAI ModelMessage objects.
+
+        This provides proper multi-turn context to ``agent.run(message_history=...)``,
+        giving the LLM structured user/assistant message roles instead of
+        plain-text history injection.
+
+        Excludes the current (latest) user turn, as that will be passed
+        as the ``user_prompt`` argument to ``agent.run()``.
+        """
+        turns_for_context = self.turns[:-1] if self.turns else []
+        recent = turns_for_context[-max_turns:]
+        if not recent:
+            return []
+
+        messages: list[ModelMessage] = []
+        for turn in recent:
+            if turn.role == "user":
+                messages.append(
+                    ModelRequest(parts=[UserPromptPart(content=turn.content)])
+                )
+            else:
+                messages.append(
+                    ModelResponse(parts=[TextPart(content=turn.content)])
+                )
+        return messages
 
 
 # ── Abstract Interface ───────────────────────────────────────

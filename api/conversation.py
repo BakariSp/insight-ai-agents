@@ -42,6 +42,7 @@ from models.conversation import (
 )
 from models.entity import EntityType
 from services.clarify_builder import build_clarify_options
+from pydantic_ai.messages import ModelMessage
 from services.conversation_store import (
     ConversationSession,
     generate_conversation_id,
@@ -87,11 +88,13 @@ def _verify_source_prompt(blueprint, expected_prompt: str) -> None:
 
 async def _load_session(
     store, req: ConversationRequest
-) -> tuple[ConversationSession, str]:
+) -> tuple[ConversationSession, str, list[ModelMessage]]:
     """Load or create a conversation session, inject accumulated context.
 
     Returns:
-        (session, history_text) — session object and formatted history for prompts.
+        (session, history_text, message_history) — session object, formatted
+        history text for router prompts, and structured PydanticAI message
+        history for agent ``message_history`` parameter.
     """
     if not req.conversation_id:
         req.conversation_id = generate_conversation_id()
@@ -111,7 +114,8 @@ async def _load_session(
     session.add_user_turn(req.message, attachment_count=len(req.attachments))
 
     history_text = session.format_history_for_prompt(max_turns=5)
-    return session, history_text
+    message_history = session.to_pydantic_messages(max_turns=10)
+    return session, history_text, message_history
 
 
 async def _save_session(
@@ -148,7 +152,7 @@ async def conversation(req: ConversationRequest):
 
         # ── Session: load ──
         store = get_conversation_store()
-        session, history_text = await _load_session(store, req)
+        session, history_text, message_history = await _load_session(store, req)
 
         is_followup = req.blueprint is not None
 
@@ -166,9 +170,9 @@ async def conversation(req: ConversationRequest):
         # ── Step 2: Dispatch based on mode + intent ──
 
         if is_followup:
-            response = await _handle_followup(req, intent, router_result, history_text)
+            response = await _handle_followup(req, intent, router_result, history_text, message_history)
         else:
-            response = await _handle_initial(req, intent, router_result, history_text)
+            response = await _handle_initial(req, intent, router_result, history_text, message_history)
 
         # ── Session: save ──
         await _save_session(store, session, req, response, intent)
@@ -228,7 +232,7 @@ async def _conversation_stream_generator(
 
         # ── Session: load ──
         store = get_conversation_store()
-        session, history_text = await _load_session(store, req)
+        session, history_text, message_history = await _load_session(store, req)
 
         is_followup = req.blueprint is not None
 
@@ -255,10 +259,10 @@ async def _conversation_stream_generator(
 
         # ── Step 2: Dispatch ──
         if is_followup:
-            async for line in _stream_followup(enc, req, intent, router_result, history_text):
+            async for line in _stream_followup(enc, req, intent, router_result, history_text, message_history):
                 yield line
         else:
-            async for line in _stream_initial(enc, req, intent, router_result, history_text):
+            async for line in _stream_initial(enc, req, intent, router_result, history_text, message_history):
                 yield line
 
     except Exception as e:
@@ -284,6 +288,7 @@ async def _stream_initial(
     intent: str,
     router_result,
     history_text: str = "",
+    message_history: list[ModelMessage] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream initial-mode intents via Data Stream Protocol."""
 
@@ -296,6 +301,7 @@ async def _stream_initial(
             req.message, intent_type=intent, language=req.language,
             conversation_history=history_text,
             attachments=req.attachments,
+            message_history=message_history,
         )
         tid = enc._id()
         yield enc.text_start(tid)
@@ -467,6 +473,7 @@ async def _stream_initial(
         req.message, language=req.language,
         conversation_history=history_text,
         attachments=req.attachments,
+        message_history=message_history,
     )
     tid = enc._id()
     yield enc.text_start(tid)
@@ -480,6 +487,7 @@ async def _stream_followup(
     intent: str,
     router_result,
     history_text: str = "",
+    message_history: list[ModelMessage] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream follow-up-mode intents via Data Stream Protocol."""
 
@@ -491,6 +499,7 @@ async def _stream_followup(
             page_context=req.page_context,
             language=req.language,
             attachments=req.attachments,
+            message_history=message_history,
         )
         tid = enc._id()
         yield enc.text_start(tid)
@@ -552,6 +561,7 @@ async def _stream_followup(
         page_context=req.page_context,
         language=req.language,
         attachments=req.attachments,
+        message_history=message_history,
     )
     tid = enc._id()
     yield enc.text_start(tid)
@@ -573,11 +583,20 @@ async def _stream_quiz_generate(
     params = router_result.extracted_params
     language = req.language
 
-    # Determine optional RAG / file context
+    # Determine optional RAG / file context + direct attachments
     context_parts: list[str] = []
     if router_result.enable_rag and req.skill_config:
         if req.skill_config.uploaded_file_content:
             context_parts.append(f"教师上传材料:\n{req.skill_config.uploaded_file_content}")
+
+    # Extract text from direct chat attachments (documents)
+    if req.attachments:
+        from services.multimodal import build_user_content, has_attachments
+        if has_attachments(req.attachments):
+            enriched = await build_user_content("", req.attachments)
+            # build_user_content returns str when only docs (no images)
+            if isinstance(enriched, str) and enriched.strip():
+                context_parts.append(enriched.strip())
 
     combined_context = "\n\n".join(context_parts)
 
@@ -651,11 +670,17 @@ async def _stream_agent_mode(
     )
 
     # 4. Run Agent (PydanticAI handles tool-use loop)
+    #    Enrich with attachment content when available
+    from services.multimodal import build_user_content, has_attachments
+    agent_input: str | list = req.message
+    if req.attachments and has_attachments(req.attachments):
+        agent_input = await build_user_content(req.message, req.attachments)
+
     tid = enc._id()
     yield enc.start_step()
 
     try:
-        async with agent.run_stream(req.message) as result:
+        async with agent.run_stream(agent_input) as result:
             # 4a. Stream text output
             yield enc.text_start(tid)
             async for chunk in result.stream_text(delta=True):
@@ -747,6 +772,7 @@ async def _stream_build(
     blueprint, _model = await generate_blueprint(
         user_prompt=prompt,
         language=req.language,
+        attachments=req.attachments if req.attachments else None,
     )
     _verify_source_prompt(blueprint, prompt)
 
@@ -816,6 +842,7 @@ async def _handle_initial(
     intent: str,
     router_result,
     history_text: str = "",
+    message_history: list[ModelMessage] | None = None,
 ) -> ConversationResponse:
     """Handle initial-mode intents (no existing blueprint)."""
 
@@ -827,6 +854,7 @@ async def _handle_initial(
             language=req.language,
             conversation_history=history_text,
             attachments=req.attachments,
+            message_history=message_history,
         )
         kind = "smalltalk" if intent == IntentType.CHAT_SMALLTALK.value else "qa"
         return ConversationResponse(
@@ -879,6 +907,7 @@ async def _handle_initial(
             blueprint, _model = await generate_blueprint(
                 user_prompt=req.message,
                 language=req.language,
+                attachments=req.attachments if req.attachments else None,
             )
             _verify_source_prompt(blueprint, req.message)
             return ConversationResponse(
@@ -916,6 +945,7 @@ async def _handle_initial(
             blueprint, _model = await generate_blueprint(
                 user_prompt=req.message,
                 language=req.language,
+                attachments=req.attachments if req.attachments else None,
             )
             _verify_source_prompt(blueprint, req.message)
             return ConversationResponse(
@@ -1000,6 +1030,7 @@ async def _handle_initial(
         blueprint, _model = await generate_blueprint(
             user_prompt=enhanced_prompt,
             language=req.language,
+            attachments=req.attachments if req.attachments else None,
         )
         _verify_source_prompt(blueprint, enhanced_prompt)
         return ConversationResponse(
@@ -1031,6 +1062,7 @@ async def _handle_initial(
         req.message, language=req.language,
         conversation_history=history_text,
         attachments=req.attachments,
+        message_history=message_history,
     )
     return ConversationResponse(
         mode="entry",
@@ -1046,6 +1078,7 @@ async def _handle_followup(
     intent: str,
     router_result,
     history_text: str = "",
+    message_history: list[ModelMessage] | None = None,
 ) -> ConversationResponse:
     """Handle follow-up-mode intents (existing blueprint context)."""
 
@@ -1057,6 +1090,7 @@ async def _handle_followup(
             page_context=req.page_context,
             language=req.language,
             attachments=req.attachments,
+            message_history=message_history,
         )
         return ConversationResponse(
             mode="followup",
@@ -1130,6 +1164,7 @@ async def _handle_followup(
         page_context=req.page_context,
         language=req.language,
         attachments=req.attachments,
+        message_history=message_history,
     )
     return ConversationResponse(
         mode="followup",

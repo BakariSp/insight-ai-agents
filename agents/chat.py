@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage
 
 from agents.provider import create_model
 from config.llm_config import LLMConfig
@@ -36,6 +37,7 @@ async def generate_response(
     language: str = "en",
     conversation_history: str = "",
     attachments: list[Attachment] | None = None,
+    message_history: list[ModelMessage] | None = None,
 ) -> str:
     """Generate a chat response for smalltalk or QA intent.
 
@@ -43,20 +45,16 @@ async def generate_response(
         message: The user's message.
         intent_type: "chat_smalltalk" or "chat_qa".
         language: Language hint for response generation.
-        conversation_history: Formatted recent turns for context.
+        conversation_history: Formatted recent turns for context (legacy, used as fallback).
         attachments: Optional image attachments for multimodal input.
+        message_history: Structured PydanticAI message history for proper multi-turn context.
 
     Returns:
         A Markdown-formatted text response.
     """
-    history_section = ""
-    if conversation_history:
-        history_section = f"[Recent conversation]\n{conversation_history}\n\n"
-
     run_prompt = (
         f"[Language: {language}]\n"
         f"[Intent: {intent_type}]\n\n"
-        f"{history_section}"
         f"{message}"
     )
 
@@ -77,10 +75,14 @@ async def generate_response(
     else:
         agent = _chat_agent
 
-    logger.info("ChatAgent: intent=%s message=%.60s", intent_type, message)
+    logger.info(
+        "ChatAgent: intent=%s message=%.60s history_turns=%d",
+        intent_type, message, len(message_history or []),
+    )
 
     result = await agent.run(
         user_content,
+        message_history=message_history or [],
         model_settings=CHAT_LLM_CONFIG.to_litellm_kwargs(),
     )
     response = str(result.output)
