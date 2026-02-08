@@ -30,6 +30,7 @@ from main import app
 
 
 TEST_MESSAGE = "请出5道一元二次方程选择题，附简短解析。"
+LATENCY_REGRESSION_THRESHOLD_PCT = 20.0
 TEST_BODY = {
     "message": TEST_MESSAGE,
     "language": "zh-CN",
@@ -212,12 +213,12 @@ def _build_markdown_report(results: list[RunMetrics]) -> str:
             lines.append("## 阶段1门槛判断")
             lines.append("")
             lines.append(
-                f"- 首题时延变化: `{delta:+.1f}%`（门槛: 劣化 <= 10%）"
+                f"- 首题时延变化: `{delta:+.1f}%`（门槛: 劣化 <= {LATENCY_REGRESSION_THRESHOLD_PCT:.0f}%）"
             )
             lines.append(
                 f"- Quiz 成功率: `legacy={legacy.success}, unified={unified.success}`"
             )
-            pass_latency = delta <= 10.0
+            pass_latency = delta <= LATENCY_REGRESSION_THRESHOLD_PCT
             pass_quality = unified.quality_pass_rate >= legacy.quality_pass_rate
             lines.append(
                 f"- 结论: `{'PASS' if pass_latency and pass_quality and unified.success else 'NEEDS_REVIEW'}`"

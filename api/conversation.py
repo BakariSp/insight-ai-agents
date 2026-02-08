@@ -687,25 +687,128 @@ def _is_unified_quiz_enabled() -> bool:
     return bool(settings.agent_unified_enabled and settings.agent_unified_quiz_enabled)
 
 
-def _build_unified_quiz_agent_message(
+def _build_unified_quiz_agent_prompt(
     req: ConversationRequest,
     router_result: RouterResult,
 ) -> str:
-    """Compose a strict quiz tool-call instruction for unified agent mode."""
+    """Compose a strict prompt for unified quiz tool orchestration."""
     params = router_result.extracted_params or {}
-    topic = params.get("topic", "")
-    count = params.get("count", 10)
-    difficulty = params.get("difficulty", "medium")
-    subject = params.get("subject", "")
-    grade = params.get("grade", "")
+    topic = str(params.get("topic", "") or "")
+    count = int(params.get("count", 10) or 10)
+    difficulty = str(params.get("difficulty", "medium") or "medium")
+    subject = str(params.get("subject", "") or "")
+    grade = str(params.get("grade", "") or "")
+    types = params.get("types") or ["SINGLE_CHOICE", "FILL_IN_BLANK"]
+    weakness_focus = params.get("weakness_focus") or []
     return (
         f"{req.message}\n\n"
-        "[Execution Requirement]\n"
-        "This is a quiz generation request.\n"
-        "You MUST call generate_quiz_questions in this turn and produce structured questions.\n"
-        "Do not respond with plan-only or plain narrative text.\n\n"
-        "[Extracted Hints]\n"
-        f"topic={topic}\ncount={count}\ndifficulty={difficulty}\nsubject={subject}\ngrade={grade}"
+        "This is a quiz generation task. You must call tool `generate_quiz_questions` exactly once.\n"
+        "Never answer with plain text only. Return concise confirmation after tool call.\n\n"
+        f"topic={topic}\n"
+        f"count={count}\n"
+        f"difficulty={difficulty}\n"
+        f"subject={subject}\n"
+        f"grade={grade}\n"
+        f"types={types}\n"
+        f"weakness_focus={weakness_focus}\n"
+    )
+
+
+def _get_unified_quiz_model_chain() -> list[str]:
+    """Resolve model chain for unified quiz tool-calling."""
+    settings = get_settings()
+    chain = [settings.executor_model]
+    if settings.agent_model and settings.agent_model != settings.executor_model:
+        chain.append(settings.agent_model)
+    if settings.agent_model_fallback:
+        chain.append(settings.agent_model_fallback)
+
+    override_model = (settings.agent_unified_quiz_model or "").strip()
+    if override_model:
+        chain = [override_model, *chain]
+
+    deduped: list[str] = []
+    for model_name in chain:
+        if model_name and model_name not in deduped:
+            deduped.append(model_name)
+    return deduped
+
+
+def _extract_quiz_artifact_from_agent_messages(
+    agent_messages: list[ModelMessage],
+) -> dict | None:
+    """Extract generate_quiz_questions tool result from agent message graph."""
+    for call in agent_messages:
+        if not hasattr(call, "parts"):
+            continue
+        for part in call.parts:
+            if hasattr(part, "tool_name") and hasattr(part, "content"):
+                if part.tool_name == "generate_quiz_questions" and isinstance(part.content, dict):
+                    return part.content
+    return None
+
+
+async def _run_unified_quiz_agent(
+    prompt: str,
+    model_name: str,
+    message_history: list[ModelMessage] | None,
+) -> tuple[dict | None, str]:
+    """Run unified quiz tool-calling agent once with a specific model."""
+    from pydantic_ai import Agent
+
+    from agents.provider import create_model
+    from tools.quiz_tools import generate_quiz_questions
+
+    agent = Agent(
+        model=create_model(model_name),
+        system_prompt=(
+            "You are a quiz tool orchestrator.\n"
+            "You have exactly one tool: generate_quiz_questions.\n"
+            "Always call that tool for quiz requests."
+        ),
+        retries=1,
+        defer_model_check=True,
+    )
+    agent.tool_plain()(generate_quiz_questions)
+
+    try:
+        async with agent.run_stream(
+            prompt,
+            message_history=message_history or [],
+            model_settings={
+                "max_tokens": 4096,
+                "tool_choice": "required",
+            },
+        ) as result:
+            async for _ in result.stream_text(delta=True):
+                pass
+            messages = result.all_messages()
+    except Exception as exc:  # noqa: BLE001
+        return None, f"{type(exc).__name__}: {exc}"
+
+    quiz_artifact = _extract_quiz_artifact_from_agent_messages(messages)
+    if isinstance(quiz_artifact, dict):
+        return quiz_artifact, ""
+    return None, "tool_not_called"
+
+
+async def _run_unified_quiz_direct_tool(
+    req: ConversationRequest,
+    router_result: RouterResult,
+) -> dict:
+    """Run unified quiz via deterministic direct tool execution."""
+    from tools.quiz_tools import generate_quiz_questions
+
+    params = router_result.extracted_params or {}
+    return await generate_quiz_questions(
+        topic=str(params.get("topic", "") or ""),
+        count=int(params.get("count", 10) or 10),
+        difficulty=str(params.get("difficulty", "medium") or "medium"),
+        types=params.get("types"),
+        subject=str(params.get("subject", "") or ""),
+        grade=str(params.get("grade", "") or ""),
+        context="",
+        weakness_focus=params.get("weakness_focus"),
     )
 
 
@@ -726,35 +829,80 @@ async def _stream_quiz_with_unified_fallback(
     if "generate_quiz_questions" not in router_result.suggested_tools:
         router_result.suggested_tools.append("generate_quiz_questions")
 
-    action_payload = {
+    prompt = _build_unified_quiz_agent_prompt(req, router_result)
+    model_chain = _get_unified_quiz_model_chain()
+    yield enc.data("action", {
         "action": "quiz_generate",
         "mode": "entry",
         "orchestrator": "unified_agent",
-    }
-    agent_message = _build_unified_quiz_agent_message(req, router_result)
+        "modelCandidates": model_chain,
+    })
 
-    buffered_lines: list[str] = []
-    saw_quiz_artifact = False
-    async for line in _stream_agent_mode(
-        enc,
-        req,
-        router_result,
-        agent_message=agent_message,
-        history_text=history_text,
-        message_history=message_history,
-        action_payload=action_payload,
-    ):
-        buffered_lines.append(line)
-        if "data-quiz-question" in line or "data-quiz-complete" in line:
-            saw_quiz_artifact = True
+    # Deterministic unified mode: direct tool call (fast + stable).
+    settings = get_settings()
+    if settings.agent_unified_quiz_force_tool:
+        try:
+            artifact = await _run_unified_quiz_direct_tool(req, router_result)
+            questions = artifact.get("questions", [])
+            tid = enc._id()
+            yield enc.text_start(tid)
+            yield enc.text_delta(tid, "已通过 Unified Agent 入口生成题目。")
+            yield enc.text_end(tid)
+            if isinstance(questions, list):
+                for idx, question in enumerate(questions):
+                    yield enc.data("quiz-question", {
+                        "index": idx,
+                        "question": question if isinstance(question, dict) else {},
+                        "status": "generated",
+                    })
+                yield enc.data("quiz-complete", {
+                    "total": len(questions),
+                    "message": f"{len(questions)} questions generated",
+                })
+                return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[UnifiedQuiz] direct tool execution failed: %s", exc)
 
-    if saw_quiz_artifact:
-        for line in buffered_lines:
-            yield line
-        return
+    chosen_model = ""
+    artifact: dict | None = None
+    last_error = ""
+    for model_name in model_chain:
+        chosen_model = model_name
+        artifact, last_error = await _run_unified_quiz_agent(
+            prompt,
+            model_name,
+            message_history,
+        )
+        if artifact is not None:
+            break
+        logger.warning("[UnifiedQuiz] model=%s did not produce tool artifact: %s", model_name, last_error)
+
+    if artifact is not None:
+        questions = artifact.get("questions", [])
+        if isinstance(questions, list):
+            tid = enc._id()
+            yield enc.text_start(tid)
+            yield enc.text_delta(
+                tid,
+                f"已通过 Unified Agent 生成题目（model={chosen_model}）。",
+            )
+            yield enc.text_end(tid)
+            for idx, question in enumerate(questions):
+                yield enc.data("quiz-question", {
+                    "index": idx,
+                    "question": question if isinstance(question, dict) else {},
+                    "status": "generated",
+                })
+            yield enc.data("quiz-complete", {
+                "total": len(questions),
+                "message": f"{len(questions)} questions generated",
+            })
+            return
 
     logger.warning(
-        "[UnifiedQuiz] No quiz artifact from unified agent; fallback to legacy quiz skill path."
+        "[UnifiedQuiz] No quiz artifact from unified agent models (%s). Last error=%s; fallback to legacy quiz skill path.",
+        model_chain,
+        last_error,
     )
     async for line in _stream_quiz_generate(enc, req, router_result):
         yield line
@@ -869,6 +1017,7 @@ async def _stream_agent_mode(
     history_text: str = "",
     message_history: list[ModelMessage] | None = None,
     action_payload: dict | None = None,
+    skip_teacher_context: bool = False,
 ) -> AsyncGenerator[str, None]:
     """Agent Path — LLM + Tools free orchestration for content generation.
 
@@ -904,7 +1053,10 @@ async def _stream_agent_mode(
     yield enc.data("action", payload)
 
     # 2. Get teacher context (fast, no LLM)
-    teacher_context = await _get_teacher_context(req.teacher_id)
+    if skip_teacher_context:
+        teacher_context = {"teacher_id": req.teacher_id, "classes": []}
+    else:
+        teacher_context = await _get_teacher_context(req.teacher_id)
 
     # 3. Prepare agent input (enrich with attachments)
     from services.multimodal import build_user_content, has_attachments

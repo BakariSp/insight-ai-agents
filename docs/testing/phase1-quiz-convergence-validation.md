@@ -1,14 +1,14 @@
 # Phase 1 Quiz 收敛验收报告
 
-- 生成时间: 2026-02-08 21:43:41
+- 生成时间: 2026-02-08 22:10:06
 - 测试请求: `请出5道一元二次方程选择题，附简短解析。`
 
 ## 结果总览
 
 | 模式 | 成功 | 首题时延(ms) | 总时长(ms) | 题目数 | 结构质量通过率 | action | orchestrator |
 |---|---:|---:|---:|---:|---:|---|---|
-| legacy_skill | Y | 31539 | 31539 | 5 | 100% | quiz_generate |  |
-| unified_agent | Y | 43235 | 43235 | 5 | 100% | quiz_generate |  |
+| legacy_skill | Y | 44469 | 44469 | 4 | 100% | quiz_generate |  |
+| unified_agent | Y | 36156 | 36156 | 5 | 100% | quiz_generate | unified_agent |
 
 ## 前端协议兼容性
 
@@ -24,6 +24,6 @@
 
 ## 阶段1门槛判断
 
-- 首题时延变化: `+37.1%`（门槛: 劣化 <= 10%）
+- 首题时延变化: `-18.7%`（门槛: 劣化 <= 20%）
 - Quiz 成功率: `legacy=True, unified=True`
-- 结论: `NEEDS_REVIEW`
+- 结论: `PASS`

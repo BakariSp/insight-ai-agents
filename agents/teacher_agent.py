@@ -54,6 +54,7 @@ def create_teacher_agent(
     model_tier: str = "standard",
     _override_model: str | None = None,
     tool_tracker=None,
+    _allowed_tool_names: list[str] | None = None,
 ) -> Agent:
     """Create a universal teacher Agent instance.
 
@@ -89,7 +90,7 @@ def create_teacher_agent(
     )
 
     # Register available tools (plain — no RunContext needed)
-    tools = _get_agent_tools()
+    tools = _get_agent_tools(_allowed_tool_names)
     for tool_fn in tools:
         if tool_tracker is not None:
             agent.tool_plain()(tool_tracker.wrap(tool_fn))
@@ -99,14 +100,19 @@ def create_teacher_agent(
     return agent
 
 
-def _get_agent_tools() -> list:
+def _get_agent_tools(allowed_tool_names: list[str] | None = None) -> list:
     """Return tool functions available to the Agent Path.
 
     Includes: data queries + knowledge retrieval + render tools + platform operations.
     Excludes: stats/compute tools (those are used by Blueprint path).
     """
     tools = []
-    for name in AGENT_TOOL_NAMES:
+    names = AGENT_TOOL_NAMES
+    if allowed_tool_names:
+        allowed = set(allowed_tool_names)
+        names = [name for name in AGENT_TOOL_NAMES if name in allowed]
+
+    for name in names:
         if name in TOOL_REGISTRY:
             tools.append(TOOL_REGISTRY[name])
         else:

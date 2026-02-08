@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     agent_unified_enabled: bool = False
     agent_unified_quiz_enabled: bool = False
     agent_unified_build_enabled: bool = False
+    # Unified quiz grace window before fallback (milliseconds)
+    agent_unified_quiz_grace_ms: int = 4000
+    # Optional model override for unified quiz tool-calling (e.g. zai/glm-4.7)
+    agent_unified_quiz_model: str = ""
+    # Unified quiz defaults to deterministic direct tool execution for latency/stability
+    agent_unified_quiz_force_tool: bool = True
 
     # ── PPT Generation ────────────────────────────────────────
     pptx_max_slides: int = 30  # Hard upper limit for any generated PPT

@@ -297,6 +297,7 @@ class TestSettings:
         assert s.agent_unified_enabled is False
         assert s.agent_unified_quiz_enabled is False
         assert s.agent_unified_build_enabled is False
+        assert s.agent_unified_quiz_force_tool is True
 
 
 # ── ModelTier enum ────────────────────────────────────────────────
