@@ -97,6 +97,11 @@ class JavaClient:
             timeout=httpx.Timeout(self._timeout),
             headers=self._auth_headers(),
             verify=False,  # internal API – skip TLS verification
+            limits=httpx.Limits(
+                max_connections=30,
+                max_keepalive_connections=15,
+                keepalive_expiry=30,
+            ),
         )
         logger.info("JavaClient started — base_url=%s", self._base_url)
 

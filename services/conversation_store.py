@@ -216,6 +216,66 @@ class InMemoryConversationStore(ConversationStore):
         return len(self._store)
 
 
+# ── Redis Implementation ─────────────────────────────────────
+
+
+class RedisConversationStore(ConversationStore):
+    """Redis-backed store with automatic TTL expiration.
+
+    Supports multi-worker deployments.  Sessions are serialized as JSON
+    and stored with a Redis TTL matching ``conversation_ttl``.
+    """
+
+    _KEY_PREFIX = "conv:"
+
+    def __init__(self, redis_url: str, ttl_seconds: int = 1800):
+        import redis.asyncio as aioredis
+
+        self._redis = aioredis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=10,
+            socket_timeout=10,
+        )
+        self._ttl = ttl_seconds
+
+    def _key(self, conversation_id: str) -> str:
+        return f"{self._KEY_PREFIX}{conversation_id}"
+
+    async def get(self, conversation_id: str) -> ConversationSession | None:
+        data = await self._redis.get(self._key(conversation_id))
+        if data is None:
+            return None
+        try:
+            return ConversationSession.model_validate_json(data)
+        except Exception:
+            logger.warning("Failed to deserialize session: %s", conversation_id)
+            return None
+
+    async def save(self, session: ConversationSession) -> None:
+        key = self._key(session.conversation_id)
+        data = session.model_dump_json()
+        await self._redis.set(key, data, ex=self._ttl)
+
+    async def delete(self, conversation_id: str) -> None:
+        await self._redis.delete(self._key(conversation_id))
+
+    async def cleanup_expired(self) -> int:
+        # Redis TTL handles expiration automatically — no manual cleanup needed
+        return 0
+
+    async def close(self) -> None:
+        """Close the Redis connection pool."""
+        await self._redis.aclose()
+
+    async def ping(self) -> bool:
+        """Check Redis connectivity."""
+        try:
+            return await self._redis.ping()
+        except Exception:
+            return False
+
+
 # ── Module-level Singleton ───────────────────────────────────
 
 _store: ConversationStore | None = None
@@ -229,10 +289,20 @@ def get_conversation_store() -> ConversationStore:
 
         settings = get_settings()
         ttl = settings.conversation_ttl
-        _store = InMemoryConversationStore(ttl_seconds=ttl)
-        logger.info(
-            "Initialized InMemoryConversationStore (TTL=%ds)", ttl
-        )
+
+        if settings.conversation_store_type == "redis" and settings.redis_url:
+            _store = RedisConversationStore(
+                redis_url=settings.redis_url,
+                ttl_seconds=ttl,
+            )
+            logger.info(
+                "Initialized RedisConversationStore (TTL=%ds)", ttl
+            )
+        else:
+            _store = InMemoryConversationStore(ttl_seconds=ttl)
+            logger.info(
+                "Initialized InMemoryConversationStore (TTL=%ds)", ttl
+            )
     return _store
 
 

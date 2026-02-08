@@ -21,7 +21,10 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import time
 from typing import AsyncGenerator
+
+_SSE_HEARTBEAT_INTERVAL = 15  # seconds
 
 from fastapi import APIRouter, HTTPException
 from starlette.responses import StreamingResponse
@@ -807,12 +810,18 @@ async def _stream_build(
     yield enc.start_step()
 
     last_call_id = None
+    last_event_time = time.monotonic()
     async for event in _executor.execute_blueprint_stream(blueprint, context):
+        now = time.monotonic()
+        if now - last_event_time > _SSE_HEARTBEAT_INTERVAL:
+            yield ": heartbeat\n\n"
+
         lines, last_call_id = map_executor_event(
             enc, event, last_call_id=last_call_id
         )
         for line in lines:
             yield line
+        last_event_time = time.monotonic()
 
     yield enc.finish_step()
 

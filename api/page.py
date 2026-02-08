@@ -12,6 +12,8 @@ from sse_starlette.sse import EventSourceResponse
 from agents.executor import ExecutorAgent
 from models.request import PageGenerateRequest, PagePatchRequest
 
+_SSE_HEARTBEAT_INTERVAL = 15  # seconds
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/page", tags=["page"])
@@ -65,6 +67,7 @@ async def page_generate(req: PageGenerateRequest):
     return EventSourceResponse(
         _event_generator(req.blueprint, context),
         media_type="text/event-stream",
+        ping=_SSE_HEARTBEAT_INTERVAL,
     )
 
 
@@ -114,4 +117,5 @@ async def page_patch(req: PagePatchRequest):
             req.compute_results,
         ),
         media_type="text/event-stream",
+        ping=_SSE_HEARTBEAT_INTERVAL,
     )

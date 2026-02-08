@@ -35,17 +35,26 @@ class InsightRAGEngine:
         self._embedding_dim = embedding_dim
         self._instances: dict[str, Any] = {}  # workspace_id → RAGAnything
         self._initialized = False
+        self._pg_pool = None  # asyncpg connection pool
 
     async def initialize(self) -> None:
-        """Verify database connectivity (called once at startup)."""
+        """Create connection pool and verify database connectivity (called once at startup)."""
         if self._initialized:
             return
         try:
             import asyncpg
-            conn = await asyncpg.connect(self._pg_uri)
-            await conn.execute("SELECT 1")
-            await conn.close()
-            logger.info("RAG engine PostgreSQL connectivity verified (%s)", self._pg_uri)
+            self._pg_pool = await asyncpg.create_pool(
+                dsn=self._pg_uri,
+                min_size=2,
+                max_size=10,
+                max_inactive_connection_lifetime=300,
+            )
+            async with self._pg_pool.acquire() as conn:
+                await conn.execute("SELECT 1")
+            logger.info(
+                "RAG engine PostgreSQL pool created (min=2, max=10) — %s",
+                self._pg_uri,
+            )
         except Exception as exc:
             logger.warning(
                 "RAG engine PostgreSQL not available: %s — "
@@ -105,6 +114,8 @@ class InsightRAGEngine:
             **kwargs,
         ) -> str:
             import litellm
+            from services.concurrency import rate_limited_llm_call
+
             messages: list[dict] = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
@@ -113,10 +124,12 @@ class InsightRAGEngine:
             messages.append({"role": "user", "content": prompt})
 
             settings = get_settings()
-            resp = await litellm.acompletion(
+            resp = await rate_limited_llm_call(
+                litellm.acompletion,
                 model=settings.default_model,
                 messages=messages,
                 max_tokens=settings.max_tokens,
+                timeout=60,
             )
             return resp.choices[0].message.content
 
@@ -283,7 +296,8 @@ class InsightRAGEngine:
         )
 
     async def close(self) -> None:
-        """Gracefully shut down all RAG instances."""
+        """Gracefully shut down all RAG instances and the connection pool."""
+        count = len(self._instances)
         for ws_id, instance in self._instances.items():
             try:
                 if hasattr(instance, 'close'):
@@ -291,7 +305,12 @@ class InsightRAGEngine:
             except Exception as exc:
                 logger.warning("Error closing RAG instance '%s': %s", ws_id, exc)
         self._instances.clear()
-        logger.info("RAG engine shut down — %d instances closed", len(self._instances))
+
+        if self._pg_pool is not None:
+            await self._pg_pool.close()
+            self._pg_pool = None
+
+        logger.info("RAG engine shut down — %d instances closed", count)
 
 
 def _extract_text(file_path: str) -> str:

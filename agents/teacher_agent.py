@@ -71,10 +71,10 @@ def create_teacher_agent(
         defer_model_check=True,
     )
 
-    # Register available tools
+    # Register available tools (plain — no RunContext needed)
     tools = _get_agent_tools()
     for tool_fn in tools:
-        agent.tool()(tool_fn)
+        agent.tool_plain()(tool_fn)
 
     return agent
 

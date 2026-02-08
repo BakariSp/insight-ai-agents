@@ -35,3 +35,11 @@ data/memory.json
 
 # Logs
 *.log
+
+# Runtime / generated artifacts
+rag_workspaces/
+.pytest_cache/
+nul
+
+# Accidental pip artifacts
+=*

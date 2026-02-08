@@ -19,6 +19,7 @@ from config.llm_config import LLMConfig
 from config.prompts.planner import build_planner_prompt
 from config.settings import get_settings
 from models.blueprint import Blueprint
+from models.conversation import Attachment
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ async def generate_blueprint(
     user_prompt: str,
     language: str = "en",
     model: str | None = None,
+    attachments: list[Attachment] | None = None,
 ) -> tuple[Blueprint, str]:
     """Generate a Blueprint from a user's natural-language request.
 
@@ -52,16 +54,24 @@ async def generate_blueprint(
         language: Language code for user-facing text in the Blueprint
                   (e.g. ``"en"``, ``"zh-CN"``).
         model: Optional model override (provider/model identifier).
+        attachments: Optional file attachments (images, documents) from chat.
 
     Returns:
         A ``(blueprint, model_name)`` tuple.
     """
+    from services.multimodal import build_user_content, has_attachments
+
     model_name = model or get_settings().default_model
 
     run_prompt = (
         f"[Language: {language}]\n\n"
         f"User request: {user_prompt}"
     )
+
+    # Enrich prompt with attachment content (document text / images)
+    if attachments and has_attachments(attachments):
+        run_prompt = await build_user_content(run_prompt, attachments)
+        logger.info("Blueprint prompt enriched with %d attachment(s)", len(attachments))
 
     kwargs: dict = {
         "model_settings": PLANNER_LLM_CONFIG.to_litellm_kwargs(),

@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     spring_boot_timeout: int = 15  # seconds
     use_mock_data: bool = False  # fallback to mock when True or backend unavailable
 
+    # Service account for auto-login (preferred over static tokens)
+    spring_boot_dify_account: str = ""
+    spring_boot_dify_password: str = ""
+    spring_boot_dify_role: str = "DIFY"
+    spring_boot_dify_school_id: int = 1
+
     # ── Knowledge Base (RAG) ─────────────────────────────────
     pg_uri: str = "postgresql://insight:insight_dev_pass@localhost:5433/insight_agent"
     internal_api_secret: str = ""
@@ -64,8 +70,9 @@ class Settings(BaseSettings):
     embedding_dim: int = 1024
 
     # ── Conversation Memory ──────────────────────────────────
-    conversation_store_type: str = "memory"  # "memory" or "redis" (future)
+    conversation_store_type: str = "memory"  # "memory" or "redis"
     conversation_ttl: int = 1800  # seconds (30 min)
+    redis_url: str = ""  # e.g. redis://:password@host:6379/0
 
     # ── MCP ──────────────────────────────────────────────────
     mcp_server_name: str = "insight-ai-agent"
