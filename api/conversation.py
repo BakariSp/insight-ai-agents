@@ -600,6 +600,16 @@ async def _stream_quiz_generate(
 
     combined_context = "\n\n".join(context_parts)
 
+    # Emit reasoning/thinking animation before generation starts
+    rid = enc._id()
+    yield enc.reasoning_start(rid)
+    topic = params.get("topic", "")
+    count = params.get("count", 10)
+    yield enc.reasoning_delta(rid, f"Analyzing quiz requirements: {count} questions on '{topic}'...")
+    yield enc.reasoning_delta(rid, "\nSelecting question types and difficulty distribution...")
+    yield enc.reasoning_delta(rid, "\nPreparing generation with LaTeX math formatting...")
+    yield enc.reasoning_end(rid)
+
     # Build intro text
     intro = build_quiz_intro(params, language)
     yield enc.data("action", {"action": "quiz_generate"})
