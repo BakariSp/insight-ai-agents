@@ -77,6 +77,10 @@ Return a JSON object:
 - `confidence`: float 0.0–1.0
 - `model_tier`: one of "fast", "standard", "strong", "vision"
 - `should_build`: true when intent is "build_workflow" AND confidence ≥ 0.7
+- `expected_mode`: one of "answer", "artifact", "clarify"
+- `candidate_tools`: prioritized tool names, not a hard whitelist. May include:
+  "generate_quiz_questions", "propose_pptx_outline", "generate_pptx",
+  "generate_docx", "render_pdf", "request_interactive_content", "generate_interactive_html"
 - `clarifying_question`: helpful question (required for "clarify", null otherwise).
   Write in the same language as the user's message.
 - `route_hint`: routing context hint, one of:
@@ -168,6 +172,8 @@ Return a JSON object with these fields:
 - `intent`: one of "chat", "refine", "rebuild"
 - `confidence`: float between 0.0 and 1.0
 - `should_build`: true when intent is "refine" or "rebuild"
+- `expected_mode`: "answer" for chat/refine, "artifact" for rebuild
+- `candidate_tools`: usually [] in follow-up mode unless explicitly needed
 - `clarifying_question`: null (follow-up mode rarely needs clarification)
 - `route_hint`: null
 - `refine_scope`: one of "patch_layout", "patch_compose", or null (only for intent="refine")

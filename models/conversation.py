@@ -85,7 +85,9 @@ class RouterResult(CamelModel):
 
     # ── Path routing (Agent Path) ────────────────────────────
     path: str = "skill"  # "skill" | "blueprint" | "agent" | "chat"
-    suggested_tools: list[str] = Field(default_factory=list)
+    candidate_tools: list[str] = Field(default_factory=list)
+    expected_mode: Literal["answer", "artifact", "clarify"] = "artifact"
+    suggested_tools: list[str] = Field(default_factory=list)  # Deprecated alias
 
     # ── Model routing ────────────────────────────────────────
     model_tier: ModelTier = ModelTier.STANDARD
@@ -97,6 +99,13 @@ class RouterResult(CamelModel):
     suggested_skills: list[str] = Field(default_factory=list)
     enable_rag: bool = False
     strategy: str = "direct_generate"  # direct_generate | ask_one_question | show_context
+
+    def model_post_init(self, __context) -> None:
+        """Keep candidate/suggested tool fields compatible during migration."""
+        if self.candidate_tools and not self.suggested_tools:
+            self.suggested_tools = list(self.candidate_tools)
+        elif self.suggested_tools and not self.candidate_tools:
+            self.candidate_tools = list(self.suggested_tools)
 
 
 # ── Clarify interaction ───────────────────────────────────────

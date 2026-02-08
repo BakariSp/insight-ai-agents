@@ -9,9 +9,9 @@ Supports two modes:
 - **Follow-up mode** (with blueprint): chat / refine / rebuild
 
 Three execution paths:
-- **Skill Path**: quiz_generate → single LLM call (~5s)
+- **Unified Agent Path**: quiz_generate + content_create → agent tool orchestration
 - **Blueprint Path**: build_workflow → Blueprint + Executor pipeline (~100s)
-- **Agent Path**: content_create → PydanticAI Agent + tool-use loop (~10-60s)
+- **Legacy fallback paths**: quiz skill / content agent retained for safety rollback
 
 Endpoints:
 - ``POST /api/conversation``         — JSON response (legacy, backward-compat)
@@ -20,6 +20,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -46,6 +47,7 @@ from models.conversation import (
     IntentType,
     RouterResult,
 )
+from models.agent_output import FinalResult
 from models.entity import EntityType
 from services.clarify_builder import build_clarify_options
 from pydantic_ai.messages import ModelMessage
@@ -55,6 +57,11 @@ from services.conversation_store import (
     get_conversation_store,
 )
 from config.settings import get_settings
+from services.agent_validation import (
+    RetryNeeded,
+    SoftRetryNeeded,
+    validate_terminal_state,
+)
 from services.datastream import DataStreamEncoder, map_executor_event
 from services.entity_resolver import resolve_entities
 from skills.quiz_skill import build_quiz_intro, generate_quiz
@@ -384,20 +391,17 @@ async def _stream_initial(
         yield enc.text_end(tid)
         return
 
-    # ── Quiz Generate (Skill fast path) ──
-    if intent == IntentType.QUIZ_GENERATE.value:
-        async for line in _stream_quiz_with_unified_fallback(
-            enc, req, router_result, history_text, message_history
-        ):
-            yield line
-        return
-
-    # ── Content Create (Agent Path) ──
-    if intent == IntentType.CONTENT_CREATE.value:
-        agent_message = _compose_content_request_after_clarify(session, req.message)
-        async for line in _stream_agent_mode(
-            enc, req, router_result,
-            agent_message=agent_message,
+    # ── Unified Agent entry (quiz + content_create) ──
+    if intent in (
+        IntentType.QUIZ_GENERATE.value,
+        IntentType.CONTENT_CREATE.value,
+    ):
+        async for line in _stream_unified_agent_mode(
+            enc=enc,
+            req=req,
+            router_result=router_result,
+            intent=intent,
+            session=session,
             history_text=history_text,
             message_history=message_history,
         ):
@@ -800,6 +804,8 @@ async def _run_unified_quiz_direct_tool(
     from tools.quiz_tools import generate_quiz_questions
 
     params = router_result.extracted_params or {}
+    settings = get_settings()
+    selected_model = (settings.agent_unified_quiz_model or "").strip()
     return await generate_quiz_questions(
         topic=str(params.get("topic", "") or ""),
         count=int(params.get("count", 10) or 10),
@@ -809,6 +815,7 @@ async def _run_unified_quiz_direct_tool(
         grade=str(params.get("grade", "") or ""),
         context="",
         weakness_focus=params.get("weakness_focus"),
+        model_name=selected_model,
     )
 
 
@@ -826,6 +833,8 @@ async def _stream_quiz_with_unified_fallback(
         return
 
     # Ensure quiz tool hint is present for this turn.
+    if "generate_quiz_questions" not in router_result.candidate_tools:
+        router_result.candidate_tools.append("generate_quiz_questions")
     if "generate_quiz_questions" not in router_result.suggested_tools:
         router_result.suggested_tools.append("generate_quiz_questions")
 
@@ -1009,6 +1018,113 @@ async def _stream_quiz_generate(
         enc.append_to_sink("\n".join(summary_lines))
 
 
+async def _stream_unified_agent_mode(
+    enc: DataStreamEncoder,
+    req: ConversationRequest,
+    router_result: RouterResult,
+    intent: str,
+    session: ConversationSession | None = None,
+    history_text: str = "",
+    message_history: list[ModelMessage] | None = None,
+) -> AsyncGenerator[str, None]:
+    """Unified agent entry for quiz/content generation with shared loop."""
+    settings = get_settings()
+    unified_content_enabled = bool(
+        settings.agent_unified_enabled and settings.agent_unified_content_enabled
+    )
+
+    if intent == IntentType.QUIZ_GENERATE.value:
+        # Keep Phase-1 behavior as fallback when unified content mode is disabled.
+        if not unified_content_enabled:
+            async for line in _stream_quiz_with_unified_fallback(
+                enc, req, router_result, history_text, message_history
+            ):
+                yield line
+            return
+
+        if "generate_quiz_questions" not in router_result.candidate_tools:
+            router_result.candidate_tools.append("generate_quiz_questions")
+        if "generate_quiz_questions" not in router_result.suggested_tools:
+            router_result.suggested_tools.append("generate_quiz_questions")
+        router_result.expected_mode = "artifact"
+
+        action_payload = {
+            "action": "quiz_generate",
+            "orchestrator": "unified_agent",
+            "mode": "entry",
+            "intent": intent,
+        }
+        try:
+            async for line in _stream_agent_mode(
+                enc,
+                req,
+                router_result,
+                history_text=history_text,
+                message_history=message_history,
+                action_payload=action_payload,
+                allowed_tool_names=["generate_quiz_questions"],
+                raise_on_error=True,
+            ):
+                yield line
+            return
+        except Exception as exc:
+            logger.warning(
+                "[UnifiedAgent] quiz unified path failed, fallback to legacy quiz stream: %s",
+                exc,
+            )
+            async for line in _stream_quiz_with_unified_fallback(
+                enc, req, router_result, history_text, message_history
+            ):
+                yield line
+            return
+
+    if intent == IntentType.CONTENT_CREATE.value:
+        agent_message = _compose_content_request_after_clarify(session, req.message)
+        router_result.expected_mode = "artifact"
+        if unified_content_enabled:
+            action_payload = {
+                "action": "agent",
+                "orchestrator": "unified_agent",
+                "mode": "entry",
+                "intent": intent,
+            }
+            try:
+                async for line in _stream_agent_mode(
+                    enc,
+                    req,
+                    router_result,
+                    agent_message=agent_message,
+                    history_text=history_text,
+                    message_history=message_history,
+                    action_payload=action_payload,
+                    raise_on_error=True,
+                ):
+                    yield line
+                return
+            except Exception as exc:
+                logger.warning(
+                    "[UnifiedAgent] content unified path failed, fallback to legacy agent path: %s",
+                    exc,
+                )
+
+        async for line in _stream_agent_mode(
+            enc,
+            req,
+            router_result,
+            agent_message=agent_message,
+            history_text=history_text,
+            message_history=message_history,
+        ):
+            yield line
+        return
+
+    # Defensive fallback for unexpected caller input.
+    async for line in _stream_agent_mode(
+        enc, req, router_result, history_text=history_text, message_history=message_history
+    ):
+        yield line
+
+
 async def _stream_agent_mode(
     enc: DataStreamEncoder,
     req: ConversationRequest,
@@ -1018,6 +1134,8 @@ async def _stream_agent_mode(
     message_history: list[ModelMessage] | None = None,
     action_payload: dict | None = None,
     skip_teacher_context: bool = False,
+    allowed_tool_names: list[str] | None = None,
+    raise_on_error: bool = False,
 ) -> AsyncGenerator[str, None]:
     """Agent Path — LLM + Tools free orchestration for content generation.
 
@@ -1025,12 +1143,7 @@ async def _stream_agent_mode(
     teacher's request.  Supports lesson plans, slides, worksheets, feedback,
     translations, and any other content generation task.
 
-    Includes automatic fallback: if the primary model fails (connection error,
-    rate limit, auth), retries with the next model in the tier's fallback chain.
-
-    When the agent calls ``request_interactive_content``, the three-stream
-    parallel generator is launched after the agent completes, yielding
-    progressive HTML/CSS/JS delta events.
+    Includes automatic model fallback and one terminal-state retry.
     """
     import asyncio as _asyncio
 
@@ -1038,7 +1151,6 @@ async def _stream_agent_mode(
     from agents.teacher_agent import create_teacher_agent
     from services.tool_tracker import ToolTracker, ToolEvent
 
-    # 1. Tell frontend we're in agent mode
     tier_value = router_result.model_tier
     if hasattr(tier_value, "value"):
         tier_value = tier_value.value
@@ -1052,21 +1164,18 @@ async def _stream_agent_mode(
         payload["modelTier"] = tier_value
     yield enc.data("action", payload)
 
-    # 2. Get teacher context (fast, no LLM)
     if skip_teacher_context:
         teacher_context = {"teacher_id": req.teacher_id, "classes": []}
     else:
         teacher_context = await _get_teacher_context(req.teacher_id)
 
-    # 3. Prepare agent input (enrich with attachments)
     from services.multimodal import build_user_content, has_attachments
+
     agent_input_text = agent_message or req.message
-    agent_input_text = _apply_ppt_execution_directive(agent_input_text, history_text)
     agent_input: str | list = agent_input_text
     if req.attachments and has_attachments(req.attachments):
         agent_input = await build_user_content(agent_input_text, req.attachments)
 
-    # 4. Run Agent with fallback chain
     tier = router_result.model_tier
     if hasattr(tier, "value"):
         tier = tier.value
@@ -1076,22 +1185,10 @@ async def _stream_agent_mode(
     yield enc.start_step()
     settings = get_settings()
     last_error = None
-
-    # Tool tracker for real-time progress events
-    tracker = ToolTracker()
+    completed = False
 
     for attempt, model_name in enumerate(model_chain):
         try:
-            saw_tool_progress = False
-            emitted_ppt_artifact = False
-            agent = create_teacher_agent(
-                teacher_context=teacher_context,
-                suggested_tools=router_result.suggested_tools,
-                model_tier=tier,
-                _override_model=model_name if attempt > 0 else None,
-                tool_tracker=tracker,
-            )
-
             if attempt > 0:
                 logger.warning(
                     "Agent fallback: attempt %d using %s (previous failed: %s)",
@@ -1104,199 +1201,216 @@ async def _stream_agent_mode(
                 )
                 yield enc.reasoning_end("fallback")
 
-            # Run agent stream + tool tracker concurrently via merged queue
-            merged_queue: _asyncio.Queue[tuple[str, object]] = _asyncio.Queue()
-            agent_done = _asyncio.Event()
-            _agent_messages_holder: list[list[ModelMessage]] = []
-
-            async def _agent_runner():
-                try:
-                    async with agent.run_stream(
-                        agent_input,
-                        message_history=message_history or [],
-                        model_settings={"max_tokens": settings.agent_max_tokens},
-                    ) as stream_result:
-                        await merged_queue.put(("text-start", tid))
-                        async for chunk in stream_result.stream_text(delta=True):
-                            await merged_queue.put(("text-delta", chunk))
-                        # Capture full message graph before stream context exits.
-                        _agent_messages_holder.append(stream_result.all_messages())
-                        await merged_queue.put(("text-end", None))
-                except Exception as exc:
-                    await merged_queue.put(("error", exc))
-                finally:
-                    agent_done.set()
-
-            async def _tool_monitor():
-                while not agent_done.is_set():
-                    try:
-                        event = await _asyncio.wait_for(tracker.queue.get(), timeout=1.0)
-                        await merged_queue.put(("tool-progress", event))
-                    except _asyncio.TimeoutError:
-                        continue
-                # Drain remaining events
-                while not tracker.queue.empty():
-                    event = tracker.queue.get_nowait()
-                    await merged_queue.put(("tool-progress", event))
-
-            runner_task = _asyncio.create_task(_agent_runner())
-            monitor_task = _asyncio.create_task(_tool_monitor())
-
-            last_heartbeat = time.monotonic()
-            streamed_reply_parts: list[str] = []
+            loop_history: list[ModelMessage] = list(message_history or [])
+            validation_retry_budget = 1
 
             while True:
-                if runner_task.done() and monitor_task.done() and merged_queue.empty():
-                    break
-                try:
-                    msg_type, payload = await _asyncio.wait_for(merged_queue.get(), timeout=5.0)
-                except _asyncio.TimeoutError:
-                    now = time.monotonic()
-                    if now - last_heartbeat > _SSE_HEARTBEAT_INTERVAL:
-                        yield ": heartbeat\n\n"
-                        last_heartbeat = now
-                    continue
+                tracker = ToolTracker()
+                called_tool_names: set[str] = set()
+                emitted_event_types: set[str] = set()
+                final_result: FinalResult | None = None
 
-                if msg_type == "text-start":
-                    yield enc.text_start(str(payload))
-                elif msg_type == "text-delta":
-                    delta_text = str(payload)
-                    streamed_reply_parts.append(delta_text)
-                    yield enc.text_delta(tid, delta_text)
-                elif msg_type == "text-end":
-                    yield enc.text_end(tid)
-                elif msg_type == "tool-progress":
-                    if isinstance(payload, ToolEvent):
-                        saw_tool_progress = True
-                        yield enc.data("tool-progress", {
-                            "tool": payload.tool,
-                            "status": payload.status,
-                            "message": payload.message,
-                            "duration_ms": payload.duration_ms,
-                        })
-                elif msg_type == "error":
-                    raise payload  # type: ignore[misc]
+                agent = create_teacher_agent(
+                    teacher_context=teacher_context,
+                    suggested_tools=router_result.suggested_tools,
+                    candidate_tools=router_result.candidate_tools,
+                    model_tier=tier,
+                    _override_model=model_name if attempt > 0 else None,
+                    tool_tracker=tracker,
+                    _allowed_tool_names=allowed_tool_names,
+                    output_type=FinalResult,
+                )
+
+                merged_queue: _asyncio.Queue[tuple[str, object]] = _asyncio.Queue()
+                agent_done = _asyncio.Event()
+                messages_holder: list[list[ModelMessage]] = []
+
+                async def _agent_runner():
+                    try:
+                        async with agent.run_stream(
+                            agent_input,
+                            message_history=loop_history,
+                            model_settings={"max_tokens": settings.agent_max_tokens},
+                        ) as stream_result:
+                            await merged_queue.put(("text-start", tid))
+                            last_message = ""
+                            async for partial in stream_result.stream_output(
+                                debounce_by="text"
+                            ):
+                                current = (partial.message or "").strip()
+                                if (
+                                    current.startswith(last_message)
+                                    and len(current) > len(last_message)
+                                ):
+                                    delta = current[len(last_message):]
+                                    if delta:
+                                        await merged_queue.put(("text-delta", delta))
+                                elif current != last_message:
+                                    delta = (
+                                        current[len(last_message):]
+                                        if current.startswith(last_message)
+                                        else current
+                                    )
+                                    if delta:
+                                        await merged_queue.put(("text-delta", delta))
+                                last_message = current
+                            messages_holder.append(stream_result.all_messages())
+                            await merged_queue.put(("final-output", stream_result.output))
+                            await merged_queue.put(("text-end", None))
+                    except Exception as exc:
+                        await merged_queue.put(("error", exc))
+                    finally:
+                        agent_done.set()
+
+                async def _tool_monitor():
+                    while not agent_done.is_set():
+                        try:
+                            event = await _asyncio.wait_for(tracker.queue.get(), timeout=1.0)
+                            await merged_queue.put(("tool-progress", event))
+                        except _asyncio.TimeoutError:
+                            continue
+                    while not tracker.queue.empty():
+                        await merged_queue.put(("tool-progress", tracker.queue.get_nowait()))
+
+                runner_task = _asyncio.create_task(_agent_runner())
+                monitor_task = _asyncio.create_task(_tool_monitor())
 
                 last_heartbeat = time.monotonic()
-
-            await runner_task
-            await monitor_task
-
-            agent_messages = _agent_messages_holder[0] if _agent_messages_holder else []
-
-            # 5. Check tool call results and push structured events
-            # Also detect request_interactive_content for three-stream follow-up
-            interactive_plan = None
-            for call in agent_messages:
-                if hasattr(call, "parts"):
-                    for part in call.parts:
-                        if hasattr(part, "tool_name") and hasattr(part, "content"):
-                            if part.tool_name == "request_interactive_content":
-                                interactive_plan = part.content
-                            else:
-                                events = _build_tool_result_events(
-                                    enc, part.tool_name, part.content
-                                )
-                                if events and part.tool_name in (
-                                    "propose_pptx_outline",
-                                    "generate_pptx",
-                                ):
-                                    emitted_ppt_artifact = True
-                                for event in events:
-                                    yield event
-
-            # 6. If agent planned interactive content, launch three-stream generation
-            if interactive_plan and isinstance(interactive_plan, dict):
-                from skills.interactive_skill import generate_interactive_stream
-
-                async for event in generate_interactive_stream(
-                    interactive_plan, teacher_context
-                ):
-                    if event["type"] == "start":
-                        yield enc.data("interactive-content-start", event)
-                    elif event["type"].endswith("-delta"):
-                        yield enc.data(f"interactive-{event['type']}", {
-                            "content": event["content"],
-                        })
-                    elif event["type"].endswith("-complete") and event["type"] != "complete":
-                        phase = event["type"].replace("-complete", "")
-                        yield enc.data(f"interactive-{phase}-complete", {})
-                    elif event["type"] == "complete":
-                        yield enc.data("interactive-content", {
-                            "html": event.get("html", ""),
-                            "css": event.get("css", ""),
-                            "js": event.get("js", ""),
-                            "title": event.get("title", "Interactive Content"),
-                            "description": event.get("description", ""),
-                            "preferredHeight": event.get("preferredHeight", 500),
-                        })
-
-            reply_text = "".join(streamed_reply_parts)
-            ppt_intent_for_turn = _is_ppt_request(f"{history_text}\n{agent_input_text}")
-            ppt_confirmation_for_turn = _is_ppt_confirmation(
-                f"{history_text}\n{agent_input_text}"
-            )
-            promised_outline = _looks_like_outline_promise(reply_text)
-            if (ppt_intent_for_turn or promised_outline) and not emitted_ppt_artifact:
-                outline_payload = _build_fallback_ppt_outline(
-                    f"{history_text}\n{agent_input_text}"
-                )
-                if outline_payload is not None and ppt_confirmation_for_turn:
-                    logger.warning(
-                        "[AgentPath] PPT confirmation had no file artifact; generating fallback PPT."
-                    )
+                while True:
+                    if runner_task.done() and monitor_task.done() and merged_queue.empty():
+                        break
                     try:
-                        from tools.render_tools import generate_pptx
-
-                        fallback_slides = _outline_to_fallback_slides(outline_payload)
-                        fallback_file = await generate_pptx(
-                            slides=fallback_slides,
-                            title=str(outline_payload.get("title") or "Presentation"),
-                            template="education",
+                        msg_type, queue_payload = await _asyncio.wait_for(
+                            merged_queue.get(), timeout=5.0
                         )
-                        if not saw_tool_progress:
-                            yield enc.data(
-                                "tool-progress",
+                    except _asyncio.TimeoutError:
+                        now = time.monotonic()
+                        if now - last_heartbeat > _SSE_HEARTBEAT_INTERVAL:
+                            yield ": heartbeat\n\n"
+                            last_heartbeat = now
+                        continue
+
+                    if msg_type == "text-start":
+                        yield enc.text_start(str(queue_payload))
+                    elif msg_type == "text-delta":
+                        yield enc.text_delta(tid, str(queue_payload))
+                    elif msg_type == "text-end":
+                        yield enc.text_end(tid)
+                    elif msg_type == "tool-progress" and isinstance(queue_payload, ToolEvent):
+                        yield enc.data(
+                            "tool-progress",
+                            {
+                                "tool": queue_payload.tool,
+                                "status": queue_payload.status,
+                                "message": queue_payload.message,
+                                "duration_ms": queue_payload.duration_ms,
+                            },
+                        )
+                    elif msg_type == "final-output" and isinstance(queue_payload, FinalResult):
+                        final_result = queue_payload
+                    elif msg_type == "error":
+                        raise queue_payload  # type: ignore[misc]
+
+                    last_heartbeat = time.monotonic()
+
+                await runner_task
+                await monitor_task
+
+                agent_messages = messages_holder[0] if messages_holder else []
+                interactive_plan = None
+                for call in agent_messages:
+                    if not hasattr(call, "parts"):
+                        continue
+                    for part in call.parts:
+                        if not hasattr(part, "tool_name") or not hasattr(part, "content"):
+                            continue
+                        if isinstance(part.tool_name, str):
+                            called_tool_names.add(part.tool_name)
+                        if part.tool_name == "request_interactive_content":
+                            interactive_plan = part.content
+                            continue
+                        for event_line in _build_tool_result_events(
+                            enc, part.tool_name, part.content
+                        ):
+                            event_type = _extract_sse_event_type(event_line)
+                            if event_type:
+                                emitted_event_types.add(event_type)
+                            yield event_line
+
+                if interactive_plan and isinstance(interactive_plan, dict):
+                    from skills.interactive_skill import generate_interactive_stream
+
+                    async for event in generate_interactive_stream(
+                        interactive_plan, teacher_context
+                    ):
+                        if event["type"] == "start":
+                            line = enc.data("interactive-content-start", event)
+                        elif event["type"].endswith("-delta"):
+                            line = enc.data(
+                                f"interactive-{event['type']}",
+                                {"content": event["content"]},
+                            )
+                        elif (
+                            event["type"].endswith("-complete")
+                            and event["type"] != "complete"
+                        ):
+                            phase = event["type"].replace("-complete", "")
+                            line = enc.data(f"interactive-{phase}-complete", {})
+                        elif event["type"] == "complete":
+                            line = enc.data(
+                                "interactive-content",
                                 {
-                                    "tool": "generate_pptx",
-                                    "status": "done",
-                                    "message": "Fallback PPT generated",
+                                    "html": event.get("html", ""),
+                                    "css": event.get("css", ""),
+                                    "js": event.get("js", ""),
+                                    "title": event.get("title", "Interactive Content"),
+                                    "description": event.get("description", ""),
+                                    "preferredHeight": event.get("preferredHeight", 500),
                                 },
                             )
-                        for event in _build_tool_result_events(
-                            enc, "generate_pptx", fallback_file
-                        ):
-                            yield event
-                    except Exception:
-                        logger.exception(
-                            "[AgentPath] Fallback PPT generation failed; emitting outline."
-                        )
-                        yield enc.data(
-                            "tool-progress",
-                            {
-                                "tool": "propose_pptx_outline",
-                                "status": "done",
-                                "message": "Fallback outline generated",
-                            },
-                        )
-                        yield enc.data("pptx-outline", outline_payload)
-                elif outline_payload is not None:
-                    logger.warning(
-                        "[AgentPath] PPT request returned no tool artifact; emitting fallback outline."
-                    )
-                    if not saw_tool_progress:
-                        yield enc.data(
-                            "tool-progress",
-                            {
-                                "tool": "propose_pptx_outline",
-                                "status": "done",
-                                "message": "Fallback outline generated",
-                            },
-                        )
-                    yield enc.data("pptx-outline", outline_payload)
+                        else:
+                            continue
+                        event_type = _extract_sse_event_type(line)
+                        if event_type:
+                            emitted_event_types.add(event_type)
+                        yield line
 
-            last_error = None
-            break  # success — exit the fallback loop
+                if final_result is None:
+                    raise RuntimeError("Unified agent did not produce FinalResult output")
+
+                try:
+                    validate_terminal_state(
+                        final_result,
+                        emitted_events=emitted_event_types,
+                        called_tools=called_tool_names,
+                        expected_mode=router_result.expected_mode or "artifact",
+                    )
+                except SoftRetryNeeded as exc:
+                    if validation_retry_budget > 0:
+                        validation_retry_budget -= 1
+                        loop_history = (message_history or []) + agent_messages
+                        logger.warning(
+                            "[UnifiedAgent] soft validation retry: %s", exc
+                        )
+                        continue
+                    logger.warning(
+                        "[UnifiedAgent] soft validation exhausted; accepting result"
+                    )
+                except RetryNeeded as exc:
+                    if validation_retry_budget > 0:
+                        validation_retry_budget -= 1
+                        loop_history = (message_history or []) + agent_messages
+                        logger.warning(
+                            "[UnifiedAgent] terminal-state retry: %s", exc
+                        )
+                        continue
+                    raise
+
+                completed = True
+                break
+
+            if completed:
+                break
 
         except Exception as e:
             last_error = f"{model_name}: {type(e).__name__}: {e}"
@@ -1306,14 +1420,73 @@ async def _stream_agent_mode(
                     "Agent model %s failed (provider error), will try fallback: %s",
                     model_name, e,
                 )
-                continue  # try next model in chain
-            else:
-                # Non-provider error or last model in chain — give up
-                logger.exception("Agent path error (attempt %d/%d)", attempt + 1, len(model_chain))
-                yield enc.error(f"Agent path error: {e}")
-                break
+                continue
+            logger.exception("Agent path error (attempt %d/%d)", attempt + 1, len(model_chain))
+            if raise_on_error:
+                raise
+            yield enc.error(f"Agent path error: {e}")
+            break
 
     yield enc.finish_step()
+
+
+def _extract_sse_event_type(line: str) -> str | None:
+    """Extract `type` from a single SSE `data:` line."""
+    if not line.startswith("data: "):
+        return None
+    try:
+        payload = json.loads(line[6:].strip())
+    except Exception:
+        return None
+    event_type = payload.get("type") if isinstance(payload, dict) else None
+    return event_type if isinstance(event_type, str) else None
+
+
+_PPT_CONFIRM_RE = re.compile(
+    r"(?:(?:confirm|approved|go ahead|proceed).*(?:ppt|slides?|presentation|deck)"
+    r"|(?:确认|同意|开始|继续|生成).*(?:ppt|课件|幻灯片))",
+    re.IGNORECASE,
+)
+
+
+def _is_ppt_confirmation(text: str) -> bool:
+    """Compatibility helper kept for existing tests."""
+    return bool(text and _PPT_CONFIRM_RE.search(text))
+
+
+def _outline_to_fallback_slides(outline_payload: dict) -> list[dict]:
+    """Compatibility fallback slide converter for tests/tools."""
+    title = str(outline_payload.get("title") or "Presentation")
+    outline = outline_payload.get("outline")
+    if not isinstance(outline, list):
+        outline = []
+    slides: list[dict] = [
+        {
+            "layout": "title",
+            "title": title,
+            "body": "Auto-generated by Insight AI",
+            "notes": "Generated from fallback outline.",
+        }
+    ]
+    for section in outline:
+        if not isinstance(section, dict):
+            continue
+        section_title = str(section.get("title") or "Section")
+        points = [
+            str(item).strip()
+            for item in (section.get("key_points") or [])[:8]
+            if item is not None and str(item).strip()
+        ]
+        slides.append(
+            {
+                "layout": "content",
+                "title": section_title,
+                "body": "\n".join(points) if points else "Key ideas and teaching focus.",
+                "notes": f"Explain: {section_title}",
+            }
+        )
+    max_slides = max(2, get_settings().pptx_max_slides)
+    return slides[:max_slides]
 
 
 def _compose_content_request_after_clarify(
@@ -1369,150 +1542,6 @@ def _compose_content_request_after_clarify(
         f"Additional details from user:\n{current_message}\n\n"
         "Do not only acknowledge. Produce the complete deliverable directly."
     )
-
-
-_PPT_REQUEST_RE = re.compile(
-    r"(?:\bppt\b|课件|投影片|幻灯片|slides?|presentation|deck)",
-    re.IGNORECASE,
-)
-_PPT_CONFIRM_RE = re.compile(
-    r"(?:"
-    r"(?:confirm|confirmed|approve|approved|go ahead|proceed|finalize)"
-    r"|(?:确认|同意|可以|开始|继续|生成|制作).{0,6}(?:ppt|课件|幻灯片)"
-    r"|(?:确认生成|开始生成|继续生成)"
-    r")",
-    re.IGNORECASE,
-)
-_OUTLINE_PROMISE_RE = re.compile(
-    r"(?:outline|大纲|审阅|先.*(设计|提供).*(课件|PPT)|review)",
-    re.IGNORECASE,
-)
-
-
-def _is_ppt_request(text: str) -> bool:
-    return bool(text and _PPT_REQUEST_RE.search(text))
-
-
-def _is_ppt_confirmation(text: str) -> bool:
-    return bool(text and _PPT_CONFIRM_RE.search(text))
-
-
-def _apply_ppt_execution_directive(message: str, history_text: str = "") -> str:
-    """Inject a strict tool-use instruction for PPT requests.
-
-    This reduces cases where the model says it will draft an outline but
-    never calls ``propose_pptx_outline``/``generate_pptx``.
-    """
-    joined = f"{history_text}\n{message}".strip()
-    if not _is_ppt_request(joined):
-        return message
-
-    if _is_ppt_confirmation(joined):
-        return (
-            f"{message}\n\n"
-            "[Execution Requirement]\n"
-            "The teacher has explicitly confirmed PPT generation.\n"
-            "In this turn you MUST call generate_pptx directly and return the file artifact.\n"
-            "Do NOT call propose_pptx_outline again."
-        )
-
-    return (
-        f"{message}\n\n"
-        "[Execution Requirement]\n"
-        "This is a PPT/slides request. In this turn you MUST call a PPT tool.\n"
-        "- If the teacher is still deciding structure: call propose_pptx_outline.\n"
-        "- If the teacher already confirmed generation: call generate_pptx.\n"
-        "Do not reply with outline text only."
-    )
-
-
-def _looks_like_outline_promise(text: str) -> bool:
-    return bool(text and _OUTLINE_PROMISE_RE.search(text))
-
-
-def _build_fallback_ppt_outline(message: str) -> dict | None:
-    """Build a minimal outline payload when no PPT tool artifact was emitted."""
-    if not _is_ppt_request(message):
-        return None
-
-    title = "Mathematics Lesson PPT"
-    topic_match = re.search(r"(概率统计|函数|几何|代数|微积分|统计)", message)
-    if topic_match:
-        title = f"{topic_match.group(1)} Lesson PPT"
-
-    outline = [
-        {
-            "title": "课程目标与导入",
-            "key_points": ["学习目标", "知识背景", "课堂安排"],
-        },
-        {
-            "title": "核心概念与公式推导",
-            "key_points": ["概念定义", "公式推导步骤", "常见误区"],
-        },
-        {
-            "title": "例题演示",
-            "key_points": ["典型例题1", "典型例题2", "解题策略"],
-        },
-        {
-            "title": "课堂练习与互动",
-            "key_points": ["分层练习", "即时反馈", "纠错讲解"],
-        },
-        {
-            "title": "总结与作业",
-            "key_points": ["重点回顾", "方法总结", "课后任务"],
-        },
-    ]
-
-    return {
-        "title": title,
-        "outline": outline,
-        "totalSlides": len(outline),
-        "estimatedDuration": 45,
-        "requiresConfirmation": True,
-    }
-
-
-def _outline_to_fallback_slides(outline_payload: dict) -> list[dict]:
-    """Convert fallback outline payload to generate_pptx-compatible slides."""
-    title = str(outline_payload.get("title") or "Presentation")
-    outline = outline_payload.get("outline")
-    if not isinstance(outline, list):
-        outline = []
-
-    slides: list[dict] = [
-        {
-            "layout": "title",
-            "title": title,
-            "body": "Auto-generated by Insight AI",
-            "notes": "Generated from confirmed outline fallback.",
-        }
-    ]
-
-    for section in outline:
-        if not isinstance(section, dict):
-            continue
-        section_title = str(section.get("title") or "Section")
-        key_points = section.get("key_points")
-        points: list[str] = []
-        if isinstance(key_points, list):
-            for item in key_points[:8]:
-                if item is None:
-                    continue
-                clean = str(item).strip()
-                if clean:
-                    points.append(clean)
-        body = "\n".join(points) if points else "Key ideas and teaching focus."
-        slides.append(
-            {
-                "layout": "content",
-                "title": section_title,
-                "body": body,
-                "notes": f"Explain: {section_title}",
-            }
-        )
-
-    max_slides = max(2, get_settings().pptx_max_slides)
-    return slides[:max_slides]
 
 
 def _is_provider_error(exc: Exception) -> bool:

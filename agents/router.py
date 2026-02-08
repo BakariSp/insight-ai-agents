@@ -99,7 +99,8 @@ async def classify_intent(
             message,
             model_settings=ROUTER_LLM_CONFIG.to_litellm_kwargs(),
         )
-        router_result = result.output
+        router_result = _normalize_router_fields(result.output)
+        router_result.expected_mode = _infer_expected_mode(router_result.intent)
         logger.info(
             "Router (followup): intent=%s confidence=%.2f",
             router_result.intent,
@@ -127,7 +128,7 @@ async def classify_intent(
             message,
             model_settings=ROUTER_LLM_CONFIG.to_litellm_kwargs(),
         )
-    router_result = result.output
+    router_result = _normalize_router_fields(result.output)
 
     # Apply confidence-based routing overrides
     router_result = _apply_confidence_routing(router_result)
@@ -137,6 +138,7 @@ async def classify_intent(
 
     # Assign execution path based on intent
     router_result.path = _assign_path(router_result)
+    router_result.expected_mode = _infer_expected_mode(router_result.intent)
 
     # Apply skill_config overrides (e.g. file upload auto-enables RAG)
     if skill_config:
@@ -182,6 +184,24 @@ def _assign_path(result: RouterResult) -> str:
     return "agent"
 
 
+def _infer_expected_mode(intent: str) -> str:
+    """Infer expected terminal mode for unified-agent validation."""
+    if intent == IntentType.CLARIFY.value:
+        return "clarify"
+    if intent in (IntentType.QUIZ_GENERATE.value, IntentType.CONTENT_CREATE.value):
+        return "artifact"
+    return "answer"
+
+
+def _normalize_router_fields(result: RouterResult) -> RouterResult:
+    """Keep candidate_tools and suggested_tools synchronized."""
+    if result.candidate_tools and not result.suggested_tools:
+        result.suggested_tools = list(result.candidate_tools)
+    elif result.suggested_tools and not result.candidate_tools:
+        result.candidate_tools = list(result.suggested_tools)
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Keyword-based quiz hints
 # ---------------------------------------------------------------------------
@@ -210,6 +230,8 @@ def _apply_quiz_keyword_correction(r: RouterResult, message: str) -> RouterResul
     if not is_quiz_like:
         return r
 
+    if "generate_quiz_questions" not in r.candidate_tools:
+        r.candidate_tools.append("generate_quiz_questions")
     if "generate_quiz_questions" not in r.suggested_tools:
         r.suggested_tools.append("generate_quiz_questions")
         logger.info(
