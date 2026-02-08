@@ -26,7 +26,8 @@ from tools.assessment_tools import (
 from tools.rubric_tools import get_rubric, list_available_rubrics
 from tools.document_tools import search_teacher_documents
 from tools.render_tools import (
-    propose_pptx_outline, generate_pptx, generate_docx, render_pdf, generate_interactive_html,
+    propose_pptx_outline, generate_pptx, generate_docx, render_pdf,
+    generate_interactive_html, request_interactive_content,
 )
 from tools.platform_tools import save_as_assignment, create_share_link
 
@@ -54,6 +55,7 @@ mcp.tool()(generate_pptx)
 mcp.tool()(generate_docx)
 mcp.tool()(render_pdf)
 mcp.tool()(generate_interactive_html)
+mcp.tool()(request_interactive_content)
 # Agent Path: Platform operations
 mcp.tool()(save_as_assignment)
 mcp.tool()(create_share_link)
@@ -81,6 +83,7 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     "generate_docx": generate_docx,
     "render_pdf": render_pdf,
     "generate_interactive_html": generate_interactive_html,
+    "request_interactive_content": request_interactive_content,
     # Agent Path: Platform operations
     "save_as_assignment": save_as_assignment,
     "create_share_link": create_share_link,

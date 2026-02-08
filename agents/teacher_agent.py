@@ -39,6 +39,7 @@ AGENT_TOOL_NAMES = [
     "generate_docx",
     "render_pdf",
     "generate_interactive_html",
+    "request_interactive_content",
     # Platform operations (new)
     "save_as_assignment",
     "create_share_link",
@@ -50,6 +51,7 @@ def create_teacher_agent(
     suggested_tools: list[str] | None = None,
     model_tier: str = "standard",
     _override_model: str | None = None,
+    tool_tracker=None,
 ) -> Agent:
     """Create a universal teacher Agent instance.
 
@@ -60,6 +62,7 @@ def create_teacher_agent(
                     Controls which LLM is used for this agent session.
         _override_model: If set, use this model name instead of tier mapping.
                          Used internally by the fallback mechanism.
+        tool_tracker: Optional ToolTracker for real-time progress events.
 
     Returns:
         PydanticAI Agent instance with tools + system prompt
@@ -86,7 +89,10 @@ def create_teacher_agent(
     # Register available tools (plain — no RunContext needed)
     tools = _get_agent_tools()
     for tool_fn in tools:
-        agent.tool_plain()(tool_fn)
+        if tool_tracker is not None:
+            agent.tool_plain()(tool_tracker.wrap(tool_fn))
+        else:
+            agent.tool_plain()(tool_fn)
 
     return agent
 

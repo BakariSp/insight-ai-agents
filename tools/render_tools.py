@@ -313,6 +313,58 @@ async def generate_interactive_html(
     }
 
 
+# ── Interactive Content Planning (Three-Stream) ─────────────────
+
+
+async def request_interactive_content(
+    title: str,
+    description: str,
+    topics: list[str],
+    sections: list[dict],
+    grade_level: str = "",
+    subject: str = "",
+    style: str = "modern",
+    include_features: list[str] | None = None,
+) -> dict:
+    """Plan interactive HTML content for three-stream parallel generation.
+
+    Call this instead of generate_interactive_html for better quality and
+    progressive rendering. The actual HTML/CSS/JS will be generated in
+    parallel as a follow-up step — the teacher sees content appear gradually.
+
+    Define sections with element IDs so the three generators (HTML, CSS, JS)
+    stay consistent with each other.
+
+    Args:
+        title: Content title shown above the preview frame.
+        description: What this interactive content does (one sentence).
+        topics: Key concepts to cover (e.g. ["friction", "Newton's laws"]).
+        sections: Page structure. Each section needs:
+            - id (str): HTML element ID (e.g. "friction-demo")
+            - type (str): section type (text/simulation/quiz/chart/animation)
+            - desc (str): What this section contains
+        grade_level: Target grade (e.g. "Grade 8").
+        subject: Subject area (e.g. "Physics").
+        style: Visual style — "modern" (default), "playful", or "scientific".
+        include_features: Features to include (animation, drag-drop, quiz, simulation).
+
+    Returns:
+        Plan dict that triggers three-stream generation.
+    """
+    return {
+        "status": "planned",
+        "title": title,
+        "description": description,
+        "topics": topics,
+        "sections": sections,
+        "gradeLevel": grade_level,
+        "subject": subject,
+        "style": style,
+        "includeFeatures": include_features or [],
+        "willStream": True,
+    }
+
+
 # ── Internal Helpers ─────────────────────────────────────────────
 
 
