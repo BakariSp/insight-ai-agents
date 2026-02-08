@@ -24,6 +24,9 @@ class DataStreamEncoder:
     Every public method returns a ready-to-yield SSE string.
     """
 
+    def __init__(self, text_sink: list[str] | None = None):
+        self._text_sink = text_sink
+
     @staticmethod
     def _sse(payload: dict[str, Any]) -> str:
         return f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
@@ -65,6 +68,8 @@ class DataStreamEncoder:
         return self._sse({"type": "text-start", "id": text_id})
 
     def text_delta(self, text_id: str, delta: str) -> str:
+        if self._text_sink is not None and delta:
+            self._text_sink.append(delta)
         return self._sse({"type": "text-delta", "id": text_id, "delta": delta})
 
     def text_end(self, text_id: str) -> str:

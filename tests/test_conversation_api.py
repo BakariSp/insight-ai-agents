@@ -7,8 +7,14 @@ from httpx import ASGITransport, AsyncClient
 
 from main import app
 from models.blueprint import Blueprint
-from models.conversation import ClarifyChoice, ClarifyOptions, RouterResult
+from models.conversation import (
+    ClarifyChoice,
+    ClarifyOptions,
+    ConversationRequest,
+    RouterResult,
+)
 from models.entity import EntityType, ResolvedEntity, ResolveResult
+from services.conversation_store import InMemoryConversationStore
 from tests.test_planner import _sample_blueprint_args
 
 
@@ -214,6 +220,42 @@ async def test_conversation_followup_chat(client):
     assert data["chatKind"] == "page"
     assert "Wong Ka Ho" in data["chatResponse"]
     assert data["blueprint"] is None
+
+
+@pytest.mark.asyncio
+async def test_load_session_keeps_20_round_context():
+    """Regression: session history window should cover at least 20 rounds."""
+    from api.conversation import _load_session
+
+    store = InMemoryConversationStore(ttl_seconds=3600)
+
+    # Seed 20 complete rounds (40 turns)
+    session = None
+    req = None
+    for i in range(20):
+        req = ConversationRequest(
+            message=f"user turn {i}",
+            conversation_id=req.conversation_id if req else None,
+            attachments=[],
+            context={},
+        )
+        session, _history, _messages = await _load_session(store, req)
+        session.add_assistant_turn(f"assistant turn {i}", action="chat_smalltalk")
+        await store.save(session)
+
+    # 21st user message: history should still include earliest seeded turns
+    req_final = ConversationRequest(
+        message="current turn",
+        conversation_id=req.conversation_id,
+        attachments=[],
+        context={},
+    )
+    _session, history_text, message_history = await _load_session(store, req_final)
+
+    assert "USER: user turn 0" in history_text
+    assert "ASSISTANT: [chat_smalltalk] assistant turn 0" in history_text
+    assert "current turn" not in history_text
+    assert len(message_history) == 40
 
 
 # ── Follow-up mode: refine ────────────────────────────────────

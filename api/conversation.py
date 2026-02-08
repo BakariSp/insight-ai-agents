@@ -25,6 +25,8 @@ import time
 from typing import AsyncGenerator
 
 _SSE_HEARTBEAT_INTERVAL = 15  # seconds
+_ROUTER_HISTORY_MAX_TURNS = 40
+_MESSAGE_HISTORY_MAX_TURNS = 40
 
 from fastapi import APIRouter, HTTPException
 from starlette.responses import StreamingResponse
@@ -116,8 +118,12 @@ async def _load_session(
     # Record current user turn
     session.add_user_turn(req.message, attachment_count=len(req.attachments))
 
-    history_text = session.format_history_for_prompt(max_turns=5)
-    message_history = session.to_pydantic_messages(max_turns=10)
+    history_text = session.format_history_for_prompt(
+        max_turns=_ROUTER_HISTORY_MAX_TURNS
+    )
+    message_history = session.to_pydantic_messages(
+        max_turns=_MESSAGE_HISTORY_MAX_TURNS
+    )
     return session, history_text, message_history
 
 
@@ -219,7 +225,8 @@ async def _conversation_stream_generator(
     req: ConversationRequest,
 ) -> AsyncGenerator[str, None]:
     """Generate the full conversation as a Data Stream Protocol SSE stream."""
-    enc = DataStreamEncoder()
+    streamed_text_parts: list[str] = []
+    enc = DataStreamEncoder(text_sink=streamed_text_parts)
     session: ConversationSession | None = None
     intent = "unknown"
 
@@ -236,6 +243,7 @@ async def _conversation_stream_generator(
         # ── Session: load ──
         store = get_conversation_store()
         session, history_text, message_history = await _load_session(store, req)
+        yield enc.data("conversation", {"conversationId": req.conversation_id})
 
         is_followup = req.blueprint is not None
 
@@ -274,7 +282,9 @@ async def _conversation_stream_generator(
 
     # ── Session: save (after stream completes) ──
     if session is not None:
-        session.add_assistant_turn(f"[streamed: {intent}]", action=intent)
+        streamed_text = "".join(streamed_text_parts).strip()
+        response_summary = streamed_text or f"[streamed: {intent}]"
+        session.add_assistant_turn(response_summary, action=intent)
         if req.context:
             session.merge_context(req.context)
         try:
