@@ -21,6 +21,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import AsyncGenerator
 
@@ -110,6 +111,23 @@ async def _load_session(
     is_new_session = session is None
     if session is None:
         session = ConversationSession(conversation_id=req.conversation_id)
+
+    # ── Defense-in-depth: restore history from recentHistory fallback ──
+    # If we created a new session (no existing turns) but the frontend sent
+    # recentHistory, populate the session with those messages.  This handles
+    # the race condition where conversationId was lost between turns.
+    if is_new_session and req.recent_history and len(session.turns) == 0:
+        logger.warning(
+            "[Session] New session but recentHistory provided (%d items) — "
+            "restoring context from frontend fallback. conv_id=%s",
+            len(req.recent_history),
+            req.conversation_id,
+        )
+        for item in req.recent_history:
+            if item.role == "user":
+                session.add_user_turn(item.content)
+            elif item.role == "assistant":
+                session.add_assistant_turn(item.content)
 
     logger.info(
         "[Session] conv_id=%s had_id=%s new_session=%s existing_turns=%d message=%.60s",
@@ -299,7 +317,15 @@ async def _conversation_stream_generator(
             async for line in _stream_followup(enc, req, intent, router_result, history_text, message_history):
                 yield line
         else:
-            async for line in _stream_initial(enc, req, intent, router_result, history_text, message_history):
+            async for line in _stream_initial(
+                enc,
+                req,
+                intent,
+                router_result,
+                history_text,
+                message_history,
+                session=session,
+            ):
                 yield line
 
     except Exception as e:
@@ -311,6 +337,8 @@ async def _conversation_stream_generator(
         streamed_text = "".join(streamed_text_parts).strip()
         response_summary = streamed_text or f"[streamed: {intent}]"
         session.add_assistant_turn(response_summary, action=intent)
+        session.last_intent = intent
+        session.last_action = intent
         if req.context:
             session.merge_context(req.context)
         try:
@@ -335,6 +363,7 @@ async def _stream_initial(
     router_result,
     history_text: str = "",
     message_history: list[ModelMessage] | None = None,
+    session: ConversationSession | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream initial-mode intents via Data Stream Protocol."""
 
@@ -357,14 +386,18 @@ async def _stream_initial(
 
     # ── Quiz Generate (Skill fast path) ──
     if intent == IntentType.QUIZ_GENERATE.value:
-        async for line in _stream_quiz_generate(enc, req, router_result):
+        async for line in _stream_quiz_with_unified_fallback(
+            enc, req, router_result, history_text, message_history
+        ):
             yield line
         return
 
     # ── Content Create (Agent Path) ──
     if intent == IntentType.CONTENT_CREATE.value:
+        agent_message = _compose_content_request_after_clarify(session, req.message)
         async for line in _stream_agent_mode(
             enc, req, router_result,
+            agent_message=agent_message,
             history_text=history_text,
             message_history=message_history,
         ):
@@ -403,6 +436,7 @@ async def _stream_initial(
             teacher_id=req.teacher_id,
             query_text=req.message,
             context=req.context,
+            history_text=history_text,
         )
 
         # Emit resolved entities as tool events
@@ -425,13 +459,41 @@ async def _stream_initial(
         yield enc.reasoning_end("entity")
         yield enc.finish_step()
 
-        # Missing context → clarify
+        # Missing context → clarify (class takes priority since assignment depends on it)
         if resolve_result.missing_context:
-            for _line in _emit_clarify(
-                enc, req, "Which class would you like to look at?", hint="needClassId"
-            ):
-                yield _line
-            return
+            if "class" in resolve_result.missing_context:
+                for _line in _emit_clarify(
+                    enc, req, "Which class would you like to look at?", hint="needClassId"
+                ):
+                    yield _line
+                return
+
+            if "assignment" in resolve_result.missing_context:
+                if resolve_result.clarify_options:
+                    yield enc.data("action", {"action": "clarify"})
+                    yield enc.data(
+                        "clarify",
+                        {
+                            "type": "single_select",
+                            "choices": resolve_result.clarify_options,
+                            "hint": "needAssignmentId",
+                        },
+                    )
+                    tid = enc._id()
+                    yield enc.text_start(tid)
+                    yield enc.text_delta(
+                        tid, "Which assignment would you like to analyze?"
+                    )
+                    yield enc.text_end(tid)
+                else:
+                    for _line in _emit_clarify(
+                        enc,
+                        req,
+                        "Which assignment would you like to analyze?",
+                        hint="needAssignmentId",
+                    ):
+                        yield _line
+                return
 
         # No entities → proceed without enrichment
         if resolve_result.scope_mode == "none":
@@ -724,6 +786,7 @@ async def _stream_agent_mode(
     enc: DataStreamEncoder,
     req: ConversationRequest,
     router_result: RouterResult,
+    agent_message: str | None = None,
     history_text: str = "",
     message_history: list[ModelMessage] | None = None,
 ) -> AsyncGenerator[str, None]:
@@ -762,9 +825,11 @@ async def _stream_agent_mode(
 
     # 3. Prepare agent input (enrich with attachments)
     from services.multimodal import build_user_content, has_attachments
-    agent_input: str | list = req.message
+    agent_input_text = agent_message or req.message
+    agent_input_text = _apply_ppt_execution_directive(agent_input_text, history_text)
+    agent_input: str | list = agent_input_text
     if req.attachments and has_attachments(req.attachments):
-        agent_input = await build_user_content(req.message, req.attachments)
+        agent_input = await build_user_content(agent_input_text, req.attachments)
 
     # 4. Run Agent with fallback chain
     tier = router_result.model_tier
@@ -782,6 +847,8 @@ async def _stream_agent_mode(
 
     for attempt, model_name in enumerate(model_chain):
         try:
+            saw_tool_progress = False
+            emitted_ppt_artifact = False
             agent = create_teacher_agent(
                 teacher_context=teacher_context,
                 suggested_tools=router_result.suggested_tools,
@@ -805,7 +872,7 @@ async def _stream_agent_mode(
             # Run agent stream + tool tracker concurrently via merged queue
             merged_queue: _asyncio.Queue[tuple[str, object]] = _asyncio.Queue()
             agent_done = _asyncio.Event()
-            _agent_result_holder: list = []
+            _agent_messages_holder: list[list[ModelMessage]] = []
 
             async def _agent_runner():
                 try:
@@ -817,8 +884,9 @@ async def _stream_agent_mode(
                         await merged_queue.put(("text-start", tid))
                         async for chunk in stream_result.stream_text(delta=True):
                             await merged_queue.put(("text-delta", chunk))
+                        # Capture full message graph before stream context exits.
+                        _agent_messages_holder.append(stream_result.all_messages())
                         await merged_queue.put(("text-end", None))
-                        _agent_result_holder.append(stream_result)
                 except Exception as exc:
                     await merged_queue.put(("error", exc))
                 finally:
@@ -840,8 +908,11 @@ async def _stream_agent_mode(
             monitor_task = _asyncio.create_task(_tool_monitor())
 
             last_heartbeat = time.monotonic()
+            streamed_reply_parts: list[str] = []
 
-            while not agent_done.is_set() or not merged_queue.empty():
+            while True:
+                if runner_task.done() and monitor_task.done() and merged_queue.empty():
+                    break
                 try:
                     msg_type, payload = await _asyncio.wait_for(merged_queue.get(), timeout=5.0)
                 except _asyncio.TimeoutError:
@@ -854,11 +925,14 @@ async def _stream_agent_mode(
                 if msg_type == "text-start":
                     yield enc.text_start(str(payload))
                 elif msg_type == "text-delta":
-                    yield enc.text_delta(tid, str(payload))
+                    delta_text = str(payload)
+                    streamed_reply_parts.append(delta_text)
+                    yield enc.text_delta(tid, delta_text)
                 elif msg_type == "text-end":
                     yield enc.text_end(tid)
                 elif msg_type == "tool-progress":
                     if isinstance(payload, ToolEvent):
+                        saw_tool_progress = True
                         yield enc.data("tool-progress", {
                             "tool": payload.tool,
                             "status": payload.status,
@@ -873,24 +947,28 @@ async def _stream_agent_mode(
             await runner_task
             await monitor_task
 
-            agent_result = _agent_result_holder[0] if _agent_result_holder else None
+            agent_messages = _agent_messages_holder[0] if _agent_messages_holder else []
 
             # 5. Check tool call results and push structured events
             # Also detect request_interactive_content for three-stream follow-up
             interactive_plan = None
-            if agent_result is not None:
-                for call in agent_result.all_messages():
-                    if hasattr(call, "parts"):
-                        for part in call.parts:
-                            if hasattr(part, "tool_name") and hasattr(part, "content"):
-                                if part.tool_name == "request_interactive_content":
-                                    interactive_plan = part.content
-                                else:
-                                    events = _build_tool_result_events(
-                                        enc, part.tool_name, part.content
-                                    )
-                                    for event in events:
-                                        yield event
+            for call in agent_messages:
+                if hasattr(call, "parts"):
+                    for part in call.parts:
+                        if hasattr(part, "tool_name") and hasattr(part, "content"):
+                            if part.tool_name == "request_interactive_content":
+                                interactive_plan = part.content
+                            else:
+                                events = _build_tool_result_events(
+                                    enc, part.tool_name, part.content
+                                )
+                                if events and part.tool_name in (
+                                    "propose_pptx_outline",
+                                    "generate_pptx",
+                                ):
+                                    emitted_ppt_artifact = True
+                                for event in events:
+                                    yield event
 
             # 6. If agent planned interactive content, launch three-stream generation
             if interactive_plan and isinstance(interactive_plan, dict):
@@ -918,6 +996,70 @@ async def _stream_agent_mode(
                             "preferredHeight": event.get("preferredHeight", 500),
                         })
 
+            reply_text = "".join(streamed_reply_parts)
+            ppt_intent_for_turn = _is_ppt_request(f"{history_text}\n{agent_input_text}")
+            ppt_confirmation_for_turn = _is_ppt_confirmation(
+                f"{history_text}\n{agent_input_text}"
+            )
+            promised_outline = _looks_like_outline_promise(reply_text)
+            if (ppt_intent_for_turn or promised_outline) and not emitted_ppt_artifact:
+                outline_payload = _build_fallback_ppt_outline(
+                    f"{history_text}\n{agent_input_text}"
+                )
+                if outline_payload is not None and ppt_confirmation_for_turn:
+                    logger.warning(
+                        "[AgentPath] PPT confirmation had no file artifact; generating fallback PPT."
+                    )
+                    try:
+                        from tools.render_tools import generate_pptx
+
+                        fallback_slides = _outline_to_fallback_slides(outline_payload)
+                        fallback_file = await generate_pptx(
+                            slides=fallback_slides,
+                            title=str(outline_payload.get("title") or "Presentation"),
+                            template="education",
+                        )
+                        if not saw_tool_progress:
+                            yield enc.data(
+                                "tool-progress",
+                                {
+                                    "tool": "generate_pptx",
+                                    "status": "done",
+                                    "message": "Fallback PPT generated",
+                                },
+                            )
+                        for event in _build_tool_result_events(
+                            enc, "generate_pptx", fallback_file
+                        ):
+                            yield event
+                    except Exception:
+                        logger.exception(
+                            "[AgentPath] Fallback PPT generation failed; emitting outline."
+                        )
+                        yield enc.data(
+                            "tool-progress",
+                            {
+                                "tool": "propose_pptx_outline",
+                                "status": "done",
+                                "message": "Fallback outline generated",
+                            },
+                        )
+                        yield enc.data("pptx-outline", outline_payload)
+                elif outline_payload is not None:
+                    logger.warning(
+                        "[AgentPath] PPT request returned no tool artifact; emitting fallback outline."
+                    )
+                    if not saw_tool_progress:
+                        yield enc.data(
+                            "tool-progress",
+                            {
+                                "tool": "propose_pptx_outline",
+                                "status": "done",
+                                "message": "Fallback outline generated",
+                            },
+                        )
+                    yield enc.data("pptx-outline", outline_payload)
+
             last_error = None
             break  # success — exit the fallback loop
 
@@ -937,6 +1079,205 @@ async def _stream_agent_mode(
                 break
 
     yield enc.finish_step()
+
+
+def _compose_content_request_after_clarify(
+    session: ConversationSession | None,
+    current_message: str,
+) -> str:
+    """Expand a post-clarify reply into an executable content request.
+
+    When the previous assistant turn was ``clarify`` and the user only replies
+    with missing parameters (e.g. grade, duration), the model can reply with an
+    acknowledgement but skip actual generation. We stitch the original request
+    and new details into one explicit instruction so Agent Path proceeds.
+    """
+    if session is None or len(session.turns) < 3:
+        return current_message
+
+    turns = session.turns
+    if turns[-1].role != "user":
+        return current_message
+
+    # Find the most recent assistant turn before the current user turn.
+    last_assistant_idx: int | None = None
+    for idx in range(len(turns) - 2, -1, -1):
+        if turns[idx].role == "assistant":
+            last_assistant_idx = idx
+            break
+
+    if last_assistant_idx is None:
+        return current_message
+
+    last_action = (turns[last_assistant_idx].action or "").strip().lower()
+    if last_action != IntentType.CLARIFY.value:
+        return current_message
+
+    original_request = ""
+    for idx in range(last_assistant_idx - 1, -1, -1):
+        turn = turns[idx]
+        if turn.role == "user" and turn.content.strip():
+            original_request = turn.content.strip()
+            break
+
+    if not original_request:
+        return current_message
+
+    logger.info(
+        "[Continuity] Expanding post-clarify content request. original=%.80s details=%.80s",
+        original_request,
+        current_message,
+    )
+    return (
+        "Continue the previous request with the provided details and generate the final output now.\n\n"
+        f"Original request:\n{original_request}\n\n"
+        f"Additional details from user:\n{current_message}\n\n"
+        "Do not only acknowledge. Produce the complete deliverable directly."
+    )
+
+
+_PPT_REQUEST_RE = re.compile(
+    r"(?:\bppt\b|课件|投影片|幻灯片|slides?|presentation|deck)",
+    re.IGNORECASE,
+)
+_PPT_CONFIRM_RE = re.compile(
+    r"(?:"
+    r"(?:confirm|confirmed|approve|approved|go ahead|proceed|finalize)"
+    r"|(?:确认|同意|可以|开始|继续|生成|制作).{0,6}(?:ppt|课件|幻灯片)"
+    r"|(?:确认生成|开始生成|继续生成)"
+    r")",
+    re.IGNORECASE,
+)
+_OUTLINE_PROMISE_RE = re.compile(
+    r"(?:outline|大纲|审阅|先.*(设计|提供).*(课件|PPT)|review)",
+    re.IGNORECASE,
+)
+
+
+def _is_ppt_request(text: str) -> bool:
+    return bool(text and _PPT_REQUEST_RE.search(text))
+
+
+def _is_ppt_confirmation(text: str) -> bool:
+    return bool(text and _PPT_CONFIRM_RE.search(text))
+
+
+def _apply_ppt_execution_directive(message: str, history_text: str = "") -> str:
+    """Inject a strict tool-use instruction for PPT requests.
+
+    This reduces cases where the model says it will draft an outline but
+    never calls ``propose_pptx_outline``/``generate_pptx``.
+    """
+    joined = f"{history_text}\n{message}".strip()
+    if not _is_ppt_request(joined):
+        return message
+
+    if _is_ppt_confirmation(joined):
+        return (
+            f"{message}\n\n"
+            "[Execution Requirement]\n"
+            "The teacher has explicitly confirmed PPT generation.\n"
+            "In this turn you MUST call generate_pptx directly and return the file artifact.\n"
+            "Do NOT call propose_pptx_outline again."
+        )
+
+    return (
+        f"{message}\n\n"
+        "[Execution Requirement]\n"
+        "This is a PPT/slides request. In this turn you MUST call a PPT tool.\n"
+        "- If the teacher is still deciding structure: call propose_pptx_outline.\n"
+        "- If the teacher already confirmed generation: call generate_pptx.\n"
+        "Do not reply with outline text only."
+    )
+
+
+def _looks_like_outline_promise(text: str) -> bool:
+    return bool(text and _OUTLINE_PROMISE_RE.search(text))
+
+
+def _build_fallback_ppt_outline(message: str) -> dict | None:
+    """Build a minimal outline payload when no PPT tool artifact was emitted."""
+    if not _is_ppt_request(message):
+        return None
+
+    title = "Mathematics Lesson PPT"
+    topic_match = re.search(r"(概率统计|函数|几何|代数|微积分|统计)", message)
+    if topic_match:
+        title = f"{topic_match.group(1)} Lesson PPT"
+
+    outline = [
+        {
+            "title": "课程目标与导入",
+            "key_points": ["学习目标", "知识背景", "课堂安排"],
+        },
+        {
+            "title": "核心概念与公式推导",
+            "key_points": ["概念定义", "公式推导步骤", "常见误区"],
+        },
+        {
+            "title": "例题演示",
+            "key_points": ["典型例题1", "典型例题2", "解题策略"],
+        },
+        {
+            "title": "课堂练习与互动",
+            "key_points": ["分层练习", "即时反馈", "纠错讲解"],
+        },
+        {
+            "title": "总结与作业",
+            "key_points": ["重点回顾", "方法总结", "课后任务"],
+        },
+    ]
+
+    return {
+        "title": title,
+        "outline": outline,
+        "totalSlides": len(outline),
+        "estimatedDuration": 45,
+        "requiresConfirmation": True,
+    }
+
+
+def _outline_to_fallback_slides(outline_payload: dict) -> list[dict]:
+    """Convert fallback outline payload to generate_pptx-compatible slides."""
+    title = str(outline_payload.get("title") or "Presentation")
+    outline = outline_payload.get("outline")
+    if not isinstance(outline, list):
+        outline = []
+
+    slides: list[dict] = [
+        {
+            "layout": "title",
+            "title": title,
+            "body": "Auto-generated by Insight AI",
+            "notes": "Generated from confirmed outline fallback.",
+        }
+    ]
+
+    for section in outline:
+        if not isinstance(section, dict):
+            continue
+        section_title = str(section.get("title") or "Section")
+        key_points = section.get("key_points")
+        points: list[str] = []
+        if isinstance(key_points, list):
+            for item in key_points[:8]:
+                if item is None:
+                    continue
+                clean = str(item).strip()
+                if clean:
+                    points.append(clean)
+        body = "\n".join(points) if points else "Key ideas and teaching focus."
+        slides.append(
+            {
+                "layout": "content",
+                "title": section_title,
+                "body": body,
+                "notes": f"Explain: {section_title}",
+            }
+        )
+
+    max_slides = max(2, get_settings().pptx_max_slides)
+    return slides[:max_slides]
 
 
 def _is_provider_error(exc: Exception) -> bool:
@@ -1219,22 +1560,33 @@ async def _handle_initial(
             teacher_id=req.teacher_id,
             query_text=req.message,
             context=req.context,
+            history_text=history_text,
         )
 
-        # Missing dependent context → clarify
+        # Missing dependent context → clarify (class first, then assignment)
         if resolve_result.missing_context:
-            hint = "needClassId"
-            clarify_options = await build_clarify_options(
-                hint, teacher_id=req.teacher_id,
-            )
-            return ConversationResponse(
-                mode="entry",
-                action="clarify",
-                chat_response="Which class would you like to look at?",
-                clarify_options=clarify_options,
-                resolved_entities=resolve_result.entities or None,
-                conversation_id=req.conversation_id,
-            )
+            if "class" in resolve_result.missing_context:
+                hint = "needClassId"
+                clarify_options = await build_clarify_options(
+                    hint, teacher_id=req.teacher_id,
+                )
+                return ConversationResponse(
+                    mode="entry",
+                    action="clarify",
+                    chat_response="Which class would you like to look at?",
+                    clarify_options=clarify_options,
+                    resolved_entities=resolve_result.entities or None,
+                    conversation_id=req.conversation_id,
+                )
+            if "assignment" in resolve_result.missing_context:
+                return ConversationResponse(
+                    mode="entry",
+                    action="clarify",
+                    chat_response="Which assignment would you like to analyze?",
+                    clarify_options=resolve_result.clarify_options or None,
+                    resolved_entities=resolve_result.entities or None,
+                    conversation_id=req.conversation_id,
+                )
 
         if resolve_result.scope_mode == "none":
             # No entities mentioned — proceed normally

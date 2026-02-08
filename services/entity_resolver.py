@@ -641,6 +641,7 @@ async def resolve_entities(
     teacher_id: str,
     query_text: str,
     context: dict[str, Any] | None = None,
+    history_text: str = "",
 ) -> ResolveResult:
     """Resolve all entity references in *query_text* to concrete IDs.
 
@@ -715,12 +716,19 @@ async def resolve_entities(
         class_id_for_detail = class_entities[0].entity_id
 
     # ── 3. Detect student / assignment mentions ──
+    # Check both current query and conversation history for triggers so that
+    # cross-turn entity requirements (e.g. "latest assignment" asked in turn 1,
+    # class selected in turn 2) are not lost.
+    combined_text = f"{query_text}\n{history_text}" if history_text else query_text
+
     student_mentions = _extract_student_mentions(query_text)
-    has_student_trigger = _has_student_mentions(query_text)
+    has_student_trigger = _has_student_mentions(combined_text)
     needs_student = bool(student_mentions or has_student_trigger)
 
     assignment_mentions = _extract_assignment_mentions(query_text)
-    has_assignment_trigger = _has_assignment_mentions(query_text)
+    if not assignment_mentions and history_text:
+        assignment_mentions = _extract_assignment_mentions(history_text)
+    has_assignment_trigger = _has_assignment_mentions(combined_text)
     needs_assignment = bool(assignment_mentions or has_assignment_trigger)
 
     # ── 4. Fetch class detail once (shared by student + assignment) ──
@@ -744,6 +752,7 @@ async def resolve_entities(
                 missing_context.append("class")
 
     # ── 6. Assignment resolution ──
+    clarify_options: list[dict[str, Any]] = []
     if needs_assignment:
         if class_id_for_detail:
             assignments = detail.get("assignments", []) if detail else []
@@ -754,6 +763,19 @@ async def resolve_entities(
                 all_entities.extend(assignment_entities)
                 if any(e.match_type == "fuzzy" for e in assignment_entities):
                     is_ambiguous = True
+            elif assignments:
+                # Trigger detected (from current text or history) but no
+                # specific assignment title to match → ask user to pick.
+                if "assignment" not in missing_context:
+                    missing_context.append("assignment")
+                clarify_options = [
+                    {
+                        "label": a.get("title", ""),
+                        "value": a.get("assignment_id", ""),
+                    }
+                    for a in assignments
+                    if a.get("assignment_id") and a.get("title")
+                ]
         else:
             if "class" not in missing_context:
                 missing_context.append("class")
@@ -767,6 +789,7 @@ async def resolve_entities(
         is_ambiguous=is_ambiguous,
         scope_mode=scope_mode,
         missing_context=missing_context,
+        clarify_options=clarify_options,
     )
 
 

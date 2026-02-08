@@ -7,7 +7,7 @@ natural-language entity mentions (classes, students, assignments) to concrete ID
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -39,3 +39,4 @@ class ResolveResult(CamelModel):
     is_ambiguous: bool = False
     scope_mode: Literal["none", "single", "multi", "grade"] = "none"
     missing_context: list[str] = Field(default_factory=list)
+    clarify_options: list[dict[str, Any]] = Field(default_factory=list)

@@ -121,6 +121,13 @@ class ClarifyOptions(CamelModel):
 # ── Unified request / response ────────────────────────────────
 
 
+class RecentHistoryItem(CamelModel):
+    """A single message in the recent conversation history fallback."""
+
+    role: str  # "user" or "assistant"
+    content: str
+
+
 class ConversationRequest(CamelModel):
     """POST /api/conversation — unified request body."""
 
@@ -133,6 +140,7 @@ class ConversationRequest(CamelModel):
     page_context: dict | None = None
     conversation_id: str | None = None
     skill_config: SkillConfig | None = None  # Skill toggles (RAG, file context)
+    recent_history: list[RecentHistoryItem] | None = None  # Fallback when session is lost
 
 
 class ConversationResponse(CamelModel):
