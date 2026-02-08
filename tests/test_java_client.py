@@ -28,6 +28,7 @@ def client():
         s.spring_boot_timeout = 10
         s.spring_boot_access_token = "test-token"
         s.spring_boot_refresh_token = "test-refresh"
+        s.internal_api_secret = "test-internal-secret"
         mock_settings.return_value = s
         yield JavaClient()
 
@@ -59,6 +60,7 @@ def test_base_url_constructed(client):
 def test_auth_headers(client):
     headers = client._auth_headers()
     assert headers["Authorization"] == "Bearer test-token"
+    assert headers["X-Internal-Secret"] == "test-internal-secret"
 
 
 def test_auth_headers_empty_token():
@@ -69,6 +71,7 @@ def test_auth_headers_empty_token():
         s.spring_boot_timeout = 10
         s.spring_boot_access_token = ""
         s.spring_boot_refresh_token = ""
+        s.internal_api_secret = ""
         mock_settings.return_value = s
         c = JavaClient()
     assert c._auth_headers() == {}

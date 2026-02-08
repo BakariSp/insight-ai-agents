@@ -2,8 +2,9 @@
 
 Wraps ``httpx.AsyncClient`` with:
 - base URL + API prefix construction
-- Bearer token auth (access + refresh)
+- DIFY account auto-login (preferred) or static Bearer token auth
 - retry with exponential backoff (network / 5xx errors)
+- automatic re-login on 401/403 (token expired)
 - circuit breaker: auto-degrade to mock after N consecutive failures
 - request timing logs
 - connection-pool lifecycle tied to FastAPI lifespan
@@ -65,14 +66,30 @@ class JavaClient:
         self._refresh_token = settings.spring_boot_refresh_token
         self._http: httpx.AsyncClient | None = None
 
+        # Internal secret for AI Agent → Java internal calls (parse-status, download)
+        self._internal_secret = settings.internal_api_secret
+
+        # Auto-login credentials
+        self._dify_account = settings.spring_boot_dify_account
+        self._dify_password = settings.spring_boot_dify_password
+        self._dify_role = settings.spring_boot_dify_role
+        self._dify_school_id = settings.spring_boot_dify_school_id
+
         # Circuit breaker state
         self._consecutive_failures = 0
         self._circuit_opened_at: float | None = None
 
+        # Guard against re-login loops
+        self._login_in_progress = False
+
     # -- lifecycle -----------------------------------------------------------
 
     async def start(self) -> None:
-        """Create the underlying ``httpx.AsyncClient`` connection pool."""
+        """Create the underlying ``httpx.AsyncClient`` connection pool.
+
+        If DIFY credentials are configured, performs auto-login to obtain
+        fresh JWT tokens (preferred over static tokens from .env).
+        """
         if self._http is not None:
             return
         self._http = httpx.AsyncClient(
@@ -82,6 +99,16 @@ class JavaClient:
             verify=False,  # internal API – skip TLS verification
         )
         logger.info("JavaClient started — base_url=%s", self._base_url)
+
+        # Auto-login with DIFY credentials if configured
+        if self._dify_account and self._dify_password:
+            try:
+                await self._login()
+            except Exception:
+                logger.warning(
+                    "DIFY auto-login failed on start; will retry on first request",
+                    exc_info=True,
+                )
 
     async def close(self) -> None:
         """Gracefully close the connection pool."""
@@ -104,6 +131,10 @@ class JavaClient:
         """Send a POST request with retry and circuit-breaker logic."""
         return await self._request_with_retry("POST", path, json_body=json_body)
 
+    async def put(self, path: str, json_body: dict[str, Any] | None = None) -> Any:
+        """Send a PUT request with retry and circuit-breaker logic."""
+        return await self._request_with_retry("PUT", path, json_body=json_body)
+
     # -- token management ----------------------------------------------------
 
     def update_tokens(self, access_token: str, refresh_token: str | None = None) -> None:
@@ -114,6 +145,66 @@ class JavaClient:
         if self._http is not None:
             self._http.headers.update(self._auth_headers())
         logger.info("JavaClient tokens updated")
+
+    # -- DIFY auto-login -----------------------------------------------------
+
+    async def _login(self) -> None:
+        """Login with DIFY service account to get fresh JWT tokens."""
+        if not self._dify_account or not self._dify_password:
+            return
+
+        client = self._ensure_started()
+        logger.info("Logging in as DIFY account: %s", self._dify_account)
+
+        response = await client.post("/auth/login", json={
+            "schoolId": self._dify_school_id,
+            "account": self._dify_account,
+            "password": self._dify_password,
+            "role": self._dify_role,
+        })
+
+        if response.status_code != 200:
+            detail = response.text[:300] if response.text else f"HTTP {response.status_code}"
+            logger.error("DIFY login failed: %d — %s", response.status_code, detail)
+            raise JavaClientError(
+                status_code=response.status_code,
+                detail=f"DIFY login failed: {detail}",
+                url=str(response.url),
+            )
+
+        body = response.json()
+        data = body.get("data", {})
+        access_token = data.get("accessToken", "")
+        refresh_token = data.get("refreshToken", "")
+
+        if not access_token:
+            raise JavaClientError(
+                status_code=200,
+                detail="DIFY login response missing accessToken",
+                url=str(response.url),
+            )
+
+        self._access_token = access_token
+        self._refresh_token = refresh_token
+        client.headers.update(self._auth_headers())
+        logger.info("DIFY login successful — token obtained (expires in %ss)", data.get("expiresIn", "?"))
+
+    async def _try_relogin(self) -> bool:
+        """Attempt re-login once. Returns True if successful."""
+        if self._login_in_progress:
+            return False
+        if not self._dify_account or not self._dify_password:
+            return False
+
+        self._login_in_progress = True
+        try:
+            await self._login()
+            return True
+        except Exception:
+            logger.warning("DIFY re-login failed", exc_info=True)
+            return False
+        finally:
+            self._login_in_progress = False
 
     # -- circuit breaker -----------------------------------------------------
 
@@ -165,9 +256,9 @@ class JavaClient:
         - Network errors (``httpx.TransportError``)
         - Server errors (5xx)
 
-        Does NOT retry on:
-        - Client errors (4xx) — raised immediately
-        - Circuit breaker open — raised immediately
+        On 401/403: attempts one DIFY re-login then retries.
+        Does NOT retry on other client errors (4xx).
+        Raises :class:`CircuitOpenError` when circuit is open.
         """
         if self.circuit_open:
             raise CircuitOpenError()
@@ -180,6 +271,8 @@ class JavaClient:
             try:
                 if method == "GET":
                     response = await client.get(path, params=params)
+                elif method == "PUT":
+                    response = await client.put(path, json=json_body)
                 else:
                     response = await client.post(path, json=json_body)
 
@@ -188,6 +281,15 @@ class JavaClient:
                     "%s %s → %d (%.0fms)",
                     method, path, response.status_code, elapsed_ms,
                 )
+
+                # 401/403: try re-login once, then retry
+                if response.status_code in (401, 403) and attempt == 1:
+                    logger.warning(
+                        "%s %s → %d, attempting DIFY re-login",
+                        method, path, response.status_code,
+                    )
+                    if await self._try_relogin():
+                        continue  # retry with fresh token
 
                 # 4xx: non-retryable client error
                 if 400 <= response.status_code < 500:
@@ -245,6 +347,8 @@ class JavaClient:
         headers: dict[str, str] = {}
         if self._access_token:
             headers["Authorization"] = f"Bearer {self._access_token}"
+        if self._internal_secret:
+            headers["X-Internal-Secret"] = self._internal_secret
         return headers
 
     def _ensure_started(self) -> httpx.AsyncClient:
