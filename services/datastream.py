@@ -40,8 +40,8 @@ class DataStreamEncoder:
     def start(self, message_id: str | None = None) -> str:
         return self._sse({"type": "start", "messageId": message_id or self._id()})
 
-    def finish(self) -> str:
-        return self._sse({"type": "finish"}) + "data: [DONE]\n\n"
+    def finish(self, reason: str = "stop") -> str:
+        return self._sse({"type": "finish", "finishReason": reason}) + "data: [DONE]\n\n"
 
     def start_step(self) -> str:
         return self._sse({"type": "start-step"})
@@ -197,7 +197,20 @@ def map_executor_event(
     elif t == "COMPLETE":
         lines.append(enc.data("page", event.get("result", {})))
 
-    elif t in ("ERROR", "DATA_ERROR"):
+    elif t == "DATA_ERROR":
+        lines.append(
+            enc.data(
+                "error",
+                {
+                    "errorType": "data_error",
+                    "message": event.get("message", "Unknown data error"),
+                    "entity": event.get("entity"),
+                    "suggestions": event.get("suggestions", []),
+                },
+            )
+        )
+
+    elif t == "ERROR":
         lines.append(enc.error(event.get("message", "Unknown error")))
 
     elif t == "MESSAGE":
