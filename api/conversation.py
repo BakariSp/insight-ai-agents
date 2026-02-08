@@ -832,11 +832,13 @@ async def _stream_agent_mode(
 
 
 def _is_provider_error(exc: Exception) -> bool:
-    """Check if an exception is a provider-level error (connection, auth, rate limit).
+    """Check if an exception indicates a model-level failure worth retrying with fallback.
 
-    These errors indicate the model provider is unavailable and fallback
-    should be attempted.  Application-level errors (e.g. tool failures,
-    prompt too long) should NOT trigger fallback.
+    Returns True for:
+    - Provider connectivity errors (connection, auth, rate limit)
+    - Model behaviour errors (tool call failures after retries)
+
+    Returns False for application-level errors (e.g. business logic).
     """
     exc_name = type(exc).__name__
     exc_msg = str(exc).lower()
@@ -848,6 +850,10 @@ def _is_provider_error(exc: Exception) -> bool:
         "RemoteProtocolError", "ConnectError", "TimeoutException",
     }
     if exc_name in provider_error_types:
+        return True
+
+    # Model can't use tools correctly after retries → try a different model
+    if exc_name == "UnexpectedModelBehavior":
         return True
 
     # Check wrapped cause
