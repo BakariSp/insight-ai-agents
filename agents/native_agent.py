@@ -28,6 +28,7 @@ from agents.provider import create_model
 from config.prompts.native_agent import SYSTEM_PROMPT
 from config.settings import get_settings
 from services.metrics import get_metrics_collector
+from services.tool_tracker import ToolTracker
 from tools.registry import (
     ALL_TOOLSETS,
     ALWAYS_TOOLSETS,
@@ -35,6 +36,7 @@ from tools.registry import (
     TOOLSET_ARTIFACT_OPS,
     TOOLSET_GENERATION,
     get_tools,
+    get_tools_raw,
 )
 
 logger = logging.getLogger(__name__)
@@ -201,9 +203,27 @@ class NativeAgent:
         self,
         toolsets: list[str],
         deps: AgentDeps,
+        tracker: ToolTracker | None = None,
     ) -> Agent[AgentDeps, str]:
-        """Create a PydanticAI Agent with selected toolset for this turn."""
-        toolset = get_tools(toolsets)
+        """Create a PydanticAI Agent with selected toolset for this turn.
+
+        When *tracker* is provided, each tool function is wrapped with
+        ``tracker.wrap()`` so the tracker can emit running/done/error and
+        stream-item events that the SSE layer converts to ``data-*`` events.
+        """
+        if tracker is not None:
+            from pydantic_ai import Tool
+            from pydantic_ai.toolsets import FunctionToolset
+
+            raw_tools = get_tools_raw(toolsets)
+            wrapped = [
+                Tool(tracker.wrap(rt.func), name=rt.name)
+                for rt in raw_tools
+            ]
+            toolset = FunctionToolset(wrapped)
+        else:
+            toolset = get_tools(toolsets)
+
         model = create_model(self._model_name)
         return Agent(
             model=model,
@@ -220,6 +240,7 @@ class NativeAgent:
         message: str,
         deps: AgentDeps,
         message_history: Sequence[ModelMessage] | None = None,
+        tracker: ToolTracker | None = None,
     ) -> AsyncIterator[StreamedRunResult[AgentDeps, str]]:
         """Run the agent with streaming output.
 
@@ -227,11 +248,14 @@ class NativeAgent:
         Caller should use ``async with`` to consume the stream.
 
         This is an async generator that yields exactly one StreamedRunResult.
+
+        Args:
+            tracker: Optional ToolTracker for real-time tool progress events.
         """
         selected = await select_toolsets(message, deps)
         if not deps.turn_id:
             deps.turn_id = f"turn-{uuid.uuid4().hex[:10]}"
-        agent = self._create_agent(selected, deps)
+        agent = self._create_agent(selected, deps, tracker=tracker)
 
         _log_turn_start(deps, message, selected)
         start_time = time.monotonic()

@@ -11,7 +11,9 @@ Does NOT: route intents, classify messages, select tools, maintain state machine
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
@@ -25,6 +27,7 @@ from services.conversation_store import (
 )
 from models.errors import classify_stream_error
 from services.datastream import DataStreamEncoder
+from services.tool_tracker import ToolTracker, ToolEvent
 from agents.native_agent import AgentDeps, NativeAgent
 from services.stream_adapter import adapt_stream, extract_tool_calls_summary
 
@@ -82,23 +85,89 @@ async def conversation_stream(req: ConversationRequest):
         text_parts: list[str] = []
         enc = DataStreamEncoder(text_sink=text_parts)
         _stream_ref: list = []  # capture stream for tool summary extraction
+        tracker = ToolTracker()
 
         # Push conversationId to frontend via SSE (FP-4 contract)
         yield enc.data("conversation", {"conversationId": conversation_id})
+
+        # Queue for tracker events to be yielded as SSE
+        tracker_lines: asyncio.Queue[str] = asyncio.Queue()
+        tracker_done = asyncio.Event()
+
+        async def _consume_tracker():
+            """Consume ToolTracker events and convert to SSE lines."""
+            while not tracker_done.is_set() or not tracker.queue.empty():
+                try:
+                    event: ToolEvent = await asyncio.wait_for(
+                        tracker.queue.get(), timeout=0.1
+                    )
+                except (asyncio.TimeoutError, TimeoutError):
+                    continue
+
+                # Convert tracker events to SSE lines
+                if event.status == "running":
+                    await tracker_lines.put(
+                        enc.data("tool-progress", {
+                            "toolName": event.tool,
+                            "status": "running",
+                        }, id=f"tp-{event.tool}")
+                    )
+                elif event.status == "done":
+                    await tracker_lines.put(
+                        enc.data("tool-progress", {
+                            "toolName": event.tool,
+                            "status": "done",
+                            "duration_ms": event.duration_ms,
+                        }, id=f"tp-{event.tool}")
+                    )
+                elif event.status == "error":
+                    await tracker_lines.put(
+                        enc.data("tool-progress", {
+                            "toolName": event.tool,
+                            "status": "error",
+                            "message": event.message,
+                        }, id=f"tp-{event.tool}")
+                    )
+                elif event.status == "stream-item" and event.data:
+                    # Real-time quiz question streaming
+                    evt_name = event.data.get("event", "")
+                    if evt_name == "quiz-question":
+                        q = event.data.get("question", {})
+                        idx = event.data.get("index", 0)
+                        q_id = q.get("id", f"q-{idx}")
+                        await tracker_lines.put(
+                            enc.data("quiz-question", {
+                                "index": idx,
+                                "question": q,
+                            }, id=q_id)
+                        )
+
+        tracker_task = asyncio.create_task(_consume_tracker())
 
         try:
             async for stream in _agent.run_stream(
                 message=req.message,
                 deps=deps,
                 message_history=message_history,
+                tracker=tracker,
             ):
                 _stream_ref.append(stream)
-                async for line in adapt_stream(stream, enc, message_id=conversation_id):
+                msg_id = f"msg-{uuid.uuid4().hex[:12]}"
+                async for line in adapt_stream(stream, enc, message_id=msg_id):
+                    # Also drain any tracker lines that accumulated
+                    while not tracker_lines.empty():
+                        yield tracker_lines.get_nowait()
                     yield line
         except Exception as e:
             logger.exception("Stream error for conversation %s", conversation_id)
             yield enc.error(classify_stream_error(str(e)))
             yield enc.finish("error")
+
+        # Signal tracker consumer to stop and drain remaining events
+        tracker_done.set()
+        await tracker_task
+        while not tracker_lines.empty():
+            yield tracker_lines.get_nowait()
 
         # Extract tool calls summary for multi-turn context
         tool_summary = None

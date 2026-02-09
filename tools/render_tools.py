@@ -539,7 +539,11 @@ async def _upload_file(filepath: Path, filename: str, content_type: str) -> str:
         import logging
         logging.getLogger(__name__).debug("OSS upload failed, using local fallback: %s", exc)
 
-    # Fallback: serve from Python Agent's local file endpoint
+    # Fallback: serve from Python Agent's local file endpoint.
+    # Return an absolute URL so the frontend (running on a different port)
+    # can resolve the download link without guessing the AI Agent origin.
     remember_display_name(filepath.name, filename)
-    return f"/api/files/generated/{filepath.name}"
+    settings = get_settings()
+    base_url = f"http://localhost:{settings.service_port}"
+    return f"{base_url}/api/files/generated/{filepath.name}"
     # Note: temporary file is NOT deleted here — caller or cleanup job handles it

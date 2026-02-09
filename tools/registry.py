@@ -118,6 +118,18 @@ def get_tools(toolsets: Sequence[str]) -> FunctionToolset:
     return FunctionToolset(selected)
 
 
+def get_tools_raw(toolsets: Sequence[str]) -> list[RegisteredTool]:
+    """Return raw RegisteredTool entries for the given toolsets.
+
+    Used by NativeAgent to wrap tools with ToolTracker before building
+    a FunctionToolset.
+    """
+    return [
+        rt for rt in _registry.values()
+        if rt.toolset in toolsets
+    ]
+
+
 def get_all_tools() -> FunctionToolset:
     """Return a FunctionToolset containing ALL registered tools."""
     all_tools = [

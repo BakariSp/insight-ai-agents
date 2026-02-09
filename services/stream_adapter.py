@@ -55,6 +55,8 @@ async def adapt_stream(
     prev_text_len: dict[int, int] = {}  # part_index → last seen text length
     emitted_tool_start: set[int] = set()  # part indices where we emitted tool-input-start
     emitted_tool_input: set[int] = set()  # part indices where we emitted tool-input-available
+    emitted_call_ids: dict[int, str] = {}  # part_index → the call_id we actually emitted
+    real_to_emitted: dict[str, str] = {}  # real tool_call_id → emitted call_id
     text_ids: dict[int, str] = {}  # part_index → text-id for SSE
     text_started: set[int] = set()  # part indices where we emitted text-start
     text_ended: set[int] = set()  # part indices where we already emitted text-end
@@ -87,7 +89,16 @@ async def adapt_stream(
                         text_ended.add(tidx)
 
                     # ── Tool call streaming ──
-                    call_id = part.tool_call_id or f"tc-{idx}"
+                    # Lock the call_id on first emission to avoid mismatches:
+                    # tool_call_id may be None in early snapshots, populated later.
+                    if idx not in emitted_call_ids:
+                        call_id = part.tool_call_id or f"tc-{idx}"
+                        emitted_call_ids[idx] = call_id
+                    call_id = emitted_call_ids[idx]
+
+                    # Track real → emitted mapping for tool-output-available
+                    if part.tool_call_id and part.tool_call_id not in real_to_emitted:
+                        real_to_emitted[part.tool_call_id] = call_id
 
                     if idx not in emitted_tool_start:
                         yield enc.tool_input_start(call_id, part.tool_name)
@@ -99,14 +110,41 @@ async def adapt_stream(
                         yield enc.tool_input_available(call_id, part.tool_name, args)
                         emitted_tool_input.add(idx)
 
-        # After streaming completes, emit tool results from new_messages
+        # After streaming completes, emit tool calls and results from new_messages.
+        # This catches ToolCallParts not seen during stream_responses() (common
+        # with LiteLLM providers) and emits tool-input-start/available for them.
         for msg in stream.new_messages():
+            if isinstance(msg, ModelResponse):
+                for part in msg.parts:
+                    if isinstance(part, ToolCallPart):
+                        raw_id = part.tool_call_id or f"tc-post-{uuid.uuid4().hex[:6]}"
+                        call_id = real_to_emitted.get(raw_id, raw_id)
+                        # Register mapping if new
+                        if part.tool_call_id and part.tool_call_id not in real_to_emitted:
+                            real_to_emitted[part.tool_call_id] = call_id
+
+                        # Only emit if not already emitted during streaming
+                        if call_id not in {emitted_call_ids.get(i) for i in emitted_tool_start}:
+                            # Close any open text parts first
+                            for tidx in text_started - text_ended:
+                                yield enc.text_end(text_ids[tidx])
+                                text_ended.add(tidx)
+
+                            yield enc.tool_input_start(call_id, part.tool_name)
+                            args = part.args if isinstance(part.args, dict) else {}
+                            yield enc.tool_input_available(call_id, part.tool_name, args)
+
             if isinstance(msg, ModelRequest):
                 for part in msg.parts:
                     if isinstance(part, ToolReturnPart):
-                        call_id = part.tool_call_id or uuid.uuid4().hex[:8]
+                        raw_id = part.tool_call_id or uuid.uuid4().hex[:8]
+                        call_id = real_to_emitted.get(raw_id, raw_id)
                         output = _serialize_tool_output(part.content)
                         yield enc.tool_output_available(call_id, output)
+
+                        # Emit semantic data-* events based on tool output
+                        for line in _emit_semantic_events(enc, output):
+                            yield line
 
         # Close any text parts still open after stream completes
         for tidx in text_started - text_ended:
@@ -135,6 +173,95 @@ def _serialize_tool_output(content: Any) -> Any:
     if isinstance(content, list):
         return content
     return str(content)
+
+
+def _emit_semantic_events(
+    enc: DataStreamEncoder, output: Any
+) -> list[str]:
+    """Inspect tool output and return semantic data-* SSE events.
+
+    Maps ``artifact_type`` / ``status`` in tool outputs to the frontend's
+    expected ``data-quiz-question``, ``data-file-ready``,
+    ``data-interactive-content``, ``data-pptx-outline``, etc.
+    """
+    if not isinstance(output, dict):
+        return []
+    if output.get("status") == "error":
+        return []
+
+    lines: list[str] = []
+    artifact_type = output.get("artifact_type", "")
+    status = output.get("status", "")
+
+    # ── Quiz questions (batch emit) ──
+    if artifact_type == "quiz" and status == "ok":
+        questions = output.get("questions", [])
+        for i, q in enumerate(questions):
+            q_id = q.get("id", f"q-{i}")
+            lines.append(enc.data("quiz-question", {
+                "index": i,
+                "question": q,
+            }, id=q_id))
+        lines.append(enc.data("quiz-complete", {
+            "total": output.get("total", len(questions)),
+        }))
+
+    # ── Quiz replace (single question refinement) ──
+    elif status == "replaced":
+        lines.append(enc.data("quiz-replace", {
+            "index": output.get("target_index", 0),
+            "question": output.get("question", {}),
+        }))
+
+    # ── PPT outline proposal ──
+    elif status == "proposed":
+        lines.append(enc.data("pptx-outline", {
+            "title": output.get("title", ""),
+            "outline": output.get("outline", []),
+            "totalSlides": output.get("totalSlides", 0),
+            "estimatedDuration": output.get("estimatedDuration", 0),
+            "requiresConfirmation": True,
+        }))
+
+    # ── File ready (PPTX / DOCX / PDF with URL) ──
+    elif artifact_type in ("pptx", "document") and output.get("url"):
+        # Determine file type from artifact_type and filename
+        filename = output.get("filename", "")
+        if artifact_type == "pptx" or filename.endswith(".pptx"):
+            file_type = "pptx"
+        elif filename.endswith(".docx"):
+            file_type = "docx"
+        elif filename.endswith(".pdf"):
+            file_type = "pdf"
+        else:
+            file_type = artifact_type
+        lines.append(enc.data("file-ready", {
+            "type": file_type,
+            "url": output["url"],
+            "filename": filename,
+            "size": output.get("size"),
+            "preview": {
+                "pageCount": output.get("slide_count"),
+            },
+        }))
+
+    # ── Interactive content (complete HTML) ──
+    elif artifact_type == "interactive" and output.get("html"):
+        lines.append(enc.data("interactive-content", {
+            "html": output["html"],
+            "title": output.get("title", ""),
+            "description": output.get("description", ""),
+            "preferredHeight": output.get("preferredHeight", 500),
+        }))
+
+    # ── Clarify action ──
+    elif output.get("action") == "clarify" and output.get("clarify"):
+        clarify = output["clarify"]
+        lines.append(enc.data("clarify", {
+            "choices": clarify.get("options", []),
+        }))
+
+    return lines
 
 
 def extract_tool_calls_summary(result: Any) -> str | None:
