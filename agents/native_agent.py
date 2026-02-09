@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Sequence
 
@@ -24,6 +25,7 @@ from pydantic_ai.settings import ModelSettings
 
 from agents.provider import create_model
 from config.prompts.native_agent import SYSTEM_PROMPT
+from services.metrics import get_metrics_collector
 from tools.registry import (
     ALL_TOOLSETS,
     ALWAYS_TOOLSETS,
@@ -47,6 +49,7 @@ class AgentDeps:
     language: str = "zh-CN"
     class_id: str | None = None
     has_artifacts: bool = False
+    turn_id: str = ""
     context: dict[str, Any] = field(default_factory=dict)
 
 
@@ -165,6 +168,8 @@ class NativeAgent:
         This is an async generator that yields exactly one StreamedRunResult.
         """
         selected = select_toolsets(message, deps)
+        if not deps.turn_id:
+            deps.turn_id = f"turn-{uuid.uuid4().hex[:10]}"
         agent = self._create_agent(selected, deps)
 
         _log_turn_start(deps, message, selected)
@@ -188,6 +193,8 @@ class NativeAgent:
     ):
         """Run the agent and return complete result (non-streaming)."""
         selected = select_toolsets(message, deps)
+        if not deps.turn_id:
+            deps.turn_id = f"turn-{uuid.uuid4().hex[:10]}"
         agent = self._create_agent(selected, deps)
 
         _log_turn_start(deps, message, selected)
@@ -212,6 +219,7 @@ def _log_turn_start(deps: AgentDeps, message: str, toolsets: list[str]) -> None:
     logger.info(json.dumps({
         "event": "turn_start",
         "conversation_id": deps.conversation_id,
+        "turn_id": deps.turn_id,
         "teacher_id": deps.teacher_id,
         "toolsets": toolsets,
         "message_preview": message[:100],
@@ -226,11 +234,16 @@ def _log_turn_end(
 ) -> None:
     """Emit structured JSON log at turn end (streaming mode)."""
     usage = stream.usage()
+    metrics = get_metrics_collector().get_turn_summary(deps.turn_id)
     logger.info(json.dumps({
         "event": "turn_end",
         "conversation_id": deps.conversation_id,
+        "turn_id": deps.turn_id,
         "teacher_id": deps.teacher_id,
         "toolsets": toolsets,
+        "tool_call_count": metrics.get("tool_call_count", 0),
+        "tool_error_count": metrics.get("tool_error_count", 0),
+        "tool_latency_ms": round(metrics.get("total_latency_ms", 0.0), 1),
         "total_latency_ms": round(elapsed_ms, 1),
         "token_usage_input": getattr(usage, "request_tokens", None),
         "token_usage_output": getattr(usage, "response_tokens", None),
@@ -245,11 +258,16 @@ def _log_turn_end_sync(
 ) -> None:
     """Emit structured JSON log at turn end (non-streaming mode)."""
     usage = result.usage() if hasattr(result, "usage") else None
+    metrics = get_metrics_collector().get_turn_summary(deps.turn_id)
     logger.info(json.dumps({
         "event": "turn_end",
         "conversation_id": deps.conversation_id,
+        "turn_id": deps.turn_id,
         "teacher_id": deps.teacher_id,
         "toolsets": toolsets,
+        "tool_call_count": metrics.get("tool_call_count", 0),
+        "tool_error_count": metrics.get("tool_error_count", 0),
+        "tool_latency_ms": round(metrics.get("total_latency_ms", 0.0), 1),
         "total_latency_ms": round(elapsed_ms, 1),
         "token_usage_input": getattr(usage, "request_tokens", None) if usage else None,
         "token_usage_output": getattr(usage, "response_tokens", None) if usage else None,

@@ -11,6 +11,8 @@ from tools.registry import (
     ALL_TOOLSETS,
     ALWAYS_TOOLSETS,
     TOOLSET_BASE_DATA,
+    TOOLSET_ANALYSIS,
+    TOOLSET_ARTIFACT_OPS,
     TOOLSET_GENERATION,
     TOOLSET_PLATFORM,
     _registry,
@@ -49,10 +51,14 @@ class TestRegistryPopulated:
 
     def test_all_toolsets_have_tools(self):
         counts = get_toolset_counts()
-        # At minimum, base_data, generation, platform should have tools
-        assert counts.get(TOOLSET_BASE_DATA, 0) >= 1
-        assert counts.get(TOOLSET_GENERATION, 0) >= 1
-        assert counts.get(TOOLSET_PLATFORM, 0) >= 1
+        assert counts.get(TOOLSET_BASE_DATA, 0) == 5
+        assert counts.get(TOOLSET_ANALYSIS, 0) == 5
+        assert counts.get(TOOLSET_GENERATION, 0) == 7
+        assert counts.get(TOOLSET_ARTIFACT_OPS, 0) == 3
+        assert counts.get(TOOLSET_PLATFORM, 0) == 5
+
+    def test_step2_total_tool_count(self):
+        assert get_registered_count() == 25
 
 
 class TestGetTools:

@@ -14,12 +14,17 @@ Design:
 
 from __future__ import annotations
 
+import inspect
 import logging
-from dataclasses import dataclass, field
+import time
+from functools import wraps
+from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
-from pydantic_ai import RunContext, Tool
+from pydantic_ai import Tool
 from pydantic_ai.toolsets import FunctionToolset
+
+from services.metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -81,13 +86,14 @@ def register_tool(
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         tool_name = name or func.__name__
         doc = (func.__doc__ or "").strip().split("\n")[0]
+        wrapped = _wrap_with_metrics(func, tool_name)
         _registry[tool_name] = RegisteredTool(
             name=tool_name,
-            func=func,
+            func=wrapped,
             toolset=toolset,
             description=doc,
         )
-        return func
+        return wrapped
 
     return decorator
 
@@ -150,3 +156,41 @@ def get_toolset_counts() -> dict[str, int]:
     for rt in _registry.values():
         counts[rt.toolset] = counts.get(rt.toolset, 0) + 1
     return counts
+
+
+def _wrap_with_metrics(func: Callable[..., Any], tool_name: str) -> Callable[..., Any]:
+    if not inspect.iscoroutinefunction(func):
+        return func
+
+    @wraps(func)
+    async def wrapped(*args: Any, **kwargs: Any) -> Any:
+        start = time.monotonic()
+        status = "ok"
+        turn_id = ""
+        conversation_id = ""
+
+        run_ctx = args[0] if args else None
+        deps = getattr(run_ctx, "deps", None)
+        if deps is not None:
+            turn_id = str(getattr(deps, "turn_id", "") or "")
+            conversation_id = str(getattr(deps, "conversation_id", "") or "")
+
+        try:
+            result = await func(*args, **kwargs)
+            if isinstance(result, dict):
+                status = str(result.get("status", "ok"))
+            return result
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            latency_ms = (time.monotonic() - start) * 1000
+            get_metrics_collector().record_tool_call(
+                tool_name=tool_name,
+                status=status,
+                latency_ms=latency_ms,
+                turn_id=turn_id,
+                conversation_id=conversation_id,
+            )
+
+    return wrapped

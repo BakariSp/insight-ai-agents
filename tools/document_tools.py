@@ -16,7 +16,7 @@ async def search_teacher_documents(
     teacher_id: str,
     query: str,
     n_results: int = 5,
-    include_public: bool = True,
+    include_public: bool = False,
 ) -> dict[str, Any]:
     """Search the teacher's knowledge base for relevant document chunks.
 
@@ -31,7 +31,7 @@ async def search_teacher_documents(
         include_public: Also search the public (system) knowledge base.
 
     Returns:
-        {"query": str, "results": list[dict], "total": int}
+        {"status": "ok"|"no_result"|"error"|"degraded", "query": str, "results": list[dict], "total": int}
         Each result has: content, source, score.
     """
     from insight_backend.rag_engine import get_rag_engine
@@ -39,8 +39,14 @@ async def search_teacher_documents(
     try:
         engine = get_rag_engine()
     except RuntimeError:
-        logger.warning("RAG engine not initialized — returning empty results")
-        return {"query": query, "results": [], "total": 0}
+        logger.warning("RAG engine not initialized")
+        return {
+            "status": "error",
+            "reason": "RAG engine not initialized",
+            "query": query,
+            "results": [],
+            "total": 0,
+        }
 
     try:
         results = await engine.search(
@@ -50,11 +56,36 @@ async def search_teacher_documents(
             include_public=include_public,
             top_k=n_results,
         )
+        normalized_results = []
+        for item in results:
+            if not isinstance(item, dict):
+                normalized_results.append(item)
+                continue
+            normalized_results.append({
+                **item,
+                "source": item.get("source", "public" if include_public else "private"),
+            })
+
+        if not normalized_results:
+            return {
+                "status": "no_result",
+                "query": query,
+                "results": [],
+                "total": 0,
+            }
+
         return {
+            "status": "ok",
             "query": query,
-            "results": results,
-            "total": len(results),
+            "results": normalized_results,
+            "total": len(normalized_results),
         }
     except Exception as exc:
         logger.error("Document search failed for teacher %s: %s", teacher_id, exc)
-        return {"query": query, "results": [], "total": 0, "error": str(exc)}
+        return {
+            "status": "error",
+            "reason": str(exc),
+            "query": query,
+            "results": [],
+            "total": 0,
+        }

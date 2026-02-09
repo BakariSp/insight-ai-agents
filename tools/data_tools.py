@@ -1,8 +1,9 @@
-"""Data retrieval tools — fetch from Java backend with mock fallback.
+"""Data retrieval tools — fetch from Java backend with debug-only mock fallback.
 
 Each tool calls the adapter layer → JavaClient for real data.
-When ``USE_MOCK_DATA=true`` or when the backend is unavailable,
-the tools fall back to the mock data in ``services/mock_data.py``.
+When ``debug=true`` and ``USE_MOCK_DATA=true``, tools may fall back to mock data.
+In production (debug=false), missing teacher_id or backend errors return
+structured error payloads instead of mock data.
 
 The return type (plain dict) is preserved so Planner/Executor code
 does not need changes.
@@ -54,7 +55,8 @@ def _mock_student_grades(teacher_id: str, student_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _should_use_mock() -> bool:
-    return get_settings().use_mock_data
+    settings = get_settings()
+    return settings.debug and settings.use_mock_data
 
 
 def _normalize_teacher_id(teacher_id: str | None) -> str:
@@ -89,9 +91,10 @@ async def get_teacher_classes(teacher_id: str) -> dict:
         Dictionary with teacher_id and list of class summaries.
     """
     teacher_id = _normalize_teacher_id(teacher_id)
-    if _should_use_mock() or not teacher_id:
-        if not teacher_id:
-            logger.warning("get_teacher_classes called without teacher_id; using mock")
+    if not teacher_id:
+        logger.warning("get_teacher_classes called without teacher_id")
+        return {"status": "error", "reason": "teacher_id is required", "teacher_id": teacher_id, "classes": []}
+    if _should_use_mock():
         return _mock_teacher_classes(teacher_id)
 
     try:
@@ -102,9 +105,11 @@ async def get_teacher_classes(teacher_id: str) -> dict:
             "teacher_id": teacher_id,
             "classes": [c.model_dump() for c in classes],
         }
-    except Exception:
-        logger.exception("get_teacher_classes failed, falling back to mock")
-        return _mock_teacher_classes(teacher_id)
+    except Exception as exc:
+        logger.exception("get_teacher_classes failed")
+        if _should_use_mock():
+            return _mock_teacher_classes(teacher_id)
+        return {"status": "error", "reason": str(exc), "teacher_id": teacher_id, "classes": []}
 
 
 async def get_class_detail(teacher_id: str, class_id: str) -> dict:
@@ -118,9 +123,10 @@ async def get_class_detail(teacher_id: str, class_id: str) -> dict:
         Dictionary with full class details, student roster, and assignment list.
     """
     teacher_id = _normalize_teacher_id(teacher_id)
-    if _should_use_mock() or not teacher_id:
-        if not teacher_id:
-            logger.warning("get_class_detail called without teacher_id; using mock")
+    if not teacher_id:
+        logger.warning("get_class_detail called without teacher_id")
+        return {"status": "error", "reason": "teacher_id is required", "class_id": class_id}
+    if _should_use_mock():
         return _mock_class_detail(teacher_id, class_id)
 
     try:
@@ -132,9 +138,11 @@ async def get_class_detail(teacher_id: str, class_id: str) -> dict:
         result = detail.model_dump()
         result["teacher_id"] = teacher_id
         return result
-    except Exception:
-        logger.exception("get_class_detail failed, falling back to mock")
-        return _mock_class_detail(teacher_id, class_id)
+    except Exception as exc:
+        logger.exception("get_class_detail failed")
+        if _should_use_mock():
+            return _mock_class_detail(teacher_id, class_id)
+        return {"status": "error", "reason": str(exc), "teacher_id": teacher_id, "class_id": class_id}
 
 
 async def get_assignment_submissions(teacher_id: str, assignment_id: str) -> dict:
@@ -148,11 +156,17 @@ async def get_assignment_submissions(teacher_id: str, assignment_id: str) -> dic
         Dictionary with assignment info, submissions list, and raw scores array.
     """
     teacher_id = _normalize_teacher_id(teacher_id)
-    if _should_use_mock() or not teacher_id:
-        if not teacher_id:
-            logger.warning(
-                "get_assignment_submissions called without teacher_id; using mock"
-            )
+    if not teacher_id:
+        logger.warning("get_assignment_submissions called without teacher_id")
+        return {
+            "status": "error",
+            "reason": "teacher_id is required",
+            "teacher_id": teacher_id,
+            "assignment_id": assignment_id,
+            "submissions": [],
+            "scores": [],
+        }
+    if _should_use_mock():
         return _mock_assignment_submissions(teacher_id, assignment_id)
 
     try:
@@ -162,9 +176,18 @@ async def get_assignment_submissions(teacher_id: str, assignment_id: str) -> dic
         result = data.model_dump()
         result["teacher_id"] = teacher_id
         return result
-    except Exception:
-        logger.exception("get_assignment_submissions failed, falling back to mock")
-        return _mock_assignment_submissions(teacher_id, assignment_id)
+    except Exception as exc:
+        logger.exception("get_assignment_submissions failed")
+        if _should_use_mock():
+            return _mock_assignment_submissions(teacher_id, assignment_id)
+        return {
+            "status": "error",
+            "reason": str(exc),
+            "teacher_id": teacher_id,
+            "assignment_id": assignment_id,
+            "submissions": [],
+            "scores": [],
+        }
 
 
 async def get_student_grades(teacher_id: str, student_id: str) -> dict:
@@ -178,9 +201,16 @@ async def get_student_grades(teacher_id: str, student_id: str) -> dict:
         Dictionary with student info and list of assignment grades.
     """
     teacher_id = _normalize_teacher_id(teacher_id)
-    if _should_use_mock() or not teacher_id:
-        if not teacher_id:
-            logger.warning("get_student_grades called without teacher_id; using mock")
+    if not teacher_id:
+        logger.warning("get_student_grades called without teacher_id")
+        return {
+            "status": "error",
+            "reason": "teacher_id is required",
+            "teacher_id": teacher_id,
+            "student_id": student_id,
+            "grades": [],
+        }
+    if _should_use_mock():
         return _mock_student_grades(teacher_id, student_id)
 
     try:
@@ -190,6 +220,14 @@ async def get_student_grades(teacher_id: str, student_id: str) -> dict:
         result = data.model_dump()
         result["teacher_id"] = teacher_id
         return result
-    except Exception:
-        logger.exception("get_student_grades failed, falling back to mock")
-        return _mock_student_grades(teacher_id, student_id)
+    except Exception as exc:
+        logger.exception("get_student_grades failed")
+        if _should_use_mock():
+            return _mock_student_grades(teacher_id, student_id)
+        return {
+            "status": "error",
+            "reason": str(exc),
+            "teacher_id": teacher_id,
+            "student_id": student_id,
+            "grades": [],
+        }
