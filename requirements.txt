@@ -5,7 +5,7 @@ sse-starlette>=2.0
 
 # LLM
 litellm>=1.0
-pydantic-ai>=1.0
+pydantic-ai>=1.56,<2.0  # Locked for AI native rewrite (stream events API)
 
 # Data validation & settings
 pydantic>=2.0

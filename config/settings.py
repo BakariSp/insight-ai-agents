@@ -97,6 +97,9 @@ class Settings(BaseSettings):
     conversation_ttl: int = 1800  # seconds (30 min)
     redis_url: str = ""  # e.g. redis://:password@host:6379/0
 
+    # ── AI Native Runtime ─────────────────────────────────────
+    native_agent_enabled: bool = True  # False = emergency fallback to legacy
+
     # ── MCP ──────────────────────────────────────────────────
     mcp_server_name: str = "insight-ai-agent"
 

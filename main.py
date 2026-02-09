@@ -81,6 +81,9 @@ app.add_middleware(
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(ConcurrencyLimitMiddleware)
 
+# ── Populate native tool registry (must happen before router import) ──
+import tools.native_tools  # noqa: E402, F401  — registers tools via @register_tool
+
 # ── Register routers ────────────────────────────────────────
 from api.health import router as health_router  # noqa: E402
 from api.chat import router as chat_router  # noqa: E402
