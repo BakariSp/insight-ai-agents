@@ -34,6 +34,7 @@ class InsightRAGEngine:
         self._embedding_model = embedding_model
         self._embedding_dim = embedding_dim
         self._instances: dict[str, Any] = {}  # workspace_id → RAGAnything
+        self._file_registry: dict[str, list[dict[str, str]]] = {}  # workspace_id → [{file_id, file_name}]
         self._initialized = False
         self._pg_pool = None  # asyncpg connection pool
 
@@ -79,7 +80,7 @@ class InsightRAGEngine:
                 logger.debug("Set %s from pg_uri", key)
 
     def _build_embedding_func(self) -> Any:
-        """Build EmbeddingFunc for LightRAG using LiteLLM + DashScope."""
+        """Build EmbeddingFunc for LightRAG using DashScope embeddings API."""
         from lightrag.utils import EmbeddingFunc
 
         model = self._embedding_model  # e.g. "text-embedding-v3"
@@ -87,15 +88,32 @@ class InsightRAGEngine:
 
         async def _embed(texts: list[str]) -> np.ndarray:
             api_key = os.environ.get("DASHSCOPE_API_KEY", "")
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={"model": model, "input": texts, "encoding_format": "float"},
+            if not api_key:
+                raise RuntimeError(
+                    "DASHSCOPE_API_KEY not set — cannot generate embeddings for RAG. "
+                    "Set it in .env or environment variables."
                 )
-                resp.raise_for_status()
-            data = resp.json()
-            return np.array([item["embedding"] for item in data["data"]])
+            try:
+                async with httpx.AsyncClient(timeout=60) as client:
+                    resp = await client.post(
+                        "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        json={"model": model, "input": texts, "encoding_format": "float"},
+                    )
+                    resp.raise_for_status()
+                data = resp.json()
+                embeddings = np.array([item["embedding"] for item in data["data"]])
+                logger.debug("Embedded %d texts → shape %s", len(texts), embeddings.shape)
+                return embeddings
+            except httpx.HTTPStatusError as exc:
+                logger.error(
+                    "DashScope embedding API error %d: %s",
+                    exc.response.status_code, exc.response.text[:200],
+                )
+                raise
+            except Exception as exc:
+                logger.error("Embedding function failed: %s", exc)
+                raise
 
         return EmbeddingFunc(
             embedding_dim=dim,
@@ -124,14 +142,23 @@ class InsightRAGEngine:
             messages.append({"role": "user", "content": prompt})
 
             settings = get_settings()
-            resp = await rate_limited_llm_call(
-                litellm.acompletion,
-                model=settings.default_model,
-                messages=messages,
-                max_tokens=settings.max_tokens,
-                timeout=60,
-            )
-            return resp.choices[0].message.content
+            task = "keyword_extraction" if keyword_extraction else "kg_extraction"
+            try:
+                resp = await rate_limited_llm_call(
+                    litellm.acompletion,
+                    model=settings.default_model,
+                    messages=messages,
+                    max_tokens=settings.max_tokens,
+                    timeout=60,
+                )
+                content = resp.choices[0].message.content
+                if not content:
+                    logger.warning("RAG LLM returned empty content for %s", task)
+                    return ""
+                return content
+            except Exception as exc:
+                logger.error("RAG LLM call failed (%s): %s", task, exc)
+                raise
 
         return _llm_func
 
@@ -153,8 +180,9 @@ class InsightRAGEngine:
         # Ensure PostgreSQL env vars are set (LightRAG checks os.environ)
         self._ensure_pg_env_vars()
 
-        # Create working directory
-        working_dir = f"./rag_workspaces/{workspace_id}"
+        # Create working directory — use shared parent; LightRAG's NetworkXStorage
+        # creates a {workspace}/ subdirectory inside working_dir automatically.
+        working_dir = "./rag_workspaces"
         os.makedirs(working_dir, exist_ok=True)
 
         lightrag = LightRAG(
@@ -188,45 +216,87 @@ class InsightRAGEngine:
         teacher_id: str,
         file_path: str,
         file_name: str = "",
+        file_id: str = "",
     ) -> dict[str, Any]:
         """Parse a document and ingest into the teacher's workspace.
 
-        RAG-Anything handles: text extraction → chunking → embedding → KG → PostgreSQL.
+        Strategy:
+          1. Try RAGAnything full pipeline (parser + KG + embedding).
+          2. On ANY failure, fall back to plain text extraction + LightRAG.ainsert().
 
         Args:
             teacher_id: The verified teacher ID.
             file_path: Local path to the downloaded file.
             file_name: Original file name (for metadata).
+            file_id: Java backend file ID (for citation tracking).
 
         Returns:
-            {"chunk_count": N} on success.
+            {"chunk_count": N, "method": str} on success.
         """
         workspace_id = f"teacher-{teacher_id}"
         rag = await self.get_instance(workspace_id)
 
         logger.info("Ingesting document '%s' into workspace '%s'", file_name, workspace_id)
 
+        # ── Attempt 1: RAGAnything full pipeline ────────────────────
         try:
             await rag.process_document_complete(
                 file_path=file_path,
                 file_name=file_name,
             )
-            return {"chunk_count": -1}
-        except RuntimeError as exc:
-            if "LibreOffice" in str(exc):
-                logger.warning(
-                    "LibreOffice not available — falling back to text extraction for '%s'",
-                    file_name,
-                )
-                text = _extract_text(file_path)
-                if not text.strip():
-                    raise RuntimeError(f"No text extracted from '{file_name}'") from exc
-                await rag.lightrag.ainsert(text, file_paths=[file_name])
-                return {"chunk_count": -1}
-            raise
+            logger.info(
+                "RAGAnything full pipeline completed for '%s' in workspace '%s'",
+                file_name, workspace_id,
+            )
+            self._register_file(workspace_id, file_id, file_name)
+            return {"chunk_count": -1, "method": "raganything"}
         except Exception as exc:
-            logger.error("Document ingestion failed for '%s': %s", file_name, exc)
-            raise
+            logger.warning(
+                "RAGAnything full pipeline failed for '%s': %s — "
+                "falling back to text extraction + LightRAG.ainsert()",
+                file_name, exc,
+            )
+
+        # ── Attempt 2: Text extraction + direct LightRAG insert ────
+        text = _extract_text(file_path)
+        if not text.strip():
+            raise RuntimeError(
+                f"No text could be extracted from '{file_name}' "
+                f"(ext={Path(file_path).suffix})"
+            )
+
+        text_len = len(text)
+        logger.info(
+            "Extracted %d characters from '%s', inserting via LightRAG.ainsert()",
+            text_len, file_name,
+        )
+
+        await rag.lightrag.ainsert(text, file_paths=[file_name])
+
+        logger.info(
+            "LightRAG.ainsert() completed for '%s' (%d chars) in workspace '%s'",
+            file_name, text_len, workspace_id,
+        )
+        self._register_file(workspace_id, file_id, file_name)
+        return {"chunk_count": -1, "method": "text_fallback"}
+
+    def _register_file(self, workspace_id: str, file_id: str, file_name: str) -> None:
+        """Record a file in the in-memory registry for citation tracking."""
+        if not file_id:
+            return
+        registry = self._file_registry.setdefault(workspace_id, [])
+        # Avoid duplicates on re-parse
+        registry[:] = [f for f in registry if f["file_id"] != file_id]
+        registry.append({"file_id": file_id, "file_name": file_name})
+        logger.debug(
+            "Registered file %s (%s) in workspace '%s' — %d files total",
+            file_id, file_name, workspace_id, len(registry),
+        )
+
+    def get_workspace_files(self, teacher_id: str) -> list[dict[str, str]]:
+        """Return the list of ingested files for a teacher's workspace."""
+        workspace_id = f"teacher-{teacher_id}"
+        return list(self._file_registry.get(workspace_id, []))
 
     async def search(
         self,
@@ -253,6 +323,11 @@ class InsightRAGEngine:
         # Map our mode names to RAGAnything mode names
         rag_mode = {"hybrid": "mix", "naive": "naive", "kg": "local"}.get(mode, mode)
 
+        logger.info(
+            "RAG search: teacher=%s, query='%s', mode=%s→%s",
+            teacher_id, query[:80], mode, rag_mode,
+        )
+
         # Search teacher's workspace
         workspace_id = f"teacher-{teacher_id}"
         try:
@@ -264,6 +339,16 @@ class InsightRAGEngine:
                     "source": workspace_id,
                     "score": 1.0,
                 })
+                logger.info(
+                    "RAG search returned %d chars from workspace '%s'",
+                    len(str(teacher_results)), workspace_id,
+                )
+            else:
+                logger.warning(
+                    "RAG search returned empty from workspace '%s' — "
+                    "check that documents were ingested with working LLM+embedding",
+                    workspace_id,
+                )
         except Exception as exc:
             logger.warning("Search in workspace '%s' failed: %s", workspace_id, exc)
 
@@ -281,19 +366,129 @@ class InsightRAGEngine:
             except Exception as exc:
                 logger.debug("Search in public workspace failed (may not exist): %s", exc)
 
+        if not results:
+            logger.warning(
+                "RAG search returned 0 results for teacher=%s query='%s'. "
+                "Possible causes: (1) DASHSCOPE_API_KEY not set, "
+                "(2) LLM errors during ingestion left VDB tables empty, "
+                "(3) document not yet ingested",
+                teacher_id, query[:80],
+            )
+
         return results
 
-    async def delete_document(self, teacher_id: str, file_id: str) -> None:
+    async def delete_document(
+        self,
+        teacher_id: str,
+        file_id: str,
+        file_name: str = "",
+    ) -> dict[str, Any]:
         """Delete all indexed data for a specific document.
 
-        Note: RAG-Anything/LightRAG doesn't natively support per-document deletion.
-        This is a placeholder for Phase 2 where we'll implement proper doc-level deletion.
+        Strategy:
+          1. Look up doc_ids from lightrag_doc_status by file_path (= file_name).
+          2. Fall back to in-memory _file_registry if file_name not provided.
+          3. Call LightRAG.adelete_by_doc_id() for each matching doc_id.
+          4. Clean up _file_registry.
+
+        Args:
+            teacher_id: The verified teacher ID.
+            file_id: Java backend file ID.
+            file_name: Original file name (for matching doc_status records).
+
+        Returns:
+            {"deleted_doc_ids": [...], "errors": [...]}.
         """
-        logger.warning(
-            "Document deletion not fully supported yet — "
-            "file_id=%s, teacher_id=%s",
-            file_id, teacher_id,
+        workspace_id = f"teacher-{teacher_id}"
+        deleted: list[str] = []
+        errors: list[str] = []
+
+        # Resolve file_name from registry if not provided
+        if not file_name:
+            registry = self._file_registry.get(workspace_id, [])
+            for entry in registry:
+                if entry["file_id"] == file_id:
+                    file_name = entry["file_name"]
+                    break
+
+        if not file_name:
+            logger.warning(
+                "Cannot resolve file_name for file_id=%s — "
+                "will attempt workspace-wide doc_status scan",
+                file_id,
+            )
+
+        # Query doc_status for matching doc_ids
+        doc_ids = await self._find_doc_ids(workspace_id, file_name)
+
+        if not doc_ids:
+            logger.warning(
+                "No doc_ids found for file_id=%s, file_name='%s' in workspace '%s'",
+                file_id, file_name, workspace_id,
+            )
+            return {"deleted_doc_ids": [], "errors": ["no matching documents found"]}
+
+        # Get LightRAG instance and delete each doc
+        try:
+            rag = await self.get_instance(workspace_id)
+        except Exception as exc:
+            msg = f"Failed to get RAG instance for {workspace_id}: {exc}"
+            logger.error(msg)
+            return {"deleted_doc_ids": [], "errors": [msg]}
+
+        for doc_id in doc_ids:
+            try:
+                result = await rag.lightrag.adelete_by_doc_id(
+                    doc_id, delete_llm_cache=True,
+                )
+                deleted.append(doc_id)
+                logger.info(
+                    "Deleted doc_id=%s from workspace '%s' (result=%s)",
+                    doc_id, workspace_id, result,
+                )
+            except Exception as exc:
+                msg = f"Failed to delete doc_id={doc_id}: {exc}"
+                logger.error(msg)
+                errors.append(msg)
+
+        # Clean up in-memory file registry
+        registry = self._file_registry.get(workspace_id, [])
+        registry[:] = [f for f in registry if f["file_id"] != file_id]
+
+        logger.info(
+            "Document deletion complete: file_id=%s, teacher_id=%s, "
+            "deleted=%d, errors=%d",
+            file_id, teacher_id, len(deleted), len(errors),
         )
+        return {"deleted_doc_ids": deleted, "errors": errors}
+
+    async def _find_doc_ids(
+        self, workspace_id: str, file_name: str,
+    ) -> list[str]:
+        """Look up LightRAG doc_ids from the doc_status table by file_path."""
+        if not self._pg_pool:
+            logger.warning("No PG pool — cannot look up doc_ids")
+            return []
+
+        try:
+            async with self._pg_pool.acquire() as conn:
+                if file_name:
+                    rows = await conn.fetch(
+                        "SELECT id FROM lightrag_doc_status "
+                        "WHERE workspace = $1 AND file_path = $2",
+                        workspace_id, file_name,
+                    )
+                else:
+                    # Without file_name, return all docs in workspace
+                    rows = await conn.fetch(
+                        "SELECT id FROM lightrag_doc_status "
+                        "WHERE workspace = $1",
+                        workspace_id,
+                    )
+                return [r["id"] for r in rows]
+        except Exception as exc:
+            logger.error("Failed to query doc_status: %s", exc)
+            return []
 
     async def close(self) -> None:
         """Gracefully shut down all RAG instances and the connection pool."""
@@ -314,18 +509,50 @@ class InsightRAGEngine:
 
 
 def _extract_text(file_path: str) -> str:
-    """Extract plain text from a document (DOCX/PDF/TXT) without LibreOffice."""
+    """Extract plain text from a document without external tools (LibreOffice/MineruParser).
+
+    Supports: PDF, DOCX, PPTX, XLSX, TXT, MD, CSV.
+    """
     ext = Path(file_path).suffix.lower()
-    if ext in (".docx",):
+
+    if ext == ".docx":
         from docx import Document
         doc = Document(file_path)
         return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
     elif ext == ".pdf":
         import fitz  # PyMuPDF
         with fitz.open(file_path) as pdf:
             return "\n".join(page.get_text() for page in pdf)
+
+    elif ext == ".pptx":
+        from pptx import Presentation
+        prs = Presentation(file_path)
+        lines: list[str] = []
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        text = para.text.strip()
+                        if text:
+                            lines.append(text)
+        return "\n".join(lines)
+
+    elif ext in (".xlsx", ".xls"):
+        import openpyxl
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        lines: list[str] = []
+        for ws in wb.worksheets:
+            for row in ws.iter_rows(values_only=True):
+                row_text = "\t".join(str(c) for c in row if c is not None)
+                if row_text.strip():
+                    lines.append(row_text)
+        wb.close()
+        return "\n".join(lines)
+
     elif ext in (".txt", ".md", ".csv"):
         return Path(file_path).read_text(encoding="utf-8", errors="ignore")
+
     else:
         raise RuntimeError(f"Unsupported file type for text extraction: {ext}")
 
@@ -340,15 +567,16 @@ async def download_file(url: str, dest_dir: str | None = None) -> str:
     async with httpx.AsyncClient(verify=False, timeout=120) as client:
         resp = await client.get(url)
         resp.raise_for_status()
+        content = resp.content
 
     # Extract filename from URL or Content-Disposition
     file_name = url.split("/")[-1].split("?")[0] or "document"
     file_path = os.path.join(dest_dir, file_name)
 
     with open(file_path, "wb") as f:
-        f.write(resp.content)
+        f.write(content)
 
-    logger.info("Downloaded file to %s (%d bytes)", file_path, len(resp.content))
+    logger.info("Downloaded file to %s (%d bytes)", file_path, len(content))
     return file_path
 
 

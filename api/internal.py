@@ -66,6 +66,40 @@ async def parse_document(
     return {"status": "accepted", "fileId": req.file_id}
 
 
+class DeleteRequest(BaseModel):
+    teacher_id: str
+    file_id: str
+    file_name: str = ""
+
+
+@router.post("/documents/delete")
+async def delete_document(
+    req: DeleteRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """Delete RAG-indexed data for a document.
+
+    Called by Java backend when a rag_material file is deleted.
+    Deletion runs asynchronously in the background.
+    """
+    verify_internal_secret(request)
+
+    logger.info(
+        "Received delete request: file_id=%s, teacher_id=%s, file_name=%s",
+        req.file_id, req.teacher_id, req.file_name,
+    )
+
+    background_tasks.add_task(
+        _do_delete,
+        file_id=req.file_id,
+        teacher_id=req.teacher_id,
+        file_name=req.file_name,
+    )
+
+    return {"status": "accepted", "fileId": req.file_id}
+
+
 class SearchRequest(BaseModel):
     teacher_id: str
     query: str
@@ -114,15 +148,17 @@ async def _do_parse(
             teacher_id=teacher_id,
             file_path=file_path,
             file_name=file_name,
+            file_id=file_id,
         )
 
         chunk_count = result.get("chunk_count", 0)
+        method = result.get("method", "unknown")
 
         # 4. Notify Java: completed
         await update_parse_status(file_id, ParseStatus.COMPLETED, chunk_count=chunk_count)
         logger.info(
-            "Parse completed: file_id=%s, teacher_id=%s, chunks=%d",
-            file_id, teacher_id, chunk_count,
+            "Parse completed: file_id=%s, teacher_id=%s, method=%s, chunks=%d",
+            file_id, teacher_id, method, chunk_count,
         )
 
     except Exception as exc:
@@ -140,3 +176,31 @@ async def _do_parse(
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
             pass
+
+
+async def _do_delete(
+    file_id: str,
+    teacher_id: str,
+    file_name: str,
+) -> None:
+    """Background task: delete document data from RAG knowledge graph."""
+    try:
+        engine = get_rag_engine()
+        result = await engine.delete_document(
+            teacher_id=teacher_id,
+            file_id=file_id,
+            file_name=file_name,
+        )
+        deleted = result.get("deleted_doc_ids", [])
+        errors = result.get("errors", [])
+        logger.info(
+            "RAG delete completed: file_id=%s, teacher_id=%s, "
+            "deleted=%d doc(s), errors=%d",
+            file_id, teacher_id, len(deleted), len(errors),
+        )
+        if errors:
+            logger.warning("RAG delete errors for file_id=%s: %s", file_id, errors)
+    except Exception as exc:
+        logger.error(
+            "RAG delete failed for file_id=%s: %s", file_id, exc, exc_info=True,
+        )
