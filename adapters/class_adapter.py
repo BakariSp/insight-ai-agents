@@ -77,14 +77,27 @@ async def get_detail(client: JavaClient, teacher_id: str, class_id: str) -> Clas
     if not isinstance(raw, dict):
         return ClassDetail(class_id=class_id, name="Unknown")
 
+    # Parse students if returned by Java (C-3: class detail now includes student roster)
+    students_raw = raw.get("students")
+    students = []
+    if isinstance(students_raw, list):
+        students = [
+            StudentInfo(
+                student_id=str(s.get("studentId") or ""),
+                name=s.get("name") or "",
+                number=s.get("studentNo") or 0,
+            )
+            for s in students_raw
+            if isinstance(s, dict)
+        ]
+
     return ClassDetail(
         class_id=str(raw.get("uid") or raw.get("id", class_id)),
         name=raw.get("name", ""),
         grade=raw.get("grade", ""),
         subject=raw.get("subject", ""),
         student_count=raw.get("studentCount", 0),
-        # Students are not in the Classroom DTO — kept empty, can be enriched later
-        students=[],
+        students=students,
         assignments=[],
     )
 
