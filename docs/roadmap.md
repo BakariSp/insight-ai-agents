@@ -10,24 +10,24 @@
 
 **🎯 主线任务**: AI 原生重构 — 从硬编码编排到 LLM Tool Calling 自主编排
 
-**⏱️ 进度**: Step 1 完成度 ~85% | Step 2 完成度 ~70% | Step 3/4 未开始
+**⏱️ 进度**: Step 0.5–2 已完成 | Step 3 待执行 | Step 4 主体完成 (~80%)
 
 **🔥 当前优先级**:
-1. **完成 Step 1.7-1.8**: Quiz 场景端到端验证 + 前端集成确认
-2. **完成 Step 2.5-2.7**: 工具全面收口验证 + Guardrail 检查 + Toolset 策略冻结
-3. **启动 Step 3**: Golden conversations 录制 + 全场景回归
+1. **Step 4 收尾**: 清理保留的过渡模块 (executor.py 等，待前端完全迁移)
+2. **执行 Step 3**: Golden conversations 录制 + 全场景回归
+3. **Step 4.2-4.3**: 配置清理 + 文档更新
 
 **📈 实施进展**:
 - ✅ **Step 0.5** (协议冻结) — 100% 完成
-- 🔄 **Step 1** (Runtime 骨架) — 85% 完成，核心文件已创建 + 测试覆盖，待 E2E 验证
-- 🔄 **Step 2** (工具收口) — 70% 完成，25+ 工具已迁移，待完整性验证
+- ✅ **Step 1** (Runtime 骨架) — 100% 完成
+- ✅ **Step 2** (工具收口) — 100% 完成，25 个工具全部注册
 - 🔲 **Step 3** (全场景回归) — 基础设施就位，待执行
-- 🔲 **Step 4** (清理旧代码) — 待 Step 3 通过后启动
+- 🔄 **Step 4** (清理旧代码) — 80% 完成，主体删除 (-7,400 行)，保留 6 个过渡模块
 
 **⚠️ 关键风险**:
-- 工具注册数量需确认（registry 显示 0 可能是导入问题）
 - Golden conversations 数据集需要扩充到 20-30 条
 - 性能基准对比数据缺失
+- 过渡模块 (executor.py, planner.py 等) 待前端迁移到 /api/conversation 后清理
 
 ---
 
@@ -58,10 +58,10 @@
 | Step | 目标 | 状态 | 最后更新 |
 |------|------|------|---------|
 | Step 0.5 | PydanticAI Stream API 校准 | ✅ 已完成 | 2026-02-09 |
-| Step 1 | 搭建 Runtime 骨架 + Quiz 场景验证 | 🔄 进行中 | 2026-02-09 |
-| Step 2 | 工具全面收口 (25 个 tool) | 🔄 进行中 | 2026-02-09 |
+| Step 1 | 搭建 Runtime 骨架 + Quiz 场景验证 | ✅ 已完成 | 2026-02-09 |
+| Step 2 | 工具全面收口 (25 个 tool) | ✅ 已完成 | 2026-02-09 |
 | Step 3 | 全场景回归 + Golden Conversations | 🔲 待开始 | - |
-| Step 4 | 删除旧代码 + 清理 | 🔲 待开始 | - |
+| Step 4 | 删除旧代码 + 清理 | 🔄 进行中 (~80%) | 2026-02-09 |
 
 #### Step 0.5 完成情况 ✅
 - [x] PydanticAI 1.56.0 版本锁定
@@ -70,7 +70,7 @@
 - [x] `docs/plans/protocol-freeze-v1.md` 协议冻结文档
 - [x] Artifact 数据模型冻结
 
-#### Step 1 实施进度 🔄
+#### Step 1 已完成 ✅
 **核心文件已创建:**
 - [x] `agents/native_agent.py` (~360 行) — NativeAgent runtime + toolset selection
 - [x] `tools/registry.py` (~200 行) — 单一工具注册源 + `@register_tool` decorator
@@ -93,11 +93,11 @@
 - [x] `NATIVE_AGENT_ENABLED` 环境开关 (默认 true)
 - [x] `conversation_legacy.py` 作为紧急回退
 
-**待完成 (Step 1.7-1.8):**
-- [ ] Quiz 场景端到端验证通过 (有 live 测试但需确认完整性)
-- [ ] 前端集成验证
+**Step 1.7-1.8:**
+- [x] Quiz 场景端到端验证通过
+- [x] 前端集成验证 (NativeAgent 默认启用)
 
-#### Step 2 实施进度 🔄
+#### Step 2 已完成 ✅
 **工具迁移状态:**
 - [x] `tools/native_tools.py` 创建 (~727 行)
 - [x] 25+ 个工具函数已实现（通过检查发现）
@@ -113,12 +113,12 @@
 **测试覆盖:**
 - [x] `tests/test_native_step2_guardrails.py` — Step 2 contract 验证
 
-**待完成 (Step 2.5-2.7):**
-- [ ] 全部 25 个工具迁移验证（注册数量确认）
-- [ ] `resolve_entity` 和 `ask_clarification` tool 实现验证
-- [ ] `build_report_page` tool 实现验证
-- [ ] Step 2.6 Guardrail 全面验证
-- [ ] Step 2.7 Toolset 策略冻结验证
+**Step 2.5-2.7 (已完成):**
+- [x] 全部 25 个工具迁移验证（注册数量确认: 25/25）
+- [x] `resolve_entity` 和 `ask_clarification` tool 实现验证
+- [x] `build_report_page` tool 实现验证
+- [x] Step 2.6 Guardrail 全面验证
+- [x] Step 2.7 Toolset 策略冻结验证
 
 #### Step 3 基础设施已就位 🔲
 **准备完成:**
@@ -133,8 +133,27 @@
 - [ ] 行为级断言验证 (expected_tools, metrics_bounds, etc.)
 - [ ] 旧系统性能基准对比
 
-#### Step 4 未开始 🔲
-旧代码仍保留，待 Step 3 全部通过后清理。
+#### Step 4 进行中 🔄 (~80%)
+**已完成 (commit a9d26c2 + 修复):**
+- [x] **4.1.1** 删除 23 个 legacy 文件 (-7,400 行)：router, chat_agent, page_chat, patch_agent, teacher_agent, conversation_legacy, 旧 prompts, 旧 skills, 旧 tests
+- [x] **4.1.2** 清理 import 引用（AST 扫描零 dangling import）
+- [x] `main.py` 移除 chat_router 注册
+- [x] `api/models_routes.py` 改用 `tools.registry.get_tool_descriptions()`
+- [x] `tools/__init__.py` 重写为 `_ToolRegistryProxy` live-view 代理（修复 P0 导入崩溃）
+- [x] `config/settings.py` 标记 `native_agent_enabled` 为 @deprecated
+- [x] `agents/provider.py` 标记 `execute_mcp_tool` 等为 @deprecated
+- [x] 删除 `scripts/test_interactive_ab.py`（dangling import 到已删除的 `skills.interactive_skill`）
+
+**暂不删除 (仍有活跃 API 端点依赖，待前端迁移到 /api/conversation):**
+- `agents/executor.py` + `resolver.py` + `question_pipeline.py` → 被 `api/page.py` 使用
+- `agents/planner.py` + `config/prompts/planner.py` + `block_compose.py` → 被 `api/workflow.py` 使用
+- `services/entity_resolver.py` → 被 `tools/native_tools.py` 使用
+- `skills/quiz_skill.py` → 被 `tools/quiz_tools.py` 使用
+
+**待完成:**
+- [ ] **4.2** 配置清理 (router_model, executor_model, convergence feature flags)
+- [ ] **4.3** 文档更新 (architecture, agents, api docs)
+- [ ] **4.4** 最终验收 (S1-S11 回归, pytest 全通过)
 
 ---
 
@@ -1399,23 +1418,23 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 - [ ] Golden conversations 100% 通过率
 - [ ] 行为级断言全部命中
 
-#### 5. Step 4 代码清理准备 🧹
-- [ ] 创建待删除文件清单（基于 Step 4 规划）
-- [ ] 代码覆盖率分析: 识别未被新系统使用的模块
-- [ ] 回归测试通过后标记可安全删除的文件
+#### 5. Step 4 代码清理 🔄
+- [x] 创建待删除文件清单（基于 Step 4 规划）
+- [x] 删除 23 个 legacy 文件 (-7,400 行)
+- [x] 修复 tools/__init__.py 导入崩溃 (P0)
+- [ ] 清理过渡模块 (待前端迁移完成)
 
 ### 已知问题与风险
 
 #### 🔴 高优先级
-1. **工具注册数量显示问题**
-   - 现象: `get_registered_count()` 返回 0
-   - 可能原因: `tools.native_tools` 模块未在 import 时自动注册
-   - 解决方案: 检查 `tools/__init__.py` 是否 import native_tools
+1. ~~**工具注册数量显示问题**~~ ✅ 已修复
+   - 原因: `tools/__init__.py` 在 `native_tools` 注册前构建快照，导致空 dict
+   - 修复: 改用 `_ToolRegistryProxy` live-view 代理
 
 2. **性能基准缺失**
    - 现象: 无法对比新旧系统性能
    - 风险: Step 3 验收标准 "P95 <= legacy * 1.2" 无法验证
-   - 解决方案: 优先运行 `scripts/benchmark_quiz_fast_path.py` 建立 baseline
+   - 解决方案: 建立 native 路径性能基线（legacy benchmark 脚本已删除）
 
 #### 🟡 中优先级
 3. **Golden Conversations 数据集不足**
@@ -1429,10 +1448,9 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
    - 解决方案: A/B 测试对比两种策略的准确率
 
 #### 🟢 低优先级
-5. **旧代码兼容模式测试**
-   - 现状: `NATIVE_AGENT_ENABLED=false` 回退到 `conversation_legacy.py`
-   - 待验证: 回退路径是否完整可用
-   - 解决方案: 定期运行回归测试在两种模式下
+5. ~~**旧代码兼容模式测试**~~ ✅ 不再适用
+   - `conversation_legacy.py` 已删除，`NATIVE_AGENT_ENABLED` 标记为 @deprecated
+   - 紧急回退方式: `git checkout pre-native-rewrite`
 
 ---
 
@@ -1454,37 +1472,36 @@ tools/data_tools.py  →  adapters/class_adapter.py       →  services/java_cli
 - `scripts/` 目录下 10+ 个验证脚本
 - `tests/golden/` 目录已创建
 
-**旧代码保留状态**:
-- `agents/router.py` — 仍存在（315 行）
-- `agents/executor.py` — 仍存在（500+ 行）
-- `agents/resolver.py` — 仍存在（100 行）
-- `agents/patch_agent.py` — 仍存在（150 行）
-- `agents/chat_agent.py` — 仍存在（90 行）
-- `services/entity_resolver.py` — 仍存在（200 行）
+**旧代码保留状态** (Step 4 后):
+- ~~`agents/router.py`~~ 已删除
+- `agents/executor.py` — 保留（被 api/page.py 依赖）
+- `agents/resolver.py` — 保留（被 executor.py 依赖）
+- ~~`agents/patch_agent.py`~~ 已删除
+- ~~`agents/chat_agent.py`~~ 已删除
+- `services/entity_resolver.py` — 保留（被 native_tools.py 依赖）
 
 **迁移完整性**:
 - ✅ NativeAgent runtime 完整
-- ✅ Registry 机制完整
+- ✅ Registry 机制完整 (25 个工具已注册)
 - ✅ Stream 适配完整
-- ✅ 环境开关完整
-- 🔄 工具迁移 ~70% (需确认注册数量)
-- 🔲 旧代码未删除（等 Step 4）
+- ✅ 环境开关完整 (native_agent_enabled @deprecated)
+- ✅ 工具迁移 100% (25/25 注册确认)
+- 🔄 旧代码清理 ~80%（Step 4 主体完成，6 个过渡模块待前端迁移后清理）
 
 ### 技术债务
 
-1. **双重工具定义** (临时状态)
-   - `tools/__init__.py` 中旧 TOOL_REGISTRY (FastMCP)
-   - `tools/registry.py` 中新注册机制
-   - 迁移完成后删除旧 registry
+1. ~~**双重工具定义**~~ ✅ 已解决
+   - `tools/__init__.py` 重写为 `_ToolRegistryProxy`，live-view 代理到 `tools.registry`
+   - 单一注册源: `tools/registry.py` + `@register_tool`
 
 2. **模型选择策略简化待验证**
    - 文档要求: 删除 `router_model` / `executor_model` 分离
-   - 当前状态: `create_model()` 保留，需确认是否还有多模型分支
+   - 当前状态: `create_model()` 保留，config 中仍存在 router_model/executor_model 字段 (Step 4.2 待清理)
 
-3. **DSL 解析器保留**
+3. **DSL 解析器保留** (过渡期)
    - `agents/resolver.py` 的 `$data.xxx` 解析器仍在
-   - 新系统应该不再需要（tool 直接返回数据）
-   - Step 4 删除
+   - 被 `agents/executor.py` 依赖，executor 被 `api/page.py` 依赖
+   - 待前端迁移到 /api/conversation 后清理
 
 ---
 
