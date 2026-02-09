@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     # ── AI Native Runtime ─────────────────────────────────────
     native_agent_enabled: bool = True  # False = emergency fallback to legacy
 
+    # ── Toolset Planner (LLM-based toolset selection) ────────
+    toolset_planner_enabled: bool = True  # False = keyword fallback only
+    toolset_planner_confidence_threshold: float = 0.6
+    toolset_planner_timeout_s: float = 0.5  # 500ms hard timeout
+
     # ── MCP ──────────────────────────────────────────────────
     mcp_server_name: str = "insight-ai-agent"
 

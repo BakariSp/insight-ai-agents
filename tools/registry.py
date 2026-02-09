@@ -169,7 +169,9 @@ def _wrap_with_metrics(func: Callable[..., Any], tool_name: str) -> Callable[...
         turn_id = ""
         conversation_id = ""
 
-        run_ctx = args[0] if args else None
+        # PydanticAI injects RunContext as first positional arg.
+        # Also check kwargs for resilience against future calling convention changes.
+        run_ctx = args[0] if args else kwargs.get("ctx") or kwargs.get("run_context")
         deps = getattr(run_ctx, "deps", None)
         if deps is not None:
             turn_id = str(getattr(deps, "turn_id", "") or "")

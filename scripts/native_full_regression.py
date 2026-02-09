@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import tools.native_tools  # noqa: F401  populate registry
 
-from agents.native_agent import AgentDeps, NativeAgent, select_toolsets
+from agents.native_agent import AgentDeps, NativeAgent, _select_toolsets_keyword as select_toolsets
 from services.datastream import DataStreamEncoder
 from services.metrics import get_metrics_collector
 

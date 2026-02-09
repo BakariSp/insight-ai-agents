@@ -36,6 +36,7 @@ class ConversationTurn(BaseModel):
     role: str  # "user" or "assistant"
     content: str
     action: str | None = None  # Router action (e.g. "clarify", "build")
+    tool_calls_summary: str | None = None  # "tool1(args), tool2(args)" for LLM context
     attachment_count: int = 0  # Number of image/file attachments in this turn
     timestamp: float = Field(default_factory=time.time)
 
@@ -61,13 +62,26 @@ class ConversationSession(BaseModel):
         self.updated_at = time.time()
 
     def add_assistant_turn(
-        self, response_summary: str, action: str | None = None
+        self,
+        response_summary: str,
+        action: str | None = None,
+        tool_calls_summary: str | None = None,
     ) -> None:
-        """Record an assistant response with its action type."""
+        """Record an assistant response with its action type and tool calls.
+
+        Args:
+            response_summary: Text output from the assistant.
+            action: Router action label (e.g. "clarify", "build").
+            tool_calls_summary: Brief summary of tool calls made, e.g.
+                ``"generate_quiz_questions(topic=英语语法, count=5) → ok"``.
+                Included in message history so the LLM knows what tools
+                were used in prior turns and avoids redundant calls.
+        """
         self.turns.append(ConversationTurn(
             role="assistant",
             content=response_summary[:MAX_TURN_CHARS],
             action=action,
+            tool_calls_summary=tool_calls_summary,
         ))
         self.updated_at = time.time()
 
@@ -120,6 +134,11 @@ class ConversationSession(BaseModel):
         giving the LLM structured user/assistant message roles instead of
         plain-text history injection.
 
+        For assistant turns that include ``tool_calls_summary``, the summary
+        is prepended to the response text so the LLM sees what tools were
+        previously invoked and avoids redundant calls (e.g. re-generating
+        when it should patch).
+
         Excludes the current (latest) user turn, as that will be passed
         as the ``user_prompt`` argument to ``agent.run()``.
         """
@@ -135,8 +154,11 @@ class ConversationSession(BaseModel):
                     ModelRequest(parts=[UserPromptPart(content=turn.content)])
                 )
             else:
+                content = turn.content
+                if turn.tool_calls_summary:
+                    content = f"[Tools used: {turn.tool_calls_summary}]\n{content}"
                 messages.append(
-                    ModelResponse(parts=[TextPart(content=turn.content)])
+                    ModelResponse(parts=[TextPart(content=content)])
                 )
         return messages
 

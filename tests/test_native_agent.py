@@ -1,7 +1,7 @@
-"""Tests for agents/native_agent.py — toolset selection logic.
+"""Tests for agents/native_agent.py — keyword toolset selection logic.
 
-Step 1.2 of AI native rewrite.  Tests the loose-inclusion toolset selector,
-NOT the LLM behavior (that requires integration tests).
+Step 1.2 of AI native rewrite.  Tests the loose-inclusion keyword selector,
+NOT the LLM planner (see test_toolset_planner.py).
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from agents.native_agent import (
     _might_analyze,
     _might_generate,
     _might_modify,
-    select_toolsets,
+    _select_toolsets_keyword,
     TOOLSET_ANALYSIS,
     TOOLSET_ARTIFACT_OPS,
     TOOLSET_GENERATION,
@@ -34,56 +34,56 @@ def _make_deps(**kwargs) -> AgentDeps:
 
 
 class TestSelectToolsets:
-    """Verify loose-inclusion toolset selection."""
+    """Verify loose-inclusion keyword toolset selection."""
 
     def test_always_includes_base_and_platform(self):
         """Any message should at minimum include base_data + platform."""
         deps = _make_deps()
-        result = select_toolsets("你好", deps)
+        result = _select_toolsets_keyword("你好", deps)
         assert TOOLSET_BASE_DATA in result
         assert TOOLSET_PLATFORM in result
 
     def test_generation_included_for_quiz_request(self):
         deps = _make_deps()
-        result = select_toolsets("帮我出 5 道选择题", deps)
+        result = _select_toolsets_keyword("帮我出 5 道选择题", deps)
         assert "generation" in result
 
     def test_generation_included_for_ppt_request(self):
         deps = _make_deps()
-        result = select_toolsets("帮我做一个 PPT", deps)
+        result = _select_toolsets_keyword("帮我做一个 PPT", deps)
         assert "generation" in result
 
     def test_artifact_ops_included_when_has_artifacts(self):
         deps = _make_deps(has_artifacts=True)
-        result = select_toolsets("你好", deps)
+        result = _select_toolsets_keyword("你好", deps)
         assert "artifact_ops" in result
 
     def test_artifact_ops_included_for_modify_request(self):
         deps = _make_deps()
-        result = select_toolsets("把第三题改一下", deps)
+        result = _select_toolsets_keyword("把第三题改一下", deps)
         assert "artifact_ops" in result
 
     def test_analysis_included_when_class_id_present(self):
         deps = _make_deps(class_id="c-001")
-        result = select_toolsets("你好", deps)
+        result = _select_toolsets_keyword("你好", deps)
         assert "analysis" in result
 
     def test_analysis_included_for_grade_request(self):
         deps = _make_deps()
-        result = select_toolsets("三班的成绩怎么样", deps)
+        result = _select_toolsets_keyword("三班的成绩怎么样", deps)
         assert "analysis" in result
 
     def test_simple_chat_minimal_toolsets(self):
         """Simple chat should NOT exclude base_data/platform (loose inclusion)."""
         deps = _make_deps()
-        result = select_toolsets("你好，你是谁", deps)
+        result = _select_toolsets_keyword("你好，你是谁", deps)
         assert TOOLSET_BASE_DATA in result
         assert TOOLSET_PLATFORM in result
 
     def test_no_exclusive_routing(self):
         """A generation request should still include base_data + platform."""
         deps = _make_deps()
-        result = select_toolsets("帮我生成一份测试题", deps)
+        result = _select_toolsets_keyword("帮我生成一份测试题", deps)
         assert TOOLSET_BASE_DATA in result
         assert TOOLSET_PLATFORM in result
         assert "generation" in result

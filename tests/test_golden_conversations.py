@@ -21,7 +21,7 @@ import pytest
 
 import tools.native_tools  # noqa: F401  populate registry
 
-from agents.native_agent import AgentDeps, select_toolsets
+from agents.native_agent import AgentDeps, _select_toolsets_keyword as select_toolsets
 from tools.registry import get_tool_names
 
 GOLDEN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden")

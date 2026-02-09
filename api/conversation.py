@@ -8,7 +8,7 @@ Step 1.4 of AI native rewrite.  This is a ~100-line thin gateway that:
 
 Does NOT: route intents, classify messages, select tools, maintain state machines.
 
-Environment switch:
+Environment switch (evaluated at import time — requires process restart to change):
 - ``NATIVE_AGENT_ENABLED=true`` (default): NativeAgent new path
 - ``NATIVE_AGENT_ENABLED=false``: fallback to ``conversation_legacy.py``
 """
@@ -45,7 +45,7 @@ else:
     # ── Native path ─────────────────────────────────────────
 
     from agents.native_agent import AgentDeps, NativeAgent
-    from services.stream_adapter import adapt_stream
+    from services.stream_adapter import adapt_stream, extract_tool_calls_summary
 
     router = APIRouter(prefix="/api", tags=["conversation"])
     _agent = NativeAgent()
@@ -96,6 +96,7 @@ else:
         async def event_generator() -> AsyncGenerator[str, None]:
             text_parts: list[str] = []
             enc = DataStreamEncoder(text_sink=text_parts)
+            _stream_ref: list = []  # capture stream for tool summary extraction
 
             try:
                 async for stream in _agent.run_stream(
@@ -103,6 +104,7 @@ else:
                     deps=deps,
                     message_history=message_history,
                 ):
+                    _stream_ref.append(stream)
                     async for line in adapt_stream(stream, enc, message_id=conversation_id):
                         yield line
             except Exception as e:
@@ -110,9 +112,17 @@ else:
                 yield enc.error(str(e))
                 yield enc.finish("error")
 
+            # Extract tool calls summary for multi-turn context
+            tool_summary = None
+            if _stream_ref:
+                tool_summary = extract_tool_calls_summary(_stream_ref[0])
+
             # Save assistant response to session
             response_text = "".join(text_parts) if text_parts else ""
-            session.add_assistant_turn(response_text[:6000])
+            session.add_assistant_turn(
+                response_text[:6000],
+                tool_calls_summary=tool_summary,
+            )
             await store.save(session)
 
         return StreamingResponse(
@@ -162,12 +172,19 @@ else:
                 deps=deps,
                 message_history=message_history,
             )
+            # PydanticAI >= 0.1: result.output; older versions: result.data
             response_text = result.output if hasattr(result, "output") else str(result.data)
+
+            # Extract tool call summary from result messages
+            tool_summary = extract_tool_calls_summary(result)
         except Exception as e:
             logger.exception("Error in conversation %s", conversation_id)
             raise HTTPException(status_code=500, detail=str(e))
 
-        session.add_assistant_turn(response_text[:6000])
+        session.add_assistant_turn(
+            response_text[:6000],
+            tool_calls_summary=tool_summary,
+        )
         await store.save(session)
 
         return {

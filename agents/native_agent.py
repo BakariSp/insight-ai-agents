@@ -11,6 +11,7 @@ Replaces: RouterAgent + ExecutorAgent + ChatAgent + PatchAgent + hand-coded tool
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -18,13 +19,14 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Sequence
 
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, UsageLimits
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.result import StreamedRunResult
 from pydantic_ai.settings import ModelSettings
 
 from agents.provider import create_model
 from config.prompts.native_agent import SYSTEM_PROMPT
+from config.settings import get_settings
 from services.metrics import get_metrics_collector
 from tools.registry import (
     ALL_TOOLSETS,
@@ -80,14 +82,11 @@ _ANALYZE_KEYWORDS = [
 ]
 
 
-def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
-    """Select toolsets based on message content and context.
+def _select_toolsets_keyword(message: str, deps: AgentDeps) -> list[str]:
+    """Select toolsets via keyword heuristics (fallback path).
 
     Uses LOOSE inclusion — it's better to include extra tools (small context cost)
     than to miss needed tools (functionality broken).
-
-    This is NOT intent routing. It decides which tools are *available*,
-    not which tool the LLM *must* use. The LLM decides autonomously.
     """
     sets = list(ALWAYS_TOOLSETS)  # base_data + platform always included
 
@@ -101,6 +100,60 @@ def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
         sets.append(TOOLSET_ANALYSIS)
 
     return sets
+
+
+async def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
+    """Select toolsets — LLM planner with keyword fallback.
+
+    When ``TOOLSET_PLANNER_ENABLED`` is true, calls a fast LLM to decide
+    which optional toolsets to include.  Falls back to keyword heuristics
+    on timeout, low confidence, or any error.
+    """
+    settings = get_settings()
+
+    if not settings.toolset_planner_enabled:
+        result = _select_toolsets_keyword(message, deps)
+        _log_toolset_selection(deps, message, result, source="keyword")
+        return result
+
+    try:
+        from agents.toolset_planner import plan_toolsets
+
+        planner_result = await asyncio.wait_for(
+            plan_toolsets(
+                message,
+                has_artifacts=deps.has_artifacts,
+                has_class_id=bool(deps.class_id),
+            ),
+            timeout=settings.toolset_planner_timeout_s,
+        )
+
+        if planner_result.confidence >= settings.toolset_planner_confidence_threshold:
+            sets = list(ALWAYS_TOOLSETS) + list(planner_result.toolsets)
+            _log_toolset_selection(
+                deps, message, sets,
+                source="planner",
+                confidence=planner_result.confidence,
+            )
+            return sets
+
+        # Low confidence — fall back to keywords
+        keyword_sets = _select_toolsets_keyword(message, deps)
+        _log_toolset_selection(
+            deps, message, keyword_sets,
+            source="keyword_fallback",
+            confidence=planner_result.confidence,
+        )
+        return keyword_sets
+
+    except Exception as exc:
+        keyword_sets = _select_toolsets_keyword(message, deps)
+        _log_toolset_selection(
+            deps, message, keyword_sets,
+            source="error_fallback",
+            error=str(exc),
+        )
+        return keyword_sets
 
 
 def _might_generate(message: str) -> bool:
@@ -170,7 +223,7 @@ class NativeAgent:
 
         This is an async generator that yields exactly one StreamedRunResult.
         """
-        selected = select_toolsets(message, deps)
+        selected = await select_toolsets(message, deps)
         if not deps.turn_id:
             deps.turn_id = f"turn-{uuid.uuid4().hex[:10]}"
         agent = self._create_agent(selected, deps)
@@ -182,6 +235,7 @@ class NativeAgent:
             message,
             deps=deps,
             message_history=list(message_history) if message_history else None,
+            usage_limits=UsageLimits(request_limit=MAX_TOOL_CALLS),
         ) as stream:
             yield stream
 
@@ -195,7 +249,7 @@ class NativeAgent:
         message_history: Sequence[ModelMessage] | None = None,
     ):
         """Run the agent and return complete result (non-streaming)."""
-        selected = select_toolsets(message, deps)
+        selected = await select_toolsets(message, deps)
         if not deps.turn_id:
             deps.turn_id = f"turn-{uuid.uuid4().hex[:10]}"
         agent = self._create_agent(selected, deps)
@@ -207,6 +261,7 @@ class NativeAgent:
             message,
             deps=deps,
             message_history=list(message_history) if message_history else None,
+            usage_limits=UsageLimits(request_limit=MAX_TOOL_CALLS),
         )
 
         elapsed_ms = (time.monotonic() - start_time) * 1000
@@ -215,6 +270,29 @@ class NativeAgent:
 
 
 # ── Structured Logging (Step 1.5) ───────────────────────────
+
+
+def _log_toolset_selection(
+    deps: AgentDeps,
+    message: str,
+    toolsets: list[str],
+    *,
+    source: str,
+    confidence: float = 0.0,
+    error: str = "",
+) -> None:
+    """Emit structured JSON log for toolset selection decision."""
+    logger.info(json.dumps({
+        "event": "toolset_selection",
+        "conversation_id": deps.conversation_id,
+        "turn_id": deps.turn_id,
+        "teacher_id": deps.teacher_id,
+        "source": source,
+        "toolsets": toolsets,
+        "confidence": confidence,
+        "error": error,
+        "message_preview": message[:100],
+    }, ensure_ascii=False))
 
 
 def _log_turn_start(deps: AgentDeps, message: str, toolsets: list[str]) -> None:

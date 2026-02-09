@@ -26,6 +26,12 @@ SYSTEM_PROMPT = """\
 - 生成 PPT 大纲和完整 PPT
 - 生成文稿、互动内容
 
+### 产物修改
+- 获取已生成的产物（get_artifact）查看当前内容
+- 局部修改产物（patch_artifact）：替换、删除、移动某一题或段落
+- 基于之前结果重新生成（regenerate_from_previous）
+- 修改流程：先 get_artifact 获取当前产物 → 再 patch_artifact 修改指定部分
+
 ### 知识检索
 - 搜索教师上传的教学文档（RAG）
 

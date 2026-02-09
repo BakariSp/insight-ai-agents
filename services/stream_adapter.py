@@ -134,3 +134,54 @@ def _serialize_tool_output(content: Any) -> Any:
     if isinstance(content, list):
         return content
     return str(content)
+
+
+def extract_tool_calls_summary(result: Any) -> str | None:
+    """Extract a brief summary of tool calls from a PydanticAI result.
+
+    Inspects ``result.new_messages()`` (or ``result.all_messages()``) for
+    ToolCallPart and ToolReturnPart to build a compact summary like::
+
+        generate_quiz_questions(topic=英语, count=5) → ok; patch_artifact(op=replace) → ok
+
+    Returns ``None`` if no tool calls were made.
+    """
+    try:
+        messages = result.new_messages() if hasattr(result, "new_messages") else []
+    except Exception:
+        try:
+            messages = result.all_messages() if hasattr(result, "all_messages") else []
+        except Exception:
+            return None
+
+    calls: list[str] = []
+    # Collect tool calls and their results
+    call_map: dict[str, str] = {}  # tool_call_id → tool_name(args_summary)
+    result_map: dict[str, str] = {}  # tool_call_id → status
+
+    for msg in messages:
+        if not hasattr(msg, "parts"):
+            continue
+        for part in msg.parts:
+            if isinstance(part, ToolCallPart):
+                call_id = part.tool_call_id or ""
+                args_str = ""
+                if isinstance(part.args, dict) and part.args:
+                    # Keep only first 2 args for brevity
+                    items = list(part.args.items())[:2]
+                    args_str = ", ".join(f"{k}={v}" for k, v in items)
+                call_map[call_id] = f"{part.tool_name}({args_str})"
+            elif isinstance(part, ToolReturnPart):
+                call_id = part.tool_call_id or ""
+                status = "ok"
+                if isinstance(part.content, dict):
+                    status = str(part.content.get("status", "ok"))
+                elif isinstance(part.content, str) and "error" in part.content.lower():
+                    status = "error"
+                result_map[call_id] = status
+
+    for call_id, call_desc in call_map.items():
+        status = result_map.get(call_id, "ok")
+        calls.append(f"{call_desc} → {status}")
+
+    return "; ".join(calls) if calls else None

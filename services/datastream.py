@@ -131,7 +131,7 @@ class DataStreamEncoder:
         return self._sse({"type": "error", "errorText": text})
 
 
-# ── Executor event mapping ───────────────────────────────────────
+# ── Executor event mapping (LEGACY — used by ExecutorAgent fallback path) ──
 
 
 def map_executor_event(
@@ -141,6 +141,10 @@ def map_executor_event(
     last_call_id: str | None = None,
 ) -> tuple[list[str], str | None]:
     """Map an ExecutorAgent SSE event dict to Data Stream Protocol lines.
+
+    .. deprecated::
+        Legacy code for ``NATIVE_AGENT_ENABLED=false`` fallback path.
+        Will be removed in Step 4 cleanup when ExecutorAgent is deleted.
 
     The executor's internal event format (PHASE, TOOL_CALL, TOOL_RESULT,
     BLOCK_START, SLOT_DELTA, BLOCK_COMPLETE, COMPLETE, ERROR, DATA_ERROR)
