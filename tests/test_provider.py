@@ -172,34 +172,3 @@ def test_get_model_chain_default_model_last_resort():
         assert settings.default_model in chain
 
 
-def test_override_model_in_create_teacher_agent():
-    """_override_model bypasses tier mapping."""
-    from agents.teacher_agent import create_teacher_agent
-    agent = create_teacher_agent(
-        teacher_context={"teacher_id": "t1", "classes": []},
-        model_tier="strong",
-        _override_model="dashscope/qwen-turbo-latest",
-    )
-    assert agent is not None
-
-
-def test_is_provider_error():
-    """_is_provider_error correctly identifies provider/model errors."""
-    from api.conversation import _is_provider_error
-
-    # Known message patterns should trigger fallback
-    assert _is_provider_error(Exception("connection error")) is True
-    assert _is_provider_error(Exception("rate limit exceeded")) is True
-    assert _is_provider_error(Exception("Status 429")) is True
-    # Normal errors should not trigger fallback
-    assert _is_provider_error(ConnectionError("Connection refused")) is False
-    assert _is_provider_error(ValueError("invalid input")) is False
-
-
-def test_is_provider_error_unexpected_model_behavior():
-    """UnexpectedModelBehavior (tool retry exhaustion) triggers fallback."""
-    from api.conversation import _is_provider_error
-    from pydantic_ai.exceptions import UnexpectedModelBehavior
-
-    err = UnexpectedModelBehavior("Tool 'generate_interactive_html' exceeded max retries count of 2")
-    assert _is_provider_error(err) is True

@@ -60,74 +60,6 @@ class TestRouterResult:
         assert data["path"] == "agent"
 
 
-# ── _assign_path logic ──────────────────────────────────────────
-
-
-class TestAssignPath:
-
-    def test_quiz_generate_goes_to_skill(self):
-        from agents.router import _assign_path
-        r = RouterResult(intent="quiz_generate", confidence=0.9)
-        assert _assign_path(r) == "skill"
-
-    def test_build_workflow_goes_to_blueprint(self):
-        from agents.router import _assign_path
-        r = RouterResult(intent="build_workflow", confidence=0.9)
-        assert _assign_path(r) == "blueprint"
-
-    def test_content_create_goes_to_agent(self):
-        from agents.router import _assign_path
-        r = RouterResult(intent="content_create", confidence=0.9)
-        assert _assign_path(r) == "agent"
-
-    def test_chat_smalltalk_goes_to_chat(self):
-        from agents.router import _assign_path
-        r = RouterResult(intent="chat_smalltalk", confidence=0.9)
-        assert _assign_path(r) == "chat"
-
-    def test_chat_qa_goes_to_chat(self):
-        from agents.router import _assign_path
-        r = RouterResult(intent="chat_qa", confidence=0.9)
-        assert _assign_path(r) == "chat"
-
-    def test_clarify_goes_to_chat(self):
-        from agents.router import _assign_path
-        r = RouterResult(intent="clarify", confidence=0.5)
-        assert _assign_path(r) == "chat"
-
-    def test_unknown_intent_goes_to_agent(self):
-        from agents.router import _assign_path
-        r = RouterResult(intent="some_future_intent", confidence=0.9)
-        assert _assign_path(r) == "agent"
-
-
-# ── Confidence routing with CONTENT_CREATE ───────────────────────
-
-
-class TestConfidenceRouting:
-
-    def test_content_create_high_confidence_passes(self):
-        from agents.router import _apply_confidence_routing
-        r = RouterResult(intent="content_create", confidence=0.8)
-        result = _apply_confidence_routing(r)
-        assert result.intent == "content_create"
-        # content_create does not set should_build
-        assert result.should_build is False
-
-    def test_content_create_medium_confidence_clarifies(self):
-        from agents.router import _apply_confidence_routing
-        r = RouterResult(intent="content_create", confidence=0.5)
-        result = _apply_confidence_routing(r)
-        assert result.intent == "clarify"
-        assert result.strategy == "ask_one_question"
-
-    def test_content_create_low_confidence_becomes_chat(self):
-        from agents.router import _apply_confidence_routing
-        r = RouterResult(intent="content_create", confidence=0.3)
-        result = _apply_confidence_routing(r)
-        assert result.intent == "chat_smalltalk"
-
-
 # ── Platform tools (sync, no external deps) ─────────────────────
 
 
@@ -203,45 +135,6 @@ class TestRenderTools:
         ]
         result = await generate_pptx(slides=slides, title="Notes Test")
         assert result["slide_count"] == 1
-
-
-# ── Teacher agent prompt ─────────────────────────────────────────
-
-
-class TestTeacherAgentPrompt:
-
-    def test_prompt_includes_tools(self):
-        from config.prompts.teacher_agent import build_teacher_agent_prompt
-        prompt = build_teacher_agent_prompt(
-            teacher_context={"teacher_id": "t1", "classes": []},
-        )
-        assert "generate_pptx" in prompt
-        assert "generate_docx" in prompt
-        assert "render_pdf" in prompt
-        assert "generate_quiz_questions" in prompt
-        assert "save_as_assignment" in prompt
-
-    def test_prompt_includes_teacher_context(self):
-        from config.prompts.teacher_agent import build_teacher_agent_prompt
-        prompt = build_teacher_agent_prompt(
-            teacher_context={
-                "teacher_id": "t1",
-                "classes": [
-                    {"name": "1A", "subject": "Math", "grade": "S1"},
-                ],
-            },
-        )
-        assert "1A" in prompt
-        assert "Math" in prompt
-
-    def test_prompt_includes_suggested_tools(self):
-        from config.prompts.teacher_agent import build_teacher_agent_prompt
-        prompt = build_teacher_agent_prompt(
-            teacher_context={"teacher_id": "t1"},
-            suggested_tools=["generate_pptx", "get_rubric"],
-        )
-        assert "generate_pptx" in prompt
-        assert "get_rubric" in prompt
 
 
 # ── Tool registry ────────────────────────────────────────────────
@@ -381,38 +274,6 @@ class TestGetModelForTier:
         # Should fall back to agent_model
         standard = get_model_for_tier("standard")
         assert model == standard
-
-
-# ── create_teacher_agent with model_tier ──────────────────────────
-
-
-class TestTeacherAgentModelTier:
-
-    def test_create_agent_accepts_model_tier(self):
-        """create_teacher_agent accepts model_tier parameter without error."""
-        from agents.teacher_agent import create_teacher_agent
-        agent = create_teacher_agent(
-            teacher_context={"teacher_id": "t1", "classes": []},
-            model_tier="standard",
-        )
-        assert agent is not None
-
-    def test_create_agent_default_tier(self):
-        """create_teacher_agent defaults to standard tier."""
-        from agents.teacher_agent import create_teacher_agent
-        agent = create_teacher_agent(
-            teacher_context={"teacher_id": "t1", "classes": []},
-        )
-        assert agent is not None
-
-    def test_create_agent_strong_tier(self):
-        """create_teacher_agent with strong tier creates agent with Anthropic model."""
-        from agents.teacher_agent import create_teacher_agent
-        agent = create_teacher_agent(
-            teacher_context={"teacher_id": "t1", "classes": []},
-            model_tier="strong",
-        )
-        assert agent is not None
 
 
 # ── Anthropic provider ────────────────────────────────────────────

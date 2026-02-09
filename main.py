@@ -86,7 +86,6 @@ import tools.native_tools  # noqa: E402, F401  — registers tools via @register
 
 # ── Register routers ────────────────────────────────────────
 from api.health import router as health_router  # noqa: E402
-from api.chat import router as chat_router  # noqa: E402
 from api.models_routes import router as models_router  # noqa: E402
 from api.workflow import router as workflow_router  # noqa: E402
 from api.page import router as page_router  # noqa: E402
@@ -95,7 +94,6 @@ from api.internal import router as internal_router  # noqa: E402
 from api.files import router as files_router  # noqa: E402
 
 app.include_router(health_router)
-app.include_router(chat_router)
 app.include_router(models_router)
 app.include_router(workflow_router)
 app.include_router(page_router)

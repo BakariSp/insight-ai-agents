@@ -98,7 +98,9 @@ class Settings(BaseSettings):
     redis_url: str = ""  # e.g. redis://:password@host:6379/0
 
     # ── AI Native Runtime ─────────────────────────────────────
-    native_agent_enabled: bool = True  # False = emergency fallback to legacy
+    # @deprecated — legacy fallback (conversation_legacy.py) has been removed.
+    # This field is kept for config-file compatibility only; the value is ignored.
+    native_agent_enabled: bool = True
 
     # ── Toolset Planner (LLM-based toolset selection) ────────
     toolset_planner_enabled: bool = True  # False = keyword fallback only

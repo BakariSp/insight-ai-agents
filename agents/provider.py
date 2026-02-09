@@ -168,34 +168,33 @@ async def create_model_with_fallback(tier: str):
 
 
 def get_mcp_tool_names() -> list[str]:
-    """Get the names of all registered FastMCP tools."""
+    """Get the names of all registered FastMCP tools.
+
+    .. deprecated:: Step 4
+        Use ``tools.registry.get_tool_names()`` directly.
+    """
     return list(TOOL_REGISTRY.keys())
 
 
 def get_mcp_tool_descriptions() -> list[dict[str, str]]:
     """Get name + description for every registered tool.
 
-    Returns:
-        List of ``{"name": ..., "description": ...}`` dicts.
+    .. deprecated:: Step 4
+        Use ``tools.registry.get_tool_descriptions()`` directly.
     """
     return get_tool_descriptions()
 
 
 async def execute_mcp_tool(name: str, arguments: dict[str, Any]) -> Any:
-    """Execute a registered FastMCP tool by name.
+    """Execute a registered tool by name.
+
+    .. deprecated:: Step 4
+        Still used by ``agents/executor.py``, ``services/entity_resolver.py``,
+        and ``services/clarify_builder.py``.  Will be removed when those
+        legacy modules are migrated to the native tool-calling path.
 
     Looks up the function in :data:`tools.TOOL_REGISTRY` and calls it
     directly (supports both sync and async tool functions).
-
-    Args:
-        name: Tool name as registered in the TOOL_REGISTRY.
-        arguments: Keyword arguments forwarded to the tool function.
-
-    Returns:
-        The tool's return value.
-
-    Raises:
-        ValueError: If the tool name is not found.
     """
     fn = TOOL_REGISTRY.get(name)
     if fn is None:
