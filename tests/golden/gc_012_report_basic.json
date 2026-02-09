@@ -1,0 +1,26 @@
+{
+  "id": "gc_012_report_basic",
+  "name": "Report — basic class performance analysis",
+  "scenario": "S8",
+  "context": {
+    "teacherId": "t-001",
+    "classId": "c-001",
+    "hasArtifacts": false
+  },
+  "turns": [
+    {"role": "user", "message": "分析一下三班这次作业成绩"}
+  ],
+  "assertions": {
+    "turn_0": {
+      "expected_toolsets": ["base_data", "platform", "analysis"],
+      "expected_tools": ["build_report_page"],
+      "expected_tool_count": [1, 5],
+      "expected_events": ["start", "tool-input-start", "tool-output-available", "text-delta", "finish"],
+      "expected_artifact_type": null,
+      "expected_content_format": null,
+      "forbidden_events": ["error"],
+      "expected_tool_status": "ok",
+      "metrics_bounds": {"tool_call_count": [1, 8], "total_latency_ms": [0, 60000]}
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "id": "gc_015_multiturn_quiz",
+  "name": "Multi-turn — quiz generation across 3 turns",
+  "scenario": "S10",
+  "context": {
+    "teacherId": "t-001",
+    "classId": "c-001",
+    "hasArtifacts": false
+  },
+  "turns": [
+    {"role": "user", "message": "帮我出 5 道英语选择题"},
+    {"role": "user", "message": "再出 5 道更难的"},
+    {"role": "user", "message": "把这些题的答案解析补充完整"}
+  ],
+  "assertions": {
+    "turn_0": {
+      "expected_toolsets": ["base_data", "platform", "generation"],
+      "expected_tools": ["generate_quiz_questions"],
+      "expected_tool_count": [1, 3],
+      "expected_events": ["start", "tool-input-start", "tool-output-available", "finish"],
+      "expected_artifact_type": "quiz",
+      "expected_content_format": "json",
+      "forbidden_events": ["error"],
+      "expected_tool_status": "ok",
+      "metrics_bounds": {"tool_call_count": [1, 5], "total_latency_ms": [0, 60000]}
+    },
+    "turn_1": {
+      "context_override": {"hasArtifacts": true},
+      "expected_toolsets": ["base_data", "platform", "generation"],
+      "expected_tools": ["generate_quiz_questions"],
+      "expected_tool_count": [1, 3],
+      "expected_events": ["start", "tool-input-start", "tool-output-available", "finish"],
+      "expected_artifact_type": "quiz",
+      "expected_content_format": "json",
+      "forbidden_events": ["error"],
+      "expected_tool_status": "ok",
+      "metrics_bounds": {"tool_call_count": [1, 5], "total_latency_ms": [0, 60000]}
+    },
+    "turn_2": {
+      "context_override": {"hasArtifacts": true},
+      "expected_toolsets": ["base_data", "platform", "artifact_ops"],
+      "expected_tools": ["get_artifact", "patch_artifact"],
+      "expected_tool_count": [1, 4],
+      "expected_events": ["start", "tool-input-start", "tool-output-available", "finish"],
+      "expected_artifact_type": "quiz",
+      "expected_content_format": "json",
+      "forbidden_events": ["error"],
+      "expected_tool_status": "ok",
+      "metrics_bounds": {"tool_call_count": [1, 5], "total_latency_ms": [0, 60000]}
+    }
+  }
+}

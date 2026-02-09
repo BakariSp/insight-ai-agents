@@ -62,6 +62,9 @@ _GENERATE_KEYWORDS = [
     "生成", "做一个", "创建", "制作", "PPT", "ppt", "文稿",
     "互动", "quiz", "create", "generate", "make", "写", "编写",
     "设计", "prepare", "draft",
+    # Step 3 regression: expanded for common education generation patterns.
+    # "道" = counter word for questions, "再出"/"重新" = redo/regenerate.
+    "道", "再出", "重新",
 ]
 
 _MODIFY_KEYWORDS = [

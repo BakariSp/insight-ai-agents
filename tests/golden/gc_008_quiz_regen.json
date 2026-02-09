@@ -1,0 +1,39 @@
+{
+  "id": "gc_008_quiz_regen",
+  "name": "Quiz — generate then full regenerate",
+  "scenario": "S4",
+  "context": {
+    "teacherId": "t-001",
+    "classId": "c-001",
+    "hasArtifacts": false
+  },
+  "turns": [
+    {"role": "user", "message": "帮我出 5 道英语选择题"},
+    {"role": "user", "message": "全部重新出，改成数学题"}
+  ],
+  "assertions": {
+    "turn_0": {
+      "expected_toolsets": ["base_data", "platform", "generation"],
+      "expected_tools": ["generate_quiz_questions"],
+      "expected_tool_count": [1, 3],
+      "expected_events": ["start", "tool-input-start", "tool-output-available", "finish"],
+      "expected_artifact_type": "quiz",
+      "expected_content_format": "json",
+      "forbidden_events": ["error"],
+      "expected_tool_status": "ok",
+      "metrics_bounds": {"tool_call_count": [1, 5], "total_latency_ms": [0, 60000]}
+    },
+    "turn_1": {
+      "context_override": {"hasArtifacts": true},
+      "expected_toolsets": ["base_data", "platform", "artifact_ops"],
+      "expected_tools": ["regenerate_from_previous"],
+      "expected_tool_count": [1, 4],
+      "expected_events": ["start", "tool-input-start", "tool-output-available", "finish"],
+      "expected_artifact_type": "quiz",
+      "expected_content_format": "json",
+      "forbidden_events": ["error"],
+      "expected_tool_status": "ok",
+      "metrics_bounds": {"tool_call_count": [1, 5], "total_latency_ms": [0, 60000]}
+    }
+  }
+}

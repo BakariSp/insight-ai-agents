@@ -1,0 +1,29 @@
+{
+  "id": "gc_020_error_tool_failure",
+  "name": "Edge — backend tool failure returns error status",
+  "scenario": "Edge",
+  "context": {
+    "teacherId": "t-001",
+    "classId": "c-001",
+    "hasArtifacts": false
+  },
+  "mock_overrides": {
+    "get_teacher_classes": {"status": "error", "reason": "connection refused"}
+  },
+  "turns": [
+    {"role": "user", "message": "帮我看看我的班级列表"}
+  ],
+  "assertions": {
+    "turn_0": {
+      "expected_toolsets": ["base_data", "platform"],
+      "expected_tools": ["get_teacher_classes"],
+      "expected_tool_count": [1, 3],
+      "expected_events": ["start", "tool-input-start", "tool-output-available", "finish"],
+      "expected_artifact_type": null,
+      "expected_content_format": null,
+      "forbidden_events": [],
+      "expected_tool_status": "error",
+      "metrics_bounds": {"tool_call_count": [1, 5], "total_latency_ms": [0, 30000]}
+    }
+  }
+}

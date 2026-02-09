@@ -1,0 +1,26 @@
+{
+  "id": "gc_002_chat_about_self",
+  "name": "Chat — self-introduction",
+  "scenario": "S1",
+  "context": {
+    "teacherId": "t-001",
+    "classId": null,
+    "hasArtifacts": false
+  },
+  "turns": [
+    {"role": "user", "message": "你是谁？你能做什么？"}
+  ],
+  "assertions": {
+    "turn_0": {
+      "expected_toolsets": ["base_data", "platform"],
+      "expected_tools": [],
+      "expected_tool_count": [0, 0],
+      "expected_events": ["start", "text-delta", "finish"],
+      "expected_artifact_type": null,
+      "expected_content_format": null,
+      "forbidden_events": ["error"],
+      "expected_tool_status": "ok",
+      "metrics_bounds": {"tool_call_count": [0, 2], "total_latency_ms": [0, 30000]}
+    }
+  }
+}
