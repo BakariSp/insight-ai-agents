@@ -85,7 +85,7 @@ async def get_detail(client: JavaClient, teacher_id: str, class_id: str) -> Clas
             StudentInfo(
                 student_id=str(s.get("studentId") or ""),
                 name=s.get("name") or "",
-                number=s.get("studentNo") or 0,
+                number=str(s.get("studentNo") or ""),
             )
             for s in students_raw
             if isinstance(s, dict)
@@ -109,7 +109,10 @@ async def list_assignments(
 
     GET /dify/teacher/{teacherId}/classes/{classId}/assignments
     """
-    resp = await client.get(f"/dify/teacher/{teacher_id}/classes/{class_id}/assignments")
+    resp = await client.get(
+        f"/dify/teacher/{teacher_id}/classes/{class_id}/assignments",
+        params={"limit": 100},
+    )
     raw = _unwrap_data(resp)
 
     # Response is PageResponseDTOClassAssignmentDTO → {data: [...], pagination: {...}}

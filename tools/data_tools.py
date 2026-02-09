@@ -137,6 +137,8 @@ async def get_class_detail(teacher_id: str, class_id: str) -> dict:
         detail.assignments = assignments
         result = detail.model_dump()
         result["teacher_id"] = teacher_id
+        # Override stale counter with real assignment count
+        result["assignment_count"] = len(assignments)
         return result
     except Exception as exc:
         logger.exception("get_class_detail failed")

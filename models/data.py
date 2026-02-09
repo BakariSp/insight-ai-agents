@@ -93,7 +93,7 @@ class StudentInfo(BaseModel):
     """A student within a class."""
     student_id: str
     name: str
-    number: int = 0
+    number: str = ""
     email: str = ""
 
 

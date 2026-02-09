@@ -5,7 +5,7 @@ Only handles resource library files (purpose="rag_material").
 
 API paths follow the studio convention:
   GET  /studio/teacher/me/files/{fileId}/download
-  PUT  /studio/teacher/me/files/{fileId}/parse-status
+  POST /studio/teacher/me/files/{fileId}/parse-status
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ async def update_parse_status(
 ) -> bool:
     """Notify Java backend of document parse status.
 
-    Calls: PUT /api/studio/teacher/me/files/{fileId}/parse-status
+    Calls: POST /api/studio/teacher/me/files/{fileId}/parse-status
 
     Args:
         file_id: The file ID.

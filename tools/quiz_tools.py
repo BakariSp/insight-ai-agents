@@ -62,6 +62,8 @@ async def generate_quiz_questions(
             )
 
     return {
+        "artifact_type": "quiz",
+        "status": "ok",
         "questions": questions,
         "total": len(questions),
     }

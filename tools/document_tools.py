@@ -66,12 +66,19 @@ async def search_teacher_documents(
                 "source": item.get("source", "public" if include_public else "private"),
             })
 
+        # Attach source file list for citation transparency
+        sources = [
+            {"fileId": f["file_id"], "fileName": f["file_name"]}
+            for f in engine.get_workspace_files(teacher_id)
+        ]
+
         if not normalized_results:
             return {
                 "status": "no_result",
                 "query": query,
                 "results": [],
                 "total": 0,
+                "sources": sources,
             }
 
         return {
@@ -79,6 +86,7 @@ async def search_teacher_documents(
             "query": query,
             "results": normalized_results,
             "total": len(normalized_results),
+            "sources": sources,
         }
     except Exception as exc:
         logger.error("Document search failed for teacher %s: %s", teacher_id, exc)

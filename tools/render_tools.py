@@ -297,6 +297,11 @@ async def generate_interactive_html(
     platform — it supports full HTML/CSS/JavaScript including Canvas, SVG,
     and libraries loaded via CDN (e.g. p5.js, Chart.js, Three.js, D3.js).
 
+    IMPORTANT: The HTML must be fully self-contained — ALL CSS must be in
+    <style> tags (never <link>), ALL JS must be in <script> tags (never
+    external src for your own code).  Do NOT reference local files or
+    relative URLs — they will fail to load in the sandboxed iframe.
+
     Args:
         html: Complete HTML document string. Must be self-contained (inline
             CSS + JS, or load libraries from CDN).  Can use <!DOCTYPE html>
@@ -332,9 +337,9 @@ async def request_interactive_content(
 ) -> dict:
     """Plan interactive HTML content for three-stream parallel generation.
 
-    Call this instead of generate_interactive_html for better quality and
-    progressive rendering. The actual HTML/CSS/JS will be generated in
-    parallel as a follow-up step — the teacher sees content appear gradually.
+    NOTE: This function is currently DISABLED in native_tools.py because
+    three-stream progressive rendering is not yet implemented.  Use
+    generate_interactive_html() instead for now.
 
     Define sections with element IDs so the three generators (HTML, CSS, JS)
     stay consistent with each other.

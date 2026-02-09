@@ -100,6 +100,12 @@ def _fix_invalid_json_escapes(s: str) -> str:
     ``\begin``, ``\not``, ``\right``, ``\text``).  When followed by
     2+ letters, these are LaTeX commands, not JSON control characters.
     """
+    # Step 0: Protect valid \\ (JSON literal backslash) from being split
+    # by subsequent regex steps.  Without this, Step 1 matches the second
+    # backslash of \\ when followed by a non-escape char (e.g. "\\ 4" → "\\\ 4").
+    _PH = "\x00\x01"
+    s = s.replace("\\\\", _PH)
+
     # Step 1: Fix obvious non-JSON escapes (e.g. \s, \l, \i, \(, \), \x)
     s = re.sub(
         r'\\(?!["\\/bfnrtu])',
@@ -118,6 +124,9 @@ def _fix_invalid_json_escapes(s: str) -> str:
         r'\\\\' + r'\1\2',
         s,
     )
+
+    # Step 3: Restore protected \\ sequences
+    s = s.replace(_PH, "\\\\")
     return s
 
 
