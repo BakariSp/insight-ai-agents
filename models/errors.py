@@ -72,7 +72,6 @@ _TOOL_NAME_RE = re.compile(
     r"|patch_artifact"
     r"|propose_pptx_outline"
     r"|render_pdf"
-    r"|request_interactive_content"
     r"|build_report_page"
     r"|ask_clarification"
     r"|compare_performance"

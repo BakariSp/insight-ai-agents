@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 from typing import Any
 
@@ -66,6 +67,55 @@ def _save_artifact(
     }
 
 
+async def _modify_interactive_html(original_html: str, instruction: str) -> str:
+    """Use the code model to modify interactive HTML based on a user instruction.
+
+    Called by ``regenerate_from_previous`` when the artifact is interactive.
+    The code model receives the original HTML and the modification request,
+    then returns the complete modified HTML.
+    """
+    from pydantic_ai import Agent
+    from pydantic_ai.settings import ModelSettings
+    from agents.provider import create_model, get_model_for_tier
+
+    model = create_model(get_model_for_tier("code"))
+    agent: Agent[None, str] = Agent(
+        model=model,
+        system_prompt=(
+            "You are an expert HTML/CSS/JavaScript developer.\n"
+            "You will receive an existing HTML document and a modification instruction.\n"
+            "Apply the requested change and return the COMPLETE modified HTML document.\n"
+            "Rules:\n"
+            "- Return ONLY the HTML code, no markdown fences, no explanation.\n"
+            "- Keep the document self-contained (inline CSS/JS, CDN libs OK).\n"
+            "- Preserve all existing functionality unless the instruction says otherwise.\n"
+            "- If the instruction is ambiguous, make a reasonable choice."
+        ),
+        output_type=str,
+    )
+    result = await agent.run(
+        f"## Original HTML\n```html\n{original_html}\n```\n\n"
+        f"## Modification Request\n{instruction}",
+        model_settings=ModelSettings(
+            max_tokens=16384,
+            extra_body={"enable_thinking": False},
+        ),
+    )
+    modified = result.output
+
+    # Strip markdown code fences if the model wrapped the output
+    if modified.startswith("```"):
+        lines = modified.split("\n")
+        # Remove first line (```html) and last line (```)
+        if lines[-1].strip() == "```":
+            lines = lines[1:-1]
+        elif lines[0].startswith("```"):
+            lines = lines[1:]
+        modified = "\n".join(lines)
+
+    return modified
+
+
 # ---------------------------------------------------------------------------
 # base_data (5)
 # ---------------------------------------------------------------------------
@@ -73,7 +123,12 @@ def _save_artifact(
 
 @register_tool(toolset="base_data")
 async def get_teacher_classes(ctx: RunContext[AgentDeps]) -> dict:
-    """List all classes assigned to the current teacher."""
+    """List all classes for the current teacher (SUMMARY ONLY).
+
+    Returns class_id, name, grade, subject, student_count, assignment_count.
+    Does NOT include student roster or assignment details.
+    To get student names or assignment list, call get_class_detail with the class_id.
+    """
     from tools.data_tools import get_teacher_classes as _get_classes
 
     teacher_id = ctx.deps.teacher_id
@@ -87,7 +142,12 @@ async def get_teacher_classes(ctx: RunContext[AgentDeps]) -> dict:
 
 @register_tool(toolset="base_data")
 async def get_class_detail(ctx: RunContext[AgentDeps], class_id: str) -> dict:
-    """Get detailed information for a class including students and assignments."""
+    """Get full details for a specific class: student roster + assignment list.
+
+    Returns student names/IDs, assignment titles/scores/due dates, and class metadata.
+    Always call this when the user asks about a class's students or assignments.
+    The class_id can be obtained from get_teacher_classes.
+    """
     from tools.data_tools import get_class_detail as _get_detail
 
     teacher_id = ctx.deps.teacher_id
@@ -105,7 +165,11 @@ async def get_assignment_submissions(
     class_id: str,
     assignment_id: str,
 ) -> dict:
-    """Get all student submissions and scores for a specific assignment."""
+    """Get all student submissions and scores for a specific assignment.
+
+    Returns per-student scores, submission status, and a raw scores array.
+    The assignment_id can be obtained from get_class_detail.
+    """
     from tools.data_tools import get_assignment_submissions as _get_subs
 
     teacher_id = ctx.deps.teacher_id
@@ -124,7 +188,10 @@ async def get_student_grades(
     class_id: str,
     student_id: str,
 ) -> dict:
-    """Get all grades for a specific student in a class."""
+    """Get all grades for a specific student in a class.
+
+    The student_id and class_id can be obtained from get_class_detail.
+    """
     from tools.data_tools import get_student_grades as _get_grades
 
     teacher_id = ctx.deps.teacher_id
@@ -269,6 +336,12 @@ async def generate_quiz_questions(
     context: str = "",
 ) -> dict:
     """Generate quiz questions on a topic, returning a JSON artifact."""
+    # Per-turn dedup: prevent LLM from calling this tool multiple times
+    _tool_key = "generate_quiz_questions"
+    if _tool_key in ctx.deps._called_gen_tools:
+        return _ok({"message": "Quiz questions already generated in this turn. Use the existing result.", "duplicate": True})
+    ctx.deps._called_gen_tools.add(_tool_key)
+
     from tools.quiz_tools import generate_quiz_questions as _generate
 
     result = await _generate(
@@ -327,7 +400,20 @@ async def generate_pptx(
     title: str = "Presentation",
     template: str = "education",
 ) -> dict:
-    """Generate a PPTX file from a list of slide definitions."""
+    """Generate a PPTX file from a list of slide definitions.
+
+    IMPORTANT: You must call propose_pptx_outline first and get teacher approval
+    before calling this tool. If no outline has been proposed in this conversation,
+    this tool will return an error.
+    """
+    # Enforce: outline must exist in this conversation before generating
+    store = get_artifact_store()
+    latest = store.get_latest_for_conversation(ctx.deps.conversation_id)
+    if latest is None or latest.artifact_type != "pptx":
+        return _error(
+            "请先调用 propose_pptx_outline 提交大纲供教师确认，确认后再生成 PPT。"
+        )
+
     from tools.render_tools import generate_pptx as _generate_pptx
 
     result = await _generate_pptx(slides=slides, title=title, template=template)
@@ -392,7 +478,68 @@ async def generate_interactive_html(
     description: str = "",
     preferred_height: int | None = None,
 ) -> dict:
-    """Wrap self-contained interactive HTML into a renderable artifact."""
+    """Generate an interactive HTML web page rendered live in the browser.
+
+    Use this for interactive content, simulations, animations, drag-and-drop
+    exercises, visual demos, or any web-based learning material.
+
+    IMPORTANT: The HTML must be fully self-contained — ALL CSS must be in
+    <style> tags (never <link>), ALL JS must be in <script> tags (never
+    external src for your own code).  External CDN libs are OK (Chart.js,
+    p5.js, D3.js, Three.js, Matter.js are pre-loaded).  Do NOT reference
+    local files or relative URLs — they will fail to load.
+
+    ## AI 实时对话功能 (可选)
+
+    当教师要求生成可以 **实时对话、角色扮演、口语练习、AI 陪练** 等
+    需要与 AI 交互的内容时，可以在 HTML 中调用平台预置的
+    `InsightAI.chat()` 接口。该接口通过 postMessage 与平台 AI Agent
+    通信，无需额外引入任何库。
+
+    ### API
+    ```js
+    // 发送消息给 AI，返回 Promise<string>（AI 的回复文本）
+    const reply = await InsightAI.chat(userMessage, {
+      role: '角色名',           // AI 要扮演的角色，如 "English Teacher"
+      scenario: '场景描述',     // 对话场景，如 "日常英语口语练习"
+      instructions: '额外要求'  // 如 "用英语回复" / "用文言文" / "纠正语法错误"
+    });
+    ```
+
+    ### 何时使用 / 不使用
+    - ✅ "生成一个可以跟 AI 对话的英语练习" → 使用
+    - ✅ "做一个历史角色扮演，学生可以跟诸葛亮对话" → 使用
+    - ✅ "AI 口语陪练 / AI 写作助手" → 使用
+    - ❌ "生成赤壁夜话对话展示" → 不使用，纯展示
+    - ❌ "做一个物理模拟动画" → 不使用，无需对话
+
+    ### 典型用法
+    ```html
+    <div id="chat-log"></div>
+    <input id="user-input" placeholder="Type here...">
+    <button onclick="send()">Send</button>
+    <script>
+    async function send() {
+      var input = document.getElementById('user-input');
+      var log = document.getElementById('chat-log');
+      var text = input.value.trim();
+      if (!text) return;
+      log.innerHTML += '<p><b>You:</b> ' + text + '</p>';
+      input.value = '';
+      try {
+        var reply = await InsightAI.chat(text, {
+          role: 'English Teacher',
+          scenario: 'Casual conversation practice',
+          instructions: 'Reply in English. Gently correct grammar mistakes.'
+        });
+        log.innerHTML += '<p><b>Teacher:</b> ' + reply + '</p>';
+      } catch(e) {
+        log.innerHTML += '<p style="color:red">Failed: ' + e.message + '</p>';
+      }
+    }
+    </script>
+    ```
+    """
     from tools.render_tools import generate_interactive_html as _interactive
 
     result = await _interactive(
@@ -410,38 +557,11 @@ async def generate_interactive_html(
     return _ok({**result, **artifact_meta, "artifact_type": "interactive", "content_format": "html"})
 
 
-@register_tool(toolset="generation")
-async def request_interactive_content(
-    ctx: RunContext[AgentDeps],
-    title: str,
-    description: str,
-    topics: list[str],
-    sections: list[dict],
-    grade_level: str = "",
-    subject: str = "",
-    style: str = "modern",
-    include_features: list[str] | None = None,
-) -> dict:
-    """Plan interactive HTML content for three-stream parallel generation."""
-    from tools.render_tools import request_interactive_content as _request
-
-    result = await _request(
-        title=title,
-        description=description,
-        topics=topics,
-        sections=sections,
-        grade_level=grade_level,
-        subject=subject,
-        style=style,
-        include_features=include_features,
-    )
-    artifact_meta = _save_artifact(
-        conversation_id=ctx.deps.conversation_id,
-        artifact_type="interactive",
-        content_format="json",
-        content=result,
-    )
-    return _ok({**result, **artifact_meta, "artifact_type": "interactive", "content_format": "json"})
+# NOTE: request_interactive_content is disabled — three-stream progressive
+# rendering is not yet implemented.  The tool returned only planning metadata
+# (no HTML), so the stream adapter never emitted a data-interactive-content
+# event and the frontend saw nothing.  Re-enable when three-stream is built.
+# See: render_tools.py:request_interactive_content
 
 
 # ---------------------------------------------------------------------------
@@ -589,10 +709,11 @@ async def regenerate_from_previous(
         )
         return regen
     if artifact.artifact_type == "interactive":
-        html = str(artifact.content)
+        original_html = str(artifact.content)
+        modified_html = await _modify_interactive_html(original_html, instruction)
         regen = await generate_interactive_html(
             ctx,
-            html=html,
+            html=modified_html,
             title="Regenerated Interactive Content",
             description=instruction,
         )
@@ -603,7 +724,7 @@ async def regenerate_from_previous(
 
 
 # ---------------------------------------------------------------------------
-# platform (5)
+# platform (3 active, 2 disabled — save_as_assignment, create_share_link)
 # ---------------------------------------------------------------------------
 
 
@@ -631,58 +752,52 @@ async def search_teacher_documents(
     return result
 
 
-@register_tool(toolset="platform")
-async def save_as_assignment(
-    ctx: RunContext[AgentDeps],
-    title: str,
-    questions: list[dict],
-    class_id: str = "",
-    due_date: str = "",
-    description: str = "",
-) -> dict:
-    """Save generated questions as a class assignment on the platform."""
-    from tools.platform_tools import save_as_assignment as _save
-
-    result = await _save(
-        title=title,
-        questions=questions,
-        class_id=class_id,
-        due_date=due_date,
-        description=description,
-    )
-    return _ok(result)
-
-
-@register_tool(toolset="platform")
-async def create_share_link(
-    ctx: RunContext[AgentDeps],
-    assignment_id: str,
-) -> dict:
-    """Create a shareable link for an assignment."""
-    from tools.platform_tools import create_share_link as _share
-
-    result = await _share(assignment_id=assignment_id)
-    return _ok(result)
+# NOTE: save_as_assignment and create_share_link are Phase 1 placeholders
+# that return "coming soon" messages. Disabled to avoid confusing users.
+# Re-enable when Phase 2 Java backend integration is implemented.
+# See: platform_tools.py
+#
+# @register_tool(toolset="platform")
+# async def save_as_assignment(...) -> dict: ...
+#
+# @register_tool(toolset="platform")
+# async def create_share_link(...) -> dict: ...
 
 
 @register_tool(toolset="platform")
 async def ask_clarification(
     ctx: RunContext[AgentDeps],
     question: str,
-    options: list[dict[str, str]] | None = None,
+    options: str | list[Any] | None = None,
     allow_custom_input: bool = True,
 ) -> dict:
     """Ask the user a clarifying question with optional multiple-choice options."""
+    # LLMs sometimes double-encode options as a JSON string instead of an array.
+    raw_options: list[Any] = []
+    if isinstance(options, str):
+        try:
+            parsed = json.loads(options)
+            raw_options = parsed if isinstance(parsed, list) else []
+        except (json.JSONDecodeError, TypeError):
+            raw_options = []
+    elif isinstance(options, list):
+        raw_options = options
+
+    choices: list[ClarifyChoice] = []
+    for item in raw_options:
+        if isinstance(item, dict):
+            choices.append(ClarifyChoice(
+                label=str(item.get("label", "")),
+                value=str(item.get("value", item.get("label", ""))),
+                description=str(item.get("description", "")),
+            ))
+        elif isinstance(item, str):
+            choices.append(ClarifyChoice(label=item, value=item))
+        else:
+            choices.append(ClarifyChoice(label=str(item), value=str(item)))
     clarify = ClarifyEvent(
         question=question,
-        options=[
-            ClarifyChoice(
-                label=str(item.get("label", "")),
-                value=str(item.get("value", "")),
-                description=str(item.get("description", "")),
-            )
-            for item in (options or [])
-        ],
+        options=choices,
         allow_custom_input=allow_custom_input,
     )
     return _ok({

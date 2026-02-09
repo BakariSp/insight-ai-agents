@@ -45,8 +45,16 @@ class ToolTracker:
         # Consume events from tracker.queue in a separate task
     """
 
+    # Generation tools that should only execute once per turn.
+    # Prevents LLM from calling the same generation tool multiple times
+    # with identical intent (a common hallucination pattern).
+    DEDUP_TOOLS: frozenset[str] = frozenset({
+        "generate_quiz_questions",
+    })
+
     def __init__(self) -> None:
         self.queue: asyncio.Queue[ToolEvent] = asyncio.Queue()
+        self._called_gen: set[str] = set()
 
     async def push(self, event: ToolEvent) -> None:
         """Push an arbitrary event (e.g. incremental quiz question)."""
@@ -65,6 +73,23 @@ class ToolTracker:
         @functools.wraps(fn)
         async def wrapper(*args, **kwargs):
             tool_name = fn.__name__
+
+            # Dedup: prevent LLM from calling generation tools twice per turn
+            if tool_name in tracker_ref.DEDUP_TOOLS:
+                if tool_name in tracker_ref._called_gen:
+                    logger.warning(
+                        "Duplicate call to %s suppressed — already executed this turn",
+                        tool_name,
+                    )
+                    return {
+                        "status": "already_completed",
+                        "message": (
+                            f"{tool_name} was already executed this turn. "
+                            "Use refine_quiz_questions to modify existing questions."
+                        ),
+                    }
+                tracker_ref._called_gen.add(tool_name)
+
             await tracker_ref.queue.put(ToolEvent(tool=tool_name, status="running"))
             token = current_tracker.set(tracker_ref)
             start = time.monotonic()

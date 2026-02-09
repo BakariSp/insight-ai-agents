@@ -24,7 +24,7 @@ ARTIFACT_EVENT_TYPES = {
 
 ARTIFACT_TOOL_SET = {
     'generate_pptx', 'propose_pptx_outline', 'generate_docx', 'render_pdf',
-    'generate_quiz_questions', 'request_interactive_content', 'generate_interactive_html',
+    'generate_quiz_questions', 'generate_interactive_html',
 }
 
 
