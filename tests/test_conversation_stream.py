@@ -26,6 +26,8 @@ from api.conversation import (
     _build_tool_result_events,
     _compose_content_request_after_clarify,
     _run_unified_quiz_direct_tool,
+    _should_restore_artifact_type,
+    _stream_modify_quiz,
     _stream_followup_artifact,
     _stream_unified_agent_mode,
 )
@@ -1085,3 +1087,104 @@ async def test_stream_followup_artifact_interactive_refine_keeps_refine_action()
     action_events = [p for p in payloads if isinstance(p, dict) and p.get("type") == "data-action"]
     assert action_events
     assert action_events[0]["data"]["action"] == "refine"
+
+
+@pytest.mark.asyncio
+async def test_stream_artifact_followup_passes_session_artifact_summary_to_router(client):
+    """Artifact follow-up should pass stored artifact summary (not just type) into router."""
+    store = get_conversation_store()
+    conv_id = "conv-artifact-summary-test"
+    session = ConversationSession(conversation_id=conv_id)
+    session.merge_context({
+        "last_artifact_type": "interactive",
+        "last_artifact_summary": "[已生成互动内容: 抛物线演示] 包含坐标轴和拖拽点",
+    })
+    await store.save(session)
+
+    mock_router = RouterResult(intent="chat", confidence=0.92, should_build=False)
+    with (
+        patch(
+            "api.conversation.classify_intent",
+            new_callable=AsyncMock,
+            return_value=mock_router,
+        ) as mock_classify,
+        patch(
+            "api.conversation._artifact_chat_response",
+            new_callable=AsyncMock,
+            return_value="这是一个抛物线互动页面。",
+        ),
+    ):
+        resp = await client.post(
+            "/api/conversation/stream",
+            json={
+                "message": "这个页面讲了什么？",
+                "conversationId": conv_id,
+                "artifactType": "interactive",
+                "artifacts": {"interactive": {"title": "抛物线演示"}},
+            },
+        )
+
+    assert resp.status_code == 200
+    kwargs = mock_classify.await_args.kwargs
+    assert kwargs["artifact_type"] == "interactive"
+    assert kwargs["artifact_summary"] == "[已生成互动内容: 抛物线演示] 包含坐标轴和拖拽点"
+
+
+@pytest.mark.asyncio
+async def test_stream_modify_quiz_emits_quiz_replace_event():
+    """Quiz incremental modify should emit data-quiz-replace for indexed replacement."""
+    from models.quiz_output import QuestionTypeV1, QuizQuestionV1
+
+    enc = DataStreamEncoder()
+    req = ConversationRequest(message="第1题太简单了，换一道")
+    artifacts = {
+        "quiz": {
+            "questions": [
+                {
+                    "id": "q-001",
+                    "order": 1,
+                    "questionType": "SINGLE_CHOICE",
+                    "question": "1+1=?",
+                    "options": ["1", "2", "3", "4"],
+                    "correctAnswer": "2",
+                    "explanation": "",
+                    "difficulty": "easy",
+                    "points": 1.0,
+                    "knowledgePoint": "加法",
+                },
+            ],
+        },
+    }
+    replaced = QuizQuestionV1(
+        id="q-001-r",
+        order=1,
+        question_type=QuestionTypeV1.SINGLE_CHOICE,
+        question="2+3=?",
+        options=["4", "5", "6", "7"],
+        correct_answer="5",
+        explanation="2加3等于5",
+        difficulty="easy",
+        points=1.0,
+        knowledge_point="加法",
+    )
+
+    with patch(
+        "skills.quiz_skill.regenerate_question",
+        new_callable=AsyncMock,
+        return_value=replaced,
+    ):
+        lines = []
+        async for line in _stream_modify_quiz(enc, req, artifacts):
+            lines.append(line)
+
+    payloads = _parse_sse_stream("".join(lines))
+    replace_events = [p for p in payloads if isinstance(p, dict) and p.get("type") == "data-quiz-replace"]
+    assert len(replace_events) == 1
+    assert replace_events[0]["data"]["index"] == 0
+    assert replace_events[0]["data"]["question"]["question"] == "2+3=?"
+
+
+def test_should_restore_artifact_type_only_for_followup_like_messages():
+    assert _should_restore_artifact_type("把这个页面改成蓝色", "interactive") is True
+    assert _should_restore_artifact_type("what does this page show?", "interactive") is True
+    assert _should_restore_artifact_type("给我推荐三个课堂破冰游戏", "interactive") is False

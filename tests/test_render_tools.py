@@ -254,13 +254,64 @@ def test_file_ready_sse_event_for_pptx():
 # ── Helpers ──────────────────────────────────────────────────────
 
 
-def test_safe_filename():
+def test_safe_filename_ascii_only():
     from tools.render_tools import _safe_filename
 
-    assert _safe_filename("Hello World") == "Hello World"
+    assert _safe_filename("Hello World") == "Hello_World"
     assert _safe_filename('File<>:"/\\|?*Name') == "FileName"
-    assert _safe_filename("") == "untitled"
+    assert _safe_filename("") == "document"
     assert len(_safe_filename("x" * 200)) <= 100
+    # Chinese characters stripped — URL must be ASCII-safe
+    assert _safe_filename("初一数学教案") == "document"
+    assert _safe_filename("Math初一教案Test") == "MathTest"
+    assert _safe_filename("  spaced  out  ") == "spaced_out"
+
+
+def test_display_filename_preserves_unicode():
+    from tools.render_tools import _display_filename
+
+    assert _display_filename("Hello World") == "Hello World"
+    # Chinese angle brackets 《》 (U+300A/U+300B) are NOT ASCII <> — preserved
+    assert _display_filename("初一数学《整式加减》教案") == "初一数学《整式加减》教案"
+    assert _display_filename('File<>:"/\\|?*Name') == "FileName"
+    assert _display_filename("") == "untitled"
+    assert len(_display_filename("中" * 200)) <= 100
+
+
+def test_display_name_cache_is_bounded(monkeypatch):
+    import tools.render_tools as render_tools
+
+    monkeypatch.setattr(render_tools, "_MAX_DISPLAY_NAME_CACHE", 2)
+    render_tools._FILE_DISPLAY_NAMES.clear()
+
+    render_tools.remember_display_name("a.tmp", "A.docx")
+    render_tools.remember_display_name("b.tmp", "B.docx")
+    render_tools.remember_display_name("c.tmp", "C.docx")
+
+    assert render_tools.resolve_display_name("a.tmp") is None
+    assert render_tools.resolve_display_name("b.tmp") == "B.docx"
+    assert render_tools.resolve_display_name("c.tmp") == "C.docx"
+
+
+@pytest.mark.asyncio
+async def test_generate_docx_chinese_title_ascii_safe_url():
+    """Chinese titles must produce ASCII-safe URLs but preserve Chinese display name."""
+    from tools.render_tools import generate_docx
+
+    result = await generate_docx(
+        content="# 测试内容\n正文段落。",
+        title="初一数学《整式加减》教案",
+    )
+
+    # Display filename preserves Chinese
+    assert "初一数学" in result["filename"]
+    assert result["filename"].endswith(".docx")
+
+    # URL must be ASCII-safe (no Chinese chars in path)
+    url = result["url"]
+    url.encode("ascii")  # raises UnicodeEncodeError if non-ASCII
+    assert url.endswith(".docx")
+    assert result["size"] > 0
 
 
 def test_get_template_path_returns_none_for_missing():

@@ -941,7 +941,7 @@ async def test_live_question_draft_generation():
         subject="English",
         topic="Reading Comprehension",
         count=2,
-        question_types=[QuestionType.MULTIPLE_CHOICE],
+        types=[QuestionType.MULTIPLE_CHOICE.value],
         difficulty=Difficulty.MEDIUM,
         knowledge_points=["DSE-ENG-U5-RC-01"],
     )
@@ -957,12 +957,12 @@ async def test_live_question_draft_generation():
             "subject": spec.subject,
             "topic": spec.topic,
             "count": spec.count,
-            "question_types": [qt.value for qt in spec.question_types],
+            "types": spec.types,
         },
         output_data={
             "drafts_count": len(drafts),
             "draft_previews": [
-                {"id": d.id, "type": d.question_type.value, "text_preview": d.question_text[:100]}
+                {"id": d.id, "type": d.type, "text_preview": d.stem[:100]}
                 for d in drafts
             ] if drafts else [],
         },
@@ -986,7 +986,7 @@ async def test_live_question_judge():
         subject="English",
         topic="Grammar",
         count=1,
-        question_types=[QuestionType.MULTIPLE_CHOICE],
+        types=[QuestionType.MULTIPLE_CHOICE.value],
         difficulty=Difficulty.EASY,
     )
     drafts = await pipeline.generate_draft(spec)
@@ -1000,12 +1000,12 @@ async def test_live_question_judge():
     _record_result(
         test_name="test_live_question_judge",
         category="F. Phase 7 Question Pipeline",
-        input_data={"question_preview": drafts[0].question_text[:100]},
+        input_data={"question_preview": drafts[0].stem[:100]},
         output_data={
             "passed": result.passed,
             "score": result.score,
             "issues_count": len(result.issues),
-            "issues": [{"type": i.issue_type.value, "severity": i.severity.value} for i in result.issues],
+            "issues": [{"type": i.issue_type, "severity": i.severity} for i in result.issues],
         },
         duration_ms=duration,
     )
@@ -1030,7 +1030,7 @@ async def test_live_question_full_pipeline():
         subject="English",
         topic="Vocabulary",
         count=2,
-        question_types=[QuestionType.MULTIPLE_CHOICE],
+        types=[QuestionType.MULTIPLE_CHOICE.value],
         difficulty=Difficulty.MEDIUM,
         knowledge_points=["DSE-ENG-U5-VOC-01"],
     )
@@ -1056,9 +1056,9 @@ async def test_live_question_full_pipeline():
             "average_quality": round(result.average_quality_score, 3),
             "questions": [
                 {
-                    "type": q.question_type.value,
+                    "type": q.type,
                     "quality": q.quality_score,
-                    "text_preview": q.question_text[:80],
+                    "text_preview": q.stem[:80],
                 }
                 for q in result.questions
             ],
@@ -1087,7 +1087,7 @@ async def test_live_question_with_weakness_context():
         subject="English",
         topic="Grammar Practice",
         count=2,
-        question_types=[QuestionType.MULTIPLE_CHOICE, QuestionType.SHORT_ANSWER],
+        types=[QuestionType.MULTIPLE_CHOICE.value, QuestionType.SHORT_ANSWER.value],
         difficulty=Difficulty.EASY,
         knowledge_points=weak_kps,
     )
