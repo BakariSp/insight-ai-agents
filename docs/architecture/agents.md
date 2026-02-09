@@ -1,379 +1,251 @@
-# 多 Agent 设计
+# NativeAgent 设计
 
-> PlannerAgent / ExecutorAgent / RouterAgent / PageChatAgent 的分工、实现与协作。
-
----
-
-## Agent 分工总览
-
-| Agent | 职责 | 输入 | 输出 | 对外暴露 |
-|-------|------|------|------|---------|
-| **PlannerAgent** | 理解用户需求，生成 Blueprint | 用户自然语言 | 结构化分析方案 JSON | `POST /api/workflow/generate` |
-| **ExecutorAgent** | 执行分析计划，调用工具，构建页面 | Blueprint + 数据 | SSE 流式页面 | `POST /api/page/generate` |
-| **RouterAgent** | 意图分类 + 置信度路由 | 用户消息 + 可选上下文 | RouterResult (intent + confidence + refine_scope) | **内部组件** |
-| **ChatAgent** | 闲聊 + 知识问答 | 用户消息 + intent_type | Markdown 文本回复 | **内部组件** |
-| **PageChatAgent** | 页面追问对话 | 用户消息 + Blueprint + 页面上下文 | Markdown 文本回复 | **内部组件** |
-| **PatchAgent** | 分析 refine 请求，生成 Patch 指令 | message + blueprint + page + refine_scope | PatchPlan (scope + instructions) | **内部组件** |
-
-> **设计原则**: RouterAgent、ChatAgent、PageChatAgent、PatchAgent 不对外暴露独立端点，统一通过 `POST /api/conversation` 内部调度。前端只调一个端点，根据响应中的 `action` 字段做渲染。
+> AI 原生 Tool Calling 架构 — 单 runtime，LLM 自主编排。
+> 替代旧的多 Agent 设计（PlannerAgent / ExecutorAgent / RouterAgent / ChatAgent / PatchAgent）。
 
 ---
 
-## LLM 框架选型
+## 架构对比
 
-### PydanticAI + LiteLLM model
-
-| 选择理由 | 说明 |
-|----------|------|
-| 技术栈契合 | 项目已用 Pydantic v2 + CamelModel，PydanticAI 天然集成 |
-| 结构化输出 | Blueprint 需要 LLM 输出复杂嵌套 JSON，`result_type=Blueprint` 直接验证 |
-| 多 Provider | PydanticAI 原生支持 LiteLLM 作为 model provider，保留 Qwen/GLM/GPT/Claude 切换 |
-| Tool Calling | `@agent.tool` + Pydantic 参数验证，与 FastMCP `@mcp.tool` 理念一致 |
-| Streaming | `agent.iter()` / `run_stream_events()` 直接产出 SSE 事件 |
-| 未来扩展 | Level 3（AI 生成 Python function + 前端 UI）时，类型系统有助于约束和验证 |
-
-### Why FastMCP (purely internal)
-
-FastMCP 不对外暴露，仅作为 **内部 tool 注册和调用框架**：
-
-| vs 自定义 BaseSkill | FastMCP |
-|---------------------|---------|
-| class + ABC + 手写 JSON Schema | `@mcp.tool` + type hints，schema 自动生成 |
-| 无参数验证 | Pydantic 自动验证 |
-| ~40 行/tool | ~10 行/tool |
-| 自己搭测试 | 内置 `fastmcp dev` 交互测试 |
-
-PydanticAI Agent 通过 `@agent.tool` 桥接 FastMCP tools，in-process 调用，零网络开销。
-前端完全不感知 MCP，只与 FastAPI HTTP/SSE 端点交互。
-
----
-
-## Agent Provider (`agents/provider.py`) ✅ 已实现
-
-核心：PydanticAI Agent + LiteLLM model + FastMCP tool 桥接。
-
-```python
-from config.settings import get_settings
-from tools import TOOL_REGISTRY, get_tool_descriptions
-
-
-def create_model(model_name: str | None = None) -> str:
-    """构建 PydanticAI 模型标识符 "litellm:<model>"。"""
-    settings = get_settings()
-    name = model_name or settings.default_model
-    return f"litellm:{name}"
-
-
-def get_mcp_tool_names() -> list[str]:
-    """获取所有注册工具名称。"""
-    return list(TOOL_REGISTRY.keys())
-
-
-async def execute_mcp_tool(name: str, arguments: dict) -> Any:
-    """In-process 调用 TOOL_REGISTRY 中的函数（支持 sync/async）。"""
-    fn = TOOL_REGISTRY.get(name)
-    if fn is None:
-        raise ValueError(f"Tool '{name}' not found")
-    if inspect.iscoroutinefunction(fn):
-        return await fn(**arguments)
-    return fn(**arguments)
-```
-
----
-
-## PlannerAgent (`agents/planner.py`) ✅ 已实现
-
-输入 user prompt → 输出 `Blueprint`。PydanticAI 的 `output_type` 确保输出结构合法。
-
-通过 `PLANNER_LLM_CONFIG` 声明 Agent 级 LLM 参数（低温度 + JSON 输出格式），
-并在 `agent.run()` 时通过 `model_settings` 传递给 LiteLLM。
-
-```python
-from pydantic_ai import Agent
-from models.blueprint import Blueprint
-from agents.provider import create_model
-from config.llm_config import LLMConfig
-from config.prompts.planner import build_planner_prompt
-
-# Agent-level LLM tuning — structured output, low temperature
-PLANNER_LLM_CONFIG = LLMConfig(
-    temperature=0.2,
-    response_format="json_object",
-)
-
-_planner_agent = Agent(
-    model=create_model(),
-    output_type=Blueprint,
-    system_prompt=build_planner_prompt(),
-    retries=2,
-    defer_model_check=True,
-)
-
-
-async def generate_blueprint(
-    user_prompt: str, language: str = "en", model: str | None = None,
-) -> Blueprint:
-    """用户输入 → Blueprint。"""
-    result = await _planner_agent.run(
-        f"[Language: {language}]\n\nUser request: {user_prompt}",
-        model=create_model(model) if model else None,
-        model_settings=PLANNER_LLM_CONFIG.to_litellm_kwargs(),
-    )
-    blueprint = result.output
-    # 自动填充 source_prompt, created_at
-    return blueprint
-```
-
----
-
-## ExecutorAgent (`agents/executor.py`) ✅ 已实现
-
-执行 Blueprint 三阶段，输出 SSE stream → 前端 `handleSSEStream()` 直接消费，构建结构化页面。
-
-```python
-import json
-from typing import AsyncGenerator
-from pydantic_ai import Agent
-from agents.provider import create_model, execute_mcp_tool
-from config.settings import get_settings
-from models.blueprint import Blueprint, ComputeNodeType
-
-
-class ExecutorAgent:
-
-    def __init__(self):
-        settings = get_settings()
-        self.model = create_model(settings.executor_model)
-
-    async def execute_blueprint_stream(
-        self, blueprint: Blueprint, context: dict,
-    ) -> AsyncGenerator[dict, None]:
-        """三阶段执行 Blueprint，流式输出 SSE 事件。"""
-
-        # ── Phase 1: Resolve Data Contract ──
-        yield {"type": "PHASE", "phase": "data", "message": "Fetching data..."}
-        data_context = await self._resolve_data_contract(blueprint, context)
-
-        # ── Phase 2: Execute Compute Graph ──
-        yield {"type": "PHASE", "phase": "compute", "message": "Computing analytics..."}
-        compute_results = {}
-
-        tool_nodes = [n for n in blueprint.compute_graph.nodes if n.type == ComputeNodeType.TOOL]
-        ai_nodes = [n for n in blueprint.compute_graph.nodes if n.type == ComputeNodeType.AI]
-
-        for node in tool_nodes:
-            if node.tool_name:
-                resolved_args = self._resolve_refs(node.tool_args or {}, data_context, compute_results)
-                yield {"type": "TOOL_CALL", "tool": node.tool_name, "args": resolved_args}
-                result = await execute_mcp_tool(node.tool_name, resolved_args)
-                yield {"type": "TOOL_RESULT", "tool": node.tool_name, "result": result}
-                compute_results[node.output_key] = json.loads(result) if self._is_json(result) else result
-
-        # ── Phase 3: AI Compose ──
-        yield {"type": "PHASE", "phase": "compose", "message": "Composing page..."}
-
-        compose_prompt = self._build_compose_prompt(blueprint, data_context, compute_results)
-        agent = Agent(model=self.model, system_prompt=blueprint.page_system_prompt or "")
-
-        @agent.tool_plain
-        async def call_tool(tool_name: str, arguments: str) -> str:
-            """调用数据/统计工具获取额外数据。"""
-            args = json.loads(arguments)
-            return await execute_mcp_tool(tool_name, args)
-
-        accumulated = ""
-        async with agent.iter(compose_prompt) as run:
-            async for node in run:
-                if hasattr(node, 'data') and isinstance(node.data, str):
-                    accumulated += node.data
-                    yield {"type": "MESSAGE", "content": node.data}
-
-        yield {
-            "type": "COMPLETE", "message": "completed", "progress": 100,
-            "result": {"response": accumulated},
-        }
-```
-
-### Blueprint 执行流程
-
-```
-Phase 1: Data    → 解析 DataContract，调用 tools 获取数据
-Phase 2: Compute → 执行 ComputeGraph（先 TOOL 节点，后 AI 节点）
-Phase 3: Compose → 映射计算结果到 UIComposition，生成 page JSON (PageSpec)
-```
-
----
-
-## RouterAgent (`agents/router.py`) ✅ 已实现
-
-意图分类 Agent，**不对外暴露端点**，作为 `POST /api/conversation` 的内部决策器。
-支持双模式：初始模式（4 种意图）和追问模式（3 种意图）。
-
-```python
-from pydantic_ai import Agent
-from models.conversation import RouterResult
-from agents.provider import create_model
-from config.llm_config import LLMConfig
-from config.prompts.router import build_router_prompt
-
-ROUTER_LLM_CONFIG = LLMConfig(temperature=0.1, response_format="json_object")
-
-_initial_agent = Agent(
-    model=create_model(),
-    output_type=RouterResult,
-    system_prompt=build_router_prompt(),
-    retries=1,
-    defer_model_check=True,
-)
-
-async def classify_intent(
-    message: str,
-    *,
-    blueprint: Blueprint | None = None,
-    page_context: dict | None = None,
-) -> RouterResult:
-    """分类用户意图，带置信度路由调整。"""
-    # blueprint is None → 初始模式，否则 → 追问模式
-    # 置信度路由: ≥0.7 build, 0.4-0.7 clarify, <0.4 chat
-    ...
-```
-
-**置信度路由策略:**
-
-| confidence | 路由行为 |
-|------------|---------|
-| `≥ 0.7` | 直接执行 `build_workflow` |
-| `0.4 ~ 0.7` | 强制 `clarify`（返回交互式反问） |
-| `< 0.4` | 当 `chat` 处理 |
-
----
-
-## ChatAgent (`agents/chat.py`) ✅ 已实现
-
-处理 `chat_smalltalk` 和 `chat_qa` 意图，作为教育场景的友好对话入口。轻量级 Agent，不需要工具调用。
-
-```python
-from pydantic_ai import Agent
-from config.llm_config import LLMConfig
-from config.prompts.chat import build_chat_prompt
-
-CHAT_LLM_CONFIG = LLMConfig(temperature=0.7)
-
-_chat_agent = Agent(
-    model=create_model(),
-    system_prompt=build_chat_prompt(),
-    retries=1,
-    defer_model_check=True,
-)
-
-async def generate_response(
-    message: str, intent_type: str = "chat_smalltalk", language: str = "en",
-) -> str:
-    """生成闲聊或 QA 文本回复（Markdown）。"""
-    ...
-```
-
----
-
-## PageChatAgent (`agents/page_chat.py`) ✅ 已实现
-
-基于已有页面上下文回答用户追问。**不对外暴露端点**，由 conversation 端点内部调用。
-
-```python
-from pydantic_ai import Agent
-from config.prompts.page_chat import build_page_chat_prompt
-
-async def generate_response(
-    message: str,
-    blueprint: Blueprint,
-    page_context: dict | None = None,
-    language: str = "en",
-) -> str:
-    """基于页面上下文回答用户追问，返回 Markdown 文本。"""
-    agent = Agent(
-        model=create_model(),
-        system_prompt=build_page_chat_prompt(
-            blueprint_name=blueprint.name,
-            blueprint_description=blueprint.description,
-            page_summary=_summarize_page_context(page_context),
-        ),
-        retries=1,
-        defer_model_check=True,
-    )
-    result = await agent.run(f"[Language: {language}]\n\n{message}")
-    return str(result.output)
-```
-
----
-
-## PatchAgent (`agents/patch_agent.py`) ✅ 已实现
-
-分析 refine 请求，生成 PatchPlan 指令。**不对外暴露端点**，由 conversation 端点内部调用。
-支持三种 scope：PATCH_LAYOUT（无 LLM）、PATCH_COMPOSE（重生成 AI 块）、FULL_REBUILD（走完整 rebuild）。
-
-```python
-from models.patch import PatchPlan, PatchInstruction, PatchType, RefineScope
-from models.blueprint import Blueprint
-
-async def analyze_refine(
-    message: str,
-    blueprint: Blueprint,
-    page: dict | None,
-    refine_scope: str | None,
-) -> PatchPlan:
-    """分析 refine 请求，生成 PatchPlan。"""
-    if refine_scope == "full_rebuild" or refine_scope is None:
-        return PatchPlan(scope=RefineScope.FULL_REBUILD)
-
-    if refine_scope == "patch_layout":
-        return _analyze_layout_patch(message, blueprint, page)
-
-    if refine_scope == "patch_compose":
-        return _analyze_compose_patch(message, blueprint, page)
-
-    return PatchPlan(scope=RefineScope.FULL_REBUILD)
-```
-
-**Patch 执行流程:**
-
-| Scope | 行为 | LLM 调用 |
-|-------|------|---------|
-| `PATCH_LAYOUT` | 修改 block props（颜色/标题/顺序） | ❌ 无 |
-| `PATCH_COMPOSE` | 重新生成 ai_content_slot 内容 | ✅ 仅 affected blocks |
-| `FULL_REBUILD` | 返回空 PatchPlan，调用方走完整 rebuild | ✅ 完整 PlannerAgent |
-
----
-
-## 统一会话流程 (`POST /api/conversation`)
+### 旧架构（已删除）
 
 ```
 用户消息
-    │
-    ▼
-POST /api/conversation
-    │
-    ├── blueprint is None? → 初始模式
-    │       │
-    │       ├── RouterAgent.classify_intent()
-    │       │       │
-    │       │       ├── "chat_smalltalk" → ChatAgent → { action: "chat_smalltalk", chatResponse }
-    │       │       ├── "chat_qa"        → ChatAgent → { action: "chat_qa", chatResponse }
-    │       │       ├── "build_workflow" → PlannerAgent → { action: "build_workflow", blueprint, chatResponse }
-    │       │       └── "clarify"        → ClarifyBuilder → { action: "clarify", chatResponse, clarifyOptions }
-    │       │
-    │       └── 追问模式
-    │               │
-    │               ├── RouterAgent.classify_intent()
-    │               │       │
-    │               │       ├── "chat"    → PageChatAgent → { action: "chat", chatResponse }
-    │               │       ├── "refine"  → PlannerAgent(微调) → { action: "refine", blueprint, chatResponse }
-    │               │       └── "rebuild" → PlannerAgent(重建) → { action: "rebuild", blueprint, chatResponse }
-    │
-    ▼
-前端根据 action 字段渲染
-    ├── "chat_*"        → 显示文本回复
-    ├── "build_workflow" → 调 /api/page/generate
-    ├── "clarify"        → 渲染交互式选项 UI
-    ├── "refine"         → 自动调 /api/page/generate 重新渲染
-    └── "rebuild"        → 展示说明 → 用户确认 → 调 /api/page/generate
+  ↓
+RouterAgent (if-elif 意图分类 + 置信度阈值 + 关键词正则)
+  ↓
+conversation.py (12+ handler 函数分发)
+  ↓
+┌─────────────────────┐
+│ chat_response()     │ → ChatAgent
+│ _stream_build()     │ → PlannerAgent → ExecutorAgent
+│ _stream_quiz_*()    │ → QuizSkill / UnifiedAgent
+│ _stream_modify_*()  │ → PatchAgent
+│ _stream_followup*() │ → 各种 followup handler
+└─────────────────────┘
+  ~2500+ 行编排代码
 ```
+
+### 新架构（AI 原生）
+
+```
+用户消息
+  ↓
+conversation.py (薄网关, ~100 行)
+  → 鉴权、会话、限流、SSE 适配
+  ↓
+NativeAgent (单 runtime)
+  → select_toolsets() → 宽松包含式选择 8-12 个 tools
+  → Agent(tools=subset).run_stream()
+  → LLM 自主决定调哪个 tool → 自动执行 → 自动循环
+  ↓
+stream_adapter → Data Stream Protocol SSE
+  ↓
+前端 (契约不变)
+```
+
+---
+
+## NativeAgent (`agents/native_agent.py`)
+
+### 职责
+
+- 每轮根据上下文调用 `registry.get_tools(toolsets)` 获取 tool 子集
+- 构建 PydanticAI `Agent(tools=subset)` 实例（每轮新建，开销 < 1ms）
+- 调用 `agent.run_stream()` 或 `agent.run()`
+- LLM 自主决定是否调 tool、调哪个、多少轮
+
+### 核心流程
+
+```python
+class NativeAgent:
+    async def run_stream(self, message: str, context: AgentContext):
+        # 1. 宽松选择 toolset
+        toolsets = self.select_toolsets(message, context)
+
+        # 2. 从 registry 获取 tool 子集
+        selected_tools = registry.get_tools(toolsets=toolsets)
+
+        # 3. 创建 PydanticAI Agent（每轮新建）
+        agent = Agent(
+            model=create_model(),
+            system_prompt=SYSTEM_PROMPT,
+            tools=selected_tools,
+        )
+
+        # 4. 加载历史并执行
+        history = await conversation_store.load_history(context.conversation_id)
+        result = await agent.run_stream(message, message_history=history)
+
+        # 5. 迭代流事件
+        async for event in result:
+            yield event
+
+        # 6. 保存历史
+        await conversation_store.save_history(context.conversation_id, result.messages)
+```
+
+### Toolset 选择策略
+
+**宽松包含式选择** — 不是排他分类，误包含代价极低，误排除代价极高。
+
+```python
+def select_toolsets(self, message: str, context: AgentContext) -> list[str]:
+    sets = ["base_data", "platform"]  # 始终包含
+
+    if _might_generate(message):     # 关键词: 出题/生成/PPT/quiz...
+        sets.append("generation")
+
+    if context.has_artifacts or _might_modify(message):  # 关键词: 修改/改/换/删...
+        sets.append("artifact_ops")
+
+    if context.class_id or _might_analyze(message):      # 关键词: 成绩/分析/统计...
+        sets.append("analysis")
+
+    return sets
+```
+
+> **与旧 RouterAgent 的区别**: 旧 Router 做排他分类（"这是 quiz 意图 → 只走 quiz 路径"），新 toolset 选择做宽松包含（"可能需要生成 → 加载 generation 包，LLM 自己决定用不用"）。
+
+### System Prompt 设计
+
+```
+你是教育 AI 助手。以下是你的工具使用规则：
+
+1. 你有一组可用工具。对于每个用户请求，自主判断是否需要调用工具。
+2. 涉及学生数据、成绩、作业提交等信息时，必须通过数据工具获取，不可编造。
+3. 涉及教学文档内容时，必须通过 search_teacher_documents 检索，不可凭记忆回答。
+4. 涉及实时信息时，必须通过相应工具获取，不可用训练数据回答。
+5. 对于通用知识（语法规则、数学公式等），可以直接回答。
+6. 当工具返回 status="error" 时，如实告知用户服务暂不可用，不可编造替代答案。
+7. 不确定是否需要工具时，优先调用工具确认，而非猜测回答。
+```
+
+---
+
+## Tool Registry (`tools/registry.py`)
+
+### 注册方式
+
+```python
+from tools.registry import register_tool
+
+@register_tool(toolset="generation")
+async def generate_quiz_questions(
+    ctx: RunContext[AgentContext],
+    subject: str,
+    count: int = 5,
+    difficulty: str = "medium",
+) -> QuizOutput:
+    """Generate quiz questions for a given subject."""
+    return await _generate_quiz_impl(subject, count, difficulty)
+```
+
+### 查询
+
+```python
+# 按 toolset 获取子集
+tools = registry.get_tools(toolsets=["generation", "platform"])
+
+# 获取全部 tool
+all_tools = registry.get_all_tools()
+```
+
+### 5 个 Toolset
+
+| Toolset | Tools 数 | 注入条件 | 说明 |
+|---------|---------|---------|------|
+| `base_data` | 5 | 始终注入 | 基础数据获取 + 实体解析 |
+| `analysis` | 5 | 涉及数据/成绩 | 统计分析 + 薄弱点 |
+| `generation` | 7 | 涉及生成/创建 | Quiz/PPT/文稿/互动 |
+| `artifact_ops` | 3 | 有 artifact 或涉及修改 | 获取/修改/重新生成 |
+| `platform` | 5 | 始终注入 | 保存/分享/RAG/澄清/报告 |
+
+---
+
+## Artifact 编辑模型
+
+生成用专用工具，编辑用通用 `patch_artifact`，避免工具爆炸。
+
+### 工具分工
+
+| 操作 | 工具 | 说明 |
+|------|------|------|
+| 首次生成 | `generate_quiz_questions` / `generate_pptx` / ... | 专用工具，按 artifact_type 分发 |
+| 结构化修改 | `patch_artifact(artifact_id, operations)` | 通用工具，按 content_format 分发到 patcher |
+| 全文重新生成 | `regenerate_from_previous(artifact_id, instruction)` | patch 失败的降级路径 |
+
+### 编辑 vs 重新生成
+
+由 LLM 自主判断，不硬编码规则:
+1. LLM 收到修改请求 → 调 `get_artifact` 获取当前内容
+2. 根据修改复杂度自主决定:
+   - 小改 → `patch_artifact`
+   - 大改 → `regenerate_from_previous` 或对应 `generate_xxx`
+
+---
+
+## 会话流程
+
+```
+POST /api/conversation/stream
+    │
+    ▼
+conversation.py (薄网关)
+    ├── 鉴权: 验证 JWT → teacher_id
+    ├── 会话: 加载/创建 conversation_id
+    ├── 调用: NativeAgent.run_stream(message, context)
+    ├── 适配: stream_adapter → SSE 事件
+    └── 校验: 确认 finish 事件已发送
+    │
+    ▼
+前端消费 SSE (Data Stream Protocol 契约不变)
+```
+
+### 场景示例
+
+| 场景 | 用户消息 | NativeAgent 行为 |
+|------|---------|-----------------|
+| 闲聊 | "你好" | LLM 直接回复，不调 tool |
+| RAG 问答 | "Unit 5 教学重点" | 自动调 `search_teacher_documents` |
+| Quiz 生成 | "出 5 道英语选择题" | 自动调 `generate_quiz_questions` |
+| Quiz 修改 | "把第 3 题改成填空题" | 自动调 `get_artifact` → `patch_artifact` |
+| 数据分析 | "分析三班成绩" | 自动调 `get_teacher_classes` → `calculate_stats` |
+| 跨意图 | 同一对话内 chat→quiz→修改 | conversation_id 上下文连续，LLM 自主切换 |
+
+---
+
+## 与旧 Agent 的对应关系
+
+| 旧 Agent | 新架构替代 | 说明 |
+|----------|----------|------|
+| **RouterAgent** | 删除 | LLM 自主选 tool，无需意图分类 |
+| **PlannerAgent** | 删除 | Blueprint 规划被 tool calling 取代 |
+| **ExecutorAgent** | 删除 | 三阶段流水线被 NativeAgent 取代 |
+| **ChatAgent** | 删除 | NativeAgent 直接处理对话 |
+| **PageChatAgent** | 删除 | NativeAgent 通过 conversation_id 上下文处理追问 |
+| **PatchAgent** | `patch_artifact` tool | 正则匹配被结构化 PatchOp 取代 |
+| **EntityResolver** | `resolve_entity` tool | 状态机被 tool 取代 |
+
+---
+
+## 工程约束
+
+### 失败分级
+
+| 级别 | 类型 | 处理方式 |
+|------|------|---------|
+| L1 | Tool 失败 | tool 返回错误信息给 LLM，LLM 自主重试或换策略 |
+| L2 | Model 失败 | fallback 到备选 model |
+| L3 | Protocol 失败 | stream_adapter 捕获 + 发送 error event |
+| L4 | Budget 超限 | 强制停止 + 返回 partial result |
+| L5 | System 失败 | 全局异常处理 → 500 + error event |
+
+### 预算约束
+
+| 约束 | 默认值 |
+|------|--------|
+| max_tool_calls | 10 |
+| max_total_tokens | 32k (input) + 8k (output) |
+| max_turn_duration | 120s |
+| per-tool timeout | 30s |

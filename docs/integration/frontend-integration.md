@@ -1,6 +1,10 @@
 # 前端集成规范
 
-> Python 服务 API 契约：端点、请求/响应格式、SSE 协议、Blueprint 结构、Page 输出、TypeScript 类型。
+> Python 服务 API 契约：端点、请求/响应格式、SSE 协议（Data Stream Protocol）。
+>
+> **⚠️ 架构演进（2026-02-09）**: AI Agent 正在从多 Agent 硬编码编排重构为 AI 原生 Tool Calling 单 runtime。
+> **前端影响**: SSE 事件格式（Data Stream Protocol）不变，前端零改动。端点路径不变，原地替换实现。
+> 详见 `docs/plans/2026-02-09-ai-native-rewrite.md`
 
 ---
 
@@ -8,26 +12,25 @@
 
 | 项目 | 值 |
 |------|------|
-| **Base URL** | `http://localhost:8000` (开发环境) |
+| **Base URL** | `http://localhost:5000` (开发环境) |
 | **Content-Type** | `application/json` |
 | **响应字段命名** | 所有 JSON 响应字段使用 **camelCase** |
 | **请求字段命名** | 同时接受 `camelCase` 和 `snake_case`（推荐 camelCase） |
 | **SSE 端点** | 返回 `text/event-stream`，其余端点返回 JSON |
-| **版本** | `0.6.0` (Phase 6 完成, Phase 7 进行中) |
+| **版本** | `1.0.0` (AI 原生重构) |
 
 ---
 
-## 端点总览
+## 端点总览（AI 原生架构）
 
 | 端点 | 方法 | 状态 | 用途 |
 |------|------|------|------|
-| `/api/conversation` | POST | ✅ Phase 4 | **统一会话入口** — 意图分类 + 路由（聊天/构建/反问/追问） |
-| `/api/workflow/generate` | POST | ✅ 已实现 | 直调：用户提示词 → Blueprint（跳过意图分类） |
-| `/api/page/generate` | POST | ✅ Phase 3 | 执行 Blueprint → SSE 流式页面（逐 block 事件流） |
-| `/api/page/patch` | POST | ✅ Phase 6 | SSE 流式应用增量修改（Patch 机制，避免全页重建） |
-| `/api/health` | GET | ✅ 已实现 | 健康检查 |
-| `/models` | GET | ✅ 已实现 | 列出可用模型 |
-| `/skills` | GET | ✅ 已实现 | 列出可用技能/工具 |
+| `/api/conversation/stream` | POST | ✅ | **统一会话入口（SSE）** — NativeAgent LLM 自主编排 |
+| `/api/conversation` | POST | ✅ | **统一会话入口（JSON）** — NativeAgent LLM 自主编排 |
+| `/api/health` | GET | ✅ | 健康检查 |
+
+> **已移除的端点**: `/api/workflow/generate`、`/api/page/generate`、`/api/page/patch` — 功能已被 NativeAgent 统一处理。
+> `/chat`、`/models`、`/skills` — deprecated，已移除。
 | `/chat` | POST | ⚠️ 遗留 | Phase 0 兼容路由，Phase 4 后废弃 |
 
 ---

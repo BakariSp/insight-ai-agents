@@ -68,35 +68,50 @@ pytest tests/ -v
 # 使用 /update-docs 命令
 ```
 
-## 当前关键文件
+## 当前关键文件 (AI 原生架构)
+
+### 核心 Runtime（新）
+
+| 文件 | 职责 |
+|------|------|
+| `agents/native_agent.py` | **NativeAgent**: 按上下文选 toolset → `Agent(tools=subset).run_stream()` |
+| `tools/registry.py` | **单一工具注册源**: `@register_tool(toolset="xxx")` + `get_tools(toolsets=[...])` |
+| `api/conversation.py` | **薄网关** (~100 行): 鉴权、会话、SSE 适配、限流 (含 `NATIVE_AGENT_ENABLED` 开关) |
+| `services/stream_adapter.py` | PydanticAI stream → Data Stream Protocol 事件适配 |
+| `config/prompts/native_agent.py` | NativeAgent system prompt: 角色定义 + 能力列表 + tool 使用规则 |
+
+### 工具与数据
+
+| 文件 | 职责 |
+|------|------|
+| `tools/data_tools.py` | 数据获取工具 (toolset=base_data): get_teacher_classes, get_class_detail 等 |
+| `tools/stats_tools.py` | 统计分析工具 (toolset=analysis): calculate_stats, compare_performance 等 |
+| `tools/assessment_tools.py` | 学情分析工具 (toolset=analysis): analyze_student_weakness 等 |
+| `tools/document_tools.py` | RAG 文档检索工具 (toolset=platform): search_teacher_documents |
+| `tools/quiz_tools.py` | 题目生成工具 (toolset=generation): generate_quiz_questions |
+| `adapters/` | Java API → 内部 DTO 映射层 |
+| `services/java_client.py` | Java 后端 HTTP 客户端 (httpx + retry + circuit breaker) |
+
+### 基础设施
 
 | 文件 | 职责 |
 |------|------|
 | `main.py` | FastAPI 入口，CORS 配置，路由注册 |
 | `config/settings.py` | Pydantic Settings 配置 + `get_settings()` |
-| `config/component_registry.py` | 6 种 UI 组件注册表 |
-| `config/prompts/planner.py` | PlannerAgent system prompt + `build_planner_prompt()` |
-| `models/blueprint.py` | Blueprint 三层数据模型 |
+| `agents/provider.py` | `create_model()` — PydanticAI 模型创建（已删除 `execute_mcp_tool()`） |
+| `services/conversation_store.py` | 会话历史持久化 (conversation_id 主键) |
+| `models/blueprint.py` | Blueprint 数据模型（保留，作为 tool 输出类型） |
 | `models/base.py` | CamelModel 基类 (camelCase 输出) |
-| `models/request.py` | API 请求/响应模型 |
-| `tools/__init__.py` | FastMCP 工具注册 + TOOL_REGISTRY + get_tool_descriptions() |
-| `tools/data_tools.py` | 4 个数据获取工具 (adapter → java_client + mock fallback) |
-| `tools/stats_tools.py` | 2 个统计计算工具 (numpy) |
-| `services/mock_data.py` | 集中管理 mock 数据 (开发 + 降级 fallback) |
-| `services/java_client.py` | Java 后端 HTTP 客户端 (httpx + retry + circuit breaker) |
-| `adapters/class_adapter.py` | Java Classroom API → ClassInfo/ClassDetail |
-| `adapters/submission_adapter.py` | Java Submission API → SubmissionData |
-| `adapters/grade_adapter.py` | Java Grade API → GradeData |
-| `models/data.py` | 内部标准数据结构 (ClassInfo, GradeData 等) |
-| `agents/provider.py` | PydanticAI 模型创建 + MCP 工具桥接 |
-| `agents/planner.py` | PlannerAgent: user prompt → Blueprint |
-| `agents/resolver.py` | 路径引用解析器 ($context/$input/$data/$compute) |
-| `agents/executor.py` | ExecutorAgent: Blueprint → Page (SSE 三阶段执行) |
-| `config/prompts/executor.py` | ExecutorAgent compose prompt 构建器 |
-| `agents/chat_agent.py` | Agent 工具循环 (旧) |
-| `services/llm_service.py` | LiteLLM 多模型封装 |
-| `api/workflow.py` | POST /api/workflow/generate |
-| `api/page.py` | POST /api/page/generate (SSE) |
-| `api/health.py` | GET /api/health |
-| `api/chat.py` | POST /chat 兼容路由 |
-| `api/models_routes.py` | GET /models, GET /skills |
+
+### 已删除/计划删除（旧编排代码）
+
+| 文件 | 状态 | 替代方案 |
+|------|------|---------|
+| `agents/router.py` | 删除 | LLM 自主选 tool |
+| `agents/executor.py` | 删除 | NativeAgent + tool calling |
+| `agents/resolver.py` | 删除 | tool 输出直接入 LLM context |
+| `agents/patch_agent.py` | 删除 | `patch_artifact` tool |
+| `agents/chat_agent.py` | 删除 | NativeAgent |
+| `services/entity_resolver.py` | 删除 | `resolve_entity` tool |
+| `config/prompts/router.py` | 删除 | 无需路由 prompt |
+| `tools/__init__.py` (TOOL_REGISTRY) | 重写 | `tools/registry.py` 单一注册 |

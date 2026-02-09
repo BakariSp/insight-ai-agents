@@ -4,6 +4,50 @@
 
 ---
 
+## 2026-02-09 — 架构重构: AI 原生单栈重构方案
+
+**文档**: `docs/plans/2026-02-09-ai-native-rewrite.md`
+
+从"代码控制 AI"重构为"AI 控制代码"。删除所有硬编码路由/阈值/正则/DSL/手工 tool loop，改用 LLM 原生 tool calling 自主编排。
+
+**架构变更**
+- 新增 `agents/native_agent.py` — NativeAgent 单 runtime，每轮按上下文选 toolset 子集
+- 新增 `tools/registry.py` — 单一工具注册源，5 个 toolset 分包 (base_data/analysis/generation/artifact_ops/platform)
+- 重写 `api/conversation.py` — 薄网关 (~100 行)，不做业务决策
+- 新增 `services/stream_adapter.py` — PydanticAI stream → Data Stream Protocol 适配
+- 新增 `config/prompts/native_agent.py` — NativeAgent system prompt
+
+**删除的模块**
+- `agents/router.py` (RouterAgent) — LLM 自主选 tool
+- `agents/executor.py` (ExecutorAgent) — tool calling 取代三阶段流水线
+- `agents/resolver.py` (Path Resolver) — tool 输出直接入 LLM context
+- `agents/patch_agent.py` (PatchAgent) — `patch_artifact` tool 取代
+- `agents/chat_agent.py` (ChatAgent) — NativeAgent 取代
+- `services/entity_resolver.py` — `resolve_entity` tool 取代
+- `config/prompts/router.py` — 无需路由 prompt
+
+**新概念**
+- Artifact 统一模型: artifact_type (业务) + content_format (技术) + resources (资源索引)
+- ToolResult envelope: 生成/RAG/写操作 tool 的结构化返回
+- Golden Conversations: 行为级回归测试（20-30 条固定测试集）
+
+**前端影响**: SSE 事件格式 (Data Stream Protocol) 不变，前端零改动。
+
+**文档更新**
+- 更新 `CLAUDE.md` (根目录 + AI Agent 模块) — 新架构方向
+- 重写 `docs/architecture/overview.md` — AI 原生架构全景
+- 重写 `docs/architecture/agents.md` — NativeAgent 设计
+- 更新 `docs/api/current-api.md` — 新 API 端点
+- 更新 `docs/guides/adding-skills.md` — registry 单一注册方式
+- 更新 `docs/README.md` — 导航更新
+- 更新 `docs/roadmap.md` — 新增 AI 原生重构进度
+- 更新 `docs/convergence/README.md` — Phase 3+4 由 AI 原生重构取代
+- 更新 `docs/integration/frontend-integration.md` — 新端点
+- 更新 `docs/studio-v1/architecture/07-agent-convergence-plan.md` — 前向引用
+- 更新 `docs/studio-v1/architecture/06-current-ai-runtime-flow.md` — 标记为旧架构
+
+---
+
 ## 2026-02-04 — 文档更新: Phase 6 前端集成规范完善
 
 更新 `docs/integration/frontend-integration.md`，补充 Phase 6 (SSE Block 事件流 + Patch 机制) 的完整 API 契约。
