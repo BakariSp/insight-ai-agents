@@ -1,6 +1,7 @@
 """Tests for agents/provider.py — model creation and MCP tool bridge."""
 
 import pytest
+from unittest.mock import AsyncMock, patch
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from agents.provider import (
@@ -61,10 +62,19 @@ def test_get_mcp_tool_descriptions():
 
 @pytest.mark.asyncio
 async def test_execute_mcp_tool_success():
-    result = await execute_mcp_tool(
-        "get_teacher_classes", {"teacher_id": "t-001"}
-    )
-    assert result["teacher_id"] == "t-001"
+    mock_classes = [
+        {"class_id": "c-1", "name": "Form 1A"},
+        {"class_id": "c-2", "name": "Form 1B"},
+    ]
+    with patch(
+        "tools.data_tools.get_teacher_classes",
+        new_callable=AsyncMock,
+        return_value={"teacher_id": "t-001", "classes": mock_classes},
+    ):
+        result = await execute_mcp_tool(
+            "get_teacher_classes", {"teacher_id": "t-001"}
+        )
+    assert result["status"] == "ok"
     assert len(result["classes"]) == 2
 
 

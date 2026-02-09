@@ -325,7 +325,12 @@ class TestExtractToolCallsSummary:
 
 
 class TestConversationHistoryToolContext:
-    """Verify tool_calls_summary is preserved in conversation history."""
+    """Verify tool_calls_summary is preserved in conversation history.
+
+    Tool summaries are injected as a user-role context note BEFORE the
+    assistant message (not inside it) to prevent the LLM from echoing
+    the summary format in its own output.
+    """
 
     def test_tool_summary_in_pydantic_messages(self):
         from services.conversation_store import ConversationSession
@@ -340,16 +345,23 @@ class TestConversationHistoryToolContext:
 
         messages = session.to_pydantic_messages()
 
-        # Should have 2 messages (user turn 0 and assistant turn 0)
+        # Should have 3 messages: user turn 0, context note (user role), assistant turn 0
         # The latest user turn is excluded
-        assert len(messages) == 2
+        assert len(messages) == 3
 
-        # The assistant message should contain tool summary
-        assistant_msg = messages[1]
+        # The context note should be a user-role message with the tool summary
+        context_msg = messages[1]
+        assert isinstance(context_msg, ModelRequest)
+        context_text = context_msg.parts[0].content
+        assert "generate_quiz_questions" in context_text
+        assert "请勿重复调用" in context_text
+
+        # The assistant message should be clean (no tool_history tags)
+        assistant_msg = messages[2]
         assert isinstance(assistant_msg, ModelResponse)
         text = assistant_msg.parts[0].content
-        assert "Tools used:" in text
-        assert "generate_quiz_questions" in text
+        assert "<tool_history>" not in text
+        assert "已生成" in text
 
     def test_no_tool_summary_normal_message(self):
         from services.conversation_store import ConversationSession
@@ -362,8 +374,8 @@ class TestConversationHistoryToolContext:
         messages = session.to_pydantic_messages()
         assert len(messages) == 2
 
-        # No tool summary → plain text
+        # No tool summary → plain text, no extra context note
         assistant_msg = messages[1]
         text = assistant_msg.parts[0].content
-        assert "Tools used:" not in text
+        assert "<tool_history>" not in text
         assert "教育助手" in text

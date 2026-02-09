@@ -44,24 +44,26 @@ MOCK_CLASS_DETAIL_F1A = {
 }
 
 
-async def _mock_execute_tool(name: str, args: dict):
-    """Route mock tool calls to appropriate mock data."""
-    if name == "get_teacher_classes":
-        return {"teacher_id": args.get("teacher_id", ""), "classes": MOCK_CLASSES}
-    if name == "get_class_detail":
-        class_id = args.get("class_id", "")
-        if class_id == "class-hk-f1a":
-            return MOCK_CLASS_DETAIL_F1A
-        return {"error": f"Class {class_id} not found"}
-    return {}
+async def _mock_get_teacher_classes(teacher_id: str = ""):
+    return {"teacher_id": teacher_id, "classes": MOCK_CLASSES}
+
+
+async def _mock_get_class_detail(teacher_id: str = "", class_id: str = ""):
+    if class_id == "class-hk-f1a":
+        return MOCK_CLASS_DETAIL_F1A
+    return {"error": f"Class {class_id} not found"}
 
 
 @pytest.fixture(autouse=True)
 def mock_tool():
     with patch(
-        "services.entity_resolver.execute_mcp_tool",
+        "services.entity_resolver._raw_get_teacher_classes",
         new_callable=AsyncMock,
-        side_effect=_mock_execute_tool,
+        side_effect=_mock_get_teacher_classes,
+    ), patch(
+        "services.entity_resolver._raw_get_class_detail",
+        new_callable=AsyncMock,
+        side_effect=_mock_get_class_detail,
     ):
         yield
 
@@ -190,7 +192,7 @@ async def test_fuzzy_match_typo():
 async def test_empty_teacher_id():
     """Empty teacher_id → no matches, graceful."""
     with patch(
-        "services.entity_resolver.execute_mcp_tool",
+        "services.entity_resolver._raw_get_teacher_classes",
         new_callable=AsyncMock,
         return_value={"teacher_id": "", "classes": []},
     ):
@@ -203,7 +205,7 @@ async def test_empty_teacher_id():
 async def test_unknown_teacher():
     """Unknown teacher_id → no classes returned → no matches."""
     with patch(
-        "services.entity_resolver.execute_mcp_tool",
+        "services.entity_resolver._raw_get_teacher_classes",
         new_callable=AsyncMock,
         return_value={"teacher_id": "t-999", "classes": []},
     ):
