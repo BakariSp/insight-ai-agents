@@ -53,10 +53,15 @@ async def serve_generated_file(filename: str):
     if not content_type:
         content_type = "application/octet-stream"
 
-    # Extract the user-friendly filename (strip UUID prefix)
-    # Files are named: {uuid}_{original_filename}
-    parts = filename.split("_", 1)
-    display_name = parts[1] if len(parts) > 1 else filename
+    # Resolve user-friendly display name for Content-Disposition.
+    # Prefer the mapping set by render_tools (preserves Chinese characters);
+    # fall back to extracting the suffix after the UUID prefix.
+    from tools.render_tools import resolve_display_name
+
+    display_name = resolve_display_name(filename)
+    if not display_name:
+        parts = filename.split("_", 1)
+        display_name = parts[1] if len(parts) > 1 else filename
 
     return FileResponse(
         path=str(filepath),

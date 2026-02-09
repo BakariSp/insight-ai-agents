@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import tempfile
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 
 from config.settings import get_settings
@@ -150,18 +151,19 @@ async def generate_pptx(
             notes_slide = slide.notes_slide
             notes_slide.notes_text_frame.text = slide_data["notes"]
 
-    filename = f"{_safe_filename(title)}.pptx"
-    filepath = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{filename}"
+    display_name = f"{_display_filename(title)}.pptx"
+    safe_name = f"{_safe_filename(title)}.pptx"
+    filepath = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_name}"
     prs.save(str(filepath))
 
     url = await _upload_file(
-        filepath, filename,
+        filepath, display_name,
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
 
     return {
         "url": url,
-        "filename": filename,
+        "filename": display_name,
         "slide_count": len(slides),
         "size": filepath.stat().st_size,
     }
@@ -211,18 +213,19 @@ async def generate_docx(
         else:
             doc.add_paragraph(line)
 
-    filename = f"{_safe_filename(title)}.docx"
-    filepath = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{filename}"
+    display_name = f"{_display_filename(title)}.docx"
+    safe_name = f"{_safe_filename(title)}.docx"
+    filepath = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_name}"
     doc.save(str(filepath))
 
     url = await _upload_file(
-        filepath, filename,
+        filepath, display_name,
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
 
     return {
         "url": url,
-        "filename": filename,
+        "filename": display_name,
         "size": filepath.stat().st_size,
     }
 
@@ -263,15 +266,16 @@ async def render_pdf(
         # weasyprint not installed — fallback to returning HTML as-is
         pdf_bytes = html_content.encode("utf-8")
 
-    filename = f"{_safe_filename(title)}.pdf"
-    filepath = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{filename}"
+    display_name = f"{_display_filename(title)}.pdf"
+    safe_name = f"{_safe_filename(title)}.pdf"
+    filepath = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_name}"
     filepath.write_bytes(pdf_bytes)
 
-    url = await _upload_file(filepath, filename, "application/pdf")
+    url = await _upload_file(filepath, display_name, "application/pdf")
 
     return {
         "url": url,
-        "filename": filename,
+        "filename": display_name,
         "size": len(pdf_bytes),
     }
 
@@ -436,9 +440,46 @@ def _add_bullet_points(tf, lines: list[str], font_size, color) -> None:
 
 
 def _safe_filename(name: str) -> str:
-    """Sanitize a filename."""
+    """Sanitize a filename to ASCII-safe characters for URL paths.
+
+    Non-ASCII characters (Chinese, etc.) are stripped so that the URL
+    ``/api/files/generated/{uuid}_{safe_name}.ext`` is always valid ASCII.
+    The original display name with Chinese characters is preserved separately
+    via ``_display_filename``.
+    """
     clean = re.sub(r'[<>:"/\\|?*]', "", name)
-    return clean[:100] or "untitled"
+    clean = re.sub(r'[^\x20-\x7E]', "", clean)
+    clean = re.sub(r'\s+', '_', clean.strip())
+    return clean[:100] or "document"
+
+
+def _display_filename(name: str) -> str:
+    """Sanitize a filename for display — preserves Unicode, removes FS-unsafe chars."""
+    clean = re.sub(r'[<>:"/\\|?*]', "", name)
+    return clean.strip()[:100] or "untitled"
+
+
+# Module-level mapping: temp filename → original display filename.
+# Used by api/files.py to set Content-Disposition with the Chinese name.
+# Lost on restart — acceptable for the dev/fallback endpoint.
+_MAX_DISPLAY_NAME_CACHE = 2048
+_FILE_DISPLAY_NAMES: OrderedDict[str, str] = OrderedDict()
+
+
+def remember_display_name(temp_filename: str, display_name: str) -> None:
+    """Store display filename in a bounded in-memory cache."""
+    if not temp_filename:
+        return
+    if temp_filename in _FILE_DISPLAY_NAMES:
+        _FILE_DISPLAY_NAMES.move_to_end(temp_filename)
+    _FILE_DISPLAY_NAMES[temp_filename] = display_name
+    while len(_FILE_DISPLAY_NAMES) > _MAX_DISPLAY_NAME_CACHE:
+        _FILE_DISPLAY_NAMES.popitem(last=False)
+
+
+def resolve_display_name(temp_filename: str) -> str | None:
+    """Resolve display filename from in-memory cache."""
+    return _FILE_DISPLAY_NAMES.get(temp_filename)
 
 
 def _get_css_template(template: str) -> str:
@@ -499,5 +540,6 @@ async def _upload_file(filepath: Path, filename: str, content_type: str) -> str:
         logging.getLogger(__name__).debug("OSS upload failed, using local fallback: %s", exc)
 
     # Fallback: serve from Python Agent's local file endpoint
+    remember_display_name(filepath.name, filename)
     return f"/api/files/generated/{filepath.name}"
     # Note: temporary file is NOT deleted here — caller or cleanup job handles it
