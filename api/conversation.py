@@ -28,6 +28,7 @@ from services.conversation_store import (
     generate_conversation_id,
     get_conversation_store,
 )
+from models.errors import ErrorCode, format_llm_error
 from services.datastream import DataStreamEncoder
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,9 @@ else:
             enc = DataStreamEncoder(text_sink=text_parts)
             _stream_ref: list = []  # capture stream for tool summary extraction
 
+            # Push conversationId to frontend via SSE (FP-4 contract)
+            yield enc.data("conversation", {"conversationId": conversation_id})
+
             try:
                 async for stream in _agent.run_stream(
                     message=req.message,
@@ -109,7 +113,12 @@ else:
                         yield line
             except Exception as e:
                 logger.exception("Stream error for conversation %s", conversation_id)
-                yield enc.error(str(e))
+                error_text = str(e)
+                err_lower = error_text.lower()
+                if "timeout" in err_lower or "context length" in err_lower or "token" in err_lower:
+                    yield enc.error(format_llm_error(error_text))
+                else:
+                    yield enc.error(f"{ErrorCode.INTERNAL_ERROR}: {error_text}")
                 yield enc.finish("error")
 
             # Extract tool calls summary for multi-turn context
