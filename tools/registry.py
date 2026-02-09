@@ -111,7 +111,7 @@ def get_tools(toolsets: Sequence[str]) -> FunctionToolset:
         A ``FunctionToolset`` ready to pass to ``Agent(toolsets=[...])``.
     """
     selected = [
-        Tool(rt.func, name=rt.name)
+        Tool(rt.func, name=rt.name, max_retries=2)
         for rt in _registry.values()
         if rt.toolset in toolsets
     ]
@@ -133,7 +133,7 @@ def get_tools_raw(toolsets: Sequence[str]) -> list[RegisteredTool]:
 def get_all_tools() -> FunctionToolset:
     """Return a FunctionToolset containing ALL registered tools."""
     all_tools = [
-        Tool(rt.func, name=rt.name)
+        Tool(rt.func, name=rt.name, max_retries=2)
         for rt in _registry.values()
     ]
     return FunctionToolset(all_tools)

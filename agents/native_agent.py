@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Sequence
 
 from pydantic_ai import Agent, RunContext, UsageLimits
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, ModelRequest, UserContent, UserPromptPart
 from pydantic_ai.result import StreamedRunResult
 from pydantic_ai.settings import ModelSettings
 
@@ -56,6 +56,10 @@ class AgentDeps:
     turn_id: str = ""
     context: dict[str, Any] = field(default_factory=dict)
 
+    # Per-turn dedup: prevents the LLM from calling the same generation
+    # tool multiple times in a single turn (e.g. generate_quiz_questions x2).
+    _called_gen_tools: set[str] = field(default_factory=set, repr=False)
+
 
 # ── Toolset Selection (loose inclusion) ─────────────────────
 
@@ -73,8 +77,12 @@ _GENERATE_KEYWORDS = [
 
 _MODIFY_KEYWORDS = [
     "修改", "改", "换", "删", "移动", "调整", "更新", "替换",
+    "加", "添加", "增加", "加上", "去掉", "新增", "加入", "补充",
+    # Colloquial / imperative patterns (把X弄上去, 把X改成Y, 优化一下)
+    "优化", "改进", "完善", "美化", "简化", "去除", "取消",
+    "放大", "缩小", "变", "弄", "缩减", "扩展", "升级", "精简",
     "update", "change", "edit", "revise", "modify", "remove",
-    "replace", "fix", "correct",
+    "replace", "fix", "correct", "add", "insert", "tweak", "enhance",
 ]
 
 _ANALYZE_KEYWORDS = [
@@ -84,46 +92,93 @@ _ANALYZE_KEYWORDS = [
 ]
 
 
-def _select_toolsets_keyword(message: str, deps: AgentDeps) -> list[str]:
+def _extract_recent_user_text(
+    history: Sequence[ModelMessage] | None,
+    max_turns: int = 3,
+) -> str:
+    """Extract recent user message text from PydanticAI message history.
+
+    Used for toolset selection so that clarification follow-ups (e.g. "引力系统")
+    inherit the intent from the original request (e.g. "生成一个粒子模拟网站").
+    """
+    if not history:
+        return ""
+    parts: list[str] = []
+    for msg in reversed(history):
+        if isinstance(msg, ModelRequest):
+            for part in msg.parts:
+                if isinstance(part, UserPromptPart) and isinstance(part.content, str):
+                    # Skip system context notes injected by conversation_store
+                    if part.content.startswith("[系统备注"):
+                        continue
+                    parts.append(part.content)
+                    if len(parts) >= max_turns:
+                        return " ".join(reversed(parts))
+    return " ".join(reversed(parts))
+
+
+def _select_toolsets_keyword(
+    message: str,
+    deps: AgentDeps,
+    recent_context: str = "",
+) -> list[str]:
     """Select toolsets via keyword heuristics (fallback path).
 
     Uses LOOSE inclusion — it's better to include extra tools (small context cost)
     than to miss needed tools (functionality broken).
+
+    Checks both the current *message* and *recent_context* (previous user
+    messages) so that clarification follow-ups inherit the original intent.
     """
+    combined = f"{message} {recent_context}"
     sets = list(ALWAYS_TOOLSETS)  # base_data + platform always included
 
-    if _might_generate(message):
+    if _might_generate(combined):
         sets.append(TOOLSET_GENERATION)
 
-    if deps.has_artifacts or _might_modify(message):
+    if deps.has_artifacts or _might_modify(combined):
         sets.append(TOOLSET_ARTIFACT_OPS)
 
-    if deps.class_id or _might_analyze(message):
+    if deps.class_id or _might_analyze(combined):
         sets.append(TOOLSET_ANALYSIS)
 
     return sets
 
 
-async def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
+async def select_toolsets(
+    message: str,
+    deps: AgentDeps,
+    message_history: Sequence[ModelMessage] | None = None,
+) -> list[str]:
     """Select toolsets — LLM planner with keyword fallback.
 
     When ``TOOLSET_PLANNER_ENABLED`` is true, calls a fast LLM to decide
     which optional toolsets to include.  Falls back to keyword heuristics
     on timeout, low confidence, or any error.
+
+    *message_history* provides conversation context so that follow-up
+    messages (e.g. clarification responses) inherit the toolsets needed
+    by the original request.
     """
     settings = get_settings()
+    recent_context = _extract_recent_user_text(message_history)
 
     if not settings.toolset_planner_enabled:
-        result = _select_toolsets_keyword(message, deps)
+        result = _select_toolsets_keyword(message, deps, recent_context)
         _log_toolset_selection(deps, message, result, source="keyword")
         return result
 
     try:
         from agents.toolset_planner import plan_toolsets
 
+        # Include recent context so the planner sees the original intent
+        planner_message = message
+        if recent_context:
+            planner_message = f"{message}\n[Previous context: {recent_context}]"
+
         planner_result = await asyncio.wait_for(
             plan_toolsets(
-                message,
+                planner_message,
                 has_artifacts=deps.has_artifacts,
                 has_class_id=bool(deps.class_id),
             ),
@@ -132,11 +187,15 @@ async def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
 
         if planner_result.confidence >= settings.toolset_planner_confidence_threshold:
             sets = list(ALWAYS_TOOLSETS) + list(planner_result.toolsets)
-            # Hard constraints — planner may omit these, enforce in code
-            if deps.has_artifacts and TOOLSET_ARTIFACT_OPS not in sets:
+            # Hard constraints — planner may omit these, enforce in code.
+            # Keyword safety-net: even when planner is confident, keyword
+            # signals override omissions (false positives are cheap).
+            if (deps.has_artifacts or _might_modify(message)) and TOOLSET_ARTIFACT_OPS not in sets:
                 sets.append(TOOLSET_ARTIFACT_OPS)
-            if deps.class_id and TOOLSET_ANALYSIS not in sets:
+            if (deps.class_id or _might_analyze(message)) and TOOLSET_ANALYSIS not in sets:
                 sets.append(TOOLSET_ANALYSIS)
+            if _might_generate(message) and TOOLSET_GENERATION not in sets:
+                sets.append(TOOLSET_GENERATION)
             _log_toolset_selection(
                 deps, message, sets,
                 source="planner",
@@ -145,7 +204,7 @@ async def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
             return sets
 
         # Low confidence — fall back to keywords
-        keyword_sets = _select_toolsets_keyword(message, deps)
+        keyword_sets = _select_toolsets_keyword(message, deps, recent_context)
         _log_toolset_selection(
             deps, message, keyword_sets,
             source="keyword_fallback",
@@ -154,7 +213,7 @@ async def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
         return keyword_sets
 
     except Exception as exc:
-        keyword_sets = _select_toolsets_keyword(message, deps)
+        keyword_sets = _select_toolsets_keyword(message, deps, recent_context)
         _log_toolset_selection(
             deps, message, keyword_sets,
             source="error_fallback",
@@ -217,7 +276,7 @@ class NativeAgent:
 
             raw_tools = get_tools_raw(toolsets)
             wrapped = [
-                Tool(tracker.wrap(rt.func), name=rt.name)
+                Tool(tracker.wrap(rt.func), name=rt.name, max_retries=2)
                 for rt in raw_tools
             ]
             toolset = FunctionToolset(wrapped)
@@ -231,8 +290,14 @@ class NativeAgent:
             deps_type=AgentDeps,
             toolsets=[toolset],
             model_settings=ModelSettings(
-                max_tokens=4096,
+                max_tokens=8192,
+                # Disable Qwen3 thinking mode to improve tool-calling
+                # reliability.  In thinking mode the model may output
+                # stop-words inside <think> blocks, causing the provider
+                # to mis-parse tool calls.
+                extra_body={"enable_thinking": False},
             ),
+            output_retries=3,
         )
 
     async def run_stream(
@@ -241,6 +306,7 @@ class NativeAgent:
         deps: AgentDeps,
         message_history: Sequence[ModelMessage] | None = None,
         tracker: ToolTracker | None = None,
+        user_prompt: str | Sequence[UserContent] | None = None,
     ) -> AsyncIterator[StreamedRunResult[AgentDeps, str]]:
         """Run the agent with streaming output.
 
@@ -251,8 +317,12 @@ class NativeAgent:
 
         Args:
             tracker: Optional ToolTracker for real-time tool progress events.
+            user_prompt: Enriched prompt (multimodal or document-augmented).
+                         When provided, this is sent to the LLM instead of
+                         *message*.  *message* is still used for toolset
+                         selection and logging.
         """
-        selected = await select_toolsets(message, deps)
+        selected = await select_toolsets(message, deps, message_history)
         if not deps.turn_id:
             deps.turn_id = f"turn-{uuid.uuid4().hex[:10]}"
         agent = self._create_agent(selected, deps, tracker=tracker)
@@ -261,7 +331,7 @@ class NativeAgent:
         start_time = time.monotonic()
 
         async with agent.run_stream(
-            message,
+            user_prompt or message,
             deps=deps,
             message_history=list(message_history) if message_history else None,
             usage_limits=UsageLimits(request_limit=MAX_TOOL_CALLS),
@@ -276,9 +346,16 @@ class NativeAgent:
         message: str,
         deps: AgentDeps,
         message_history: Sequence[ModelMessage] | None = None,
+        user_prompt: str | Sequence[UserContent] | None = None,
     ):
-        """Run the agent and return complete result (non-streaming)."""
-        selected = await select_toolsets(message, deps)
+        """Run the agent and return complete result (non-streaming).
+
+        Args:
+            user_prompt: Enriched prompt (multimodal or document-augmented).
+                         When provided, this is sent to the LLM instead of
+                         *message*.
+        """
+        selected = await select_toolsets(message, deps, message_history)
         if not deps.turn_id:
             deps.turn_id = f"turn-{uuid.uuid4().hex[:10]}"
         agent = self._create_agent(selected, deps)
@@ -287,7 +364,7 @@ class NativeAgent:
         start_time = time.monotonic()
 
         result = await agent.run(
-            message,
+            user_prompt or message,
             deps=deps,
             message_history=list(message_history) if message_history else None,
             usage_limits=UsageLimits(request_limit=MAX_TOOL_CALLS),
