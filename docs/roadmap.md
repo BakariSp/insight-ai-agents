@@ -10,7 +10,7 @@
 
 **🎯 主线任务**: AI 原生重构 — 从硬编码编排到 LLM Tool Calling 自主编排
 
-**⏱️ 进度**: Step 0.5–2 已完成 | Step 3 待执行 | Step 4 主体完成 (~80%)
+**⏱️ 进度**: Step 0.5–2 已完成 | Step 3 待执行 | Step 4 主体完成 (~90%)
 
 **🔥 当前优先级**:
 1. **Step 4 收尾**: 清理保留的过渡模块 (executor.py 等，待前端完全迁移)
@@ -20,9 +20,9 @@
 **📈 实施进展**:
 - ✅ **Step 0.5** (协议冻结) — 100% 完成
 - ✅ **Step 1** (Runtime 骨架) — 100% 完成
-- ✅ **Step 2** (工具收口) — 100% 完成，25 个工具全部注册
+- ✅ **Step 2** (工具收口) — 100% 完成，24 个工具注册 (禁用 1 个占位工具)
 - 🔲 **Step 3** (全场景回归) — 基础设施就位，待执行
-- 🔄 **Step 4** (清理旧代码) — 80% 完成，主体删除 (-7,400 行)，保留 6 个过渡模块
+- 🔄 **Step 4** (清理旧代码) — 90% 完成，MCP 桥接→直接导入，qwen3 迁移完成
 
 **⚠️ 关键风险**:
 - Golden conversations 数据集需要扩充到 20-30 条
@@ -59,9 +59,9 @@
 |------|------|------|---------|
 | Step 0.5 | PydanticAI Stream API 校准 | ✅ 已完成 | 2026-02-09 |
 | Step 1 | 搭建 Runtime 骨架 + Quiz 场景验证 | ✅ 已完成 | 2026-02-09 |
-| Step 2 | 工具全面收口 (25 个 tool) | ✅ 已完成 | 2026-02-09 |
+| Step 2 | 工具全面收口 (24 个 tool) | ✅ 已完成 | 2026-02-10 |
 | Step 3 | 全场景回归 + Golden Conversations | 🔲 待开始 | - |
-| Step 4 | 删除旧代码 + 清理 | 🔄 进行中 (~80%) | 2026-02-09 |
+| Step 4 | 删除旧代码 + 清理 | 🔄 进行中 (~90%) | 2026-02-10 |
 
 #### Step 0.5 完成情况 ✅
 - [x] PydanticAI 1.56.0 版本锁定
@@ -100,7 +100,7 @@
 #### Step 2 已完成 ✅
 **工具迁移状态:**
 - [x] `tools/native_tools.py` 创建 (~727 行)
-- [x] 25+ 个工具函数已实现（通过检查发现）
+- [x] 24 个工具函数已注册 (禁用 request_interactive_content / save_as_assignment / create_share_link)
 - [x] 5 个 toolset 定义 (base_data / analysis / generation / artifact_ops / platform)
 
 **已迁移的工具 (部分列表):**
@@ -108,7 +108,7 @@
 - generation: `generate_quiz_questions`, `generate_pptx`, `generate_docx`, `generate_interactive_html`
 - analysis: `calculate_stats`, `compare_performance`, `analyze_student_weakness`, `calculate_class_mastery`
 - artifact_ops: `get_artifact`, `patch_artifact`, `regenerate_from_previous`
-- platform: `search_teacher_documents`, `save_as_assignment`, `create_share_link`
+- platform: `search_teacher_documents`, `ask_clarification`, `resolve_entity` (save_as_assignment/create_share_link 已禁用)
 
 **测试覆盖:**
 - [x] `tests/test_native_step2_guardrails.py` — Step 2 contract 验证
@@ -133,8 +133,8 @@
 - [ ] 行为级断言验证 (expected_tools, metrics_bounds, etc.)
 - [ ] 旧系统性能基准对比
 
-#### Step 4 进行中 🔄 (~80%)
-**已完成 (commit a9d26c2 + 修复):**
+#### Step 4 进行中 🔄 (~90%)
+**已完成 (commit a9d26c2 + 后续修复):**
 - [x] **4.1.1** 删除 23 个 legacy 文件 (-7,400 行)：router, chat_agent, page_chat, patch_agent, teacher_agent, conversation_legacy, 旧 prompts, 旧 skills, 旧 tests
 - [x] **4.1.2** 清理 import 引用（AST 扫描零 dangling import）
 - [x] `main.py` 移除 chat_router 注册
@@ -143,15 +143,18 @@
 - [x] `config/settings.py` 标记 `native_agent_enabled` 为 @deprecated
 - [x] `agents/provider.py` 标记 `execute_mcp_tool` 等为 @deprecated
 - [x] 删除 `scripts/test_interactive_ab.py`（dangling import 到已删除的 `skills.interactive_skill`）
+- [x] **4.2 (部分)** 模型配置迁移: qwen → qwen3 全家族 (qwen3-max, qwen-flash, qwen3-vl-plus, qwen3-coder-plus)
+- [x] MCP 桥接→直接导入: entity_resolver + clarify_builder 不再走 execute_mcp_tool
+- [x] 禁用占位工具: request_interactive_content, save_as_assignment, create_share_link
+- [x] conversation_store: tool summary 注入方式从 assistant 前缀改为 user-role context note
 
 **暂不删除 (仍有活跃 API 端点依赖，待前端迁移到 /api/conversation):**
 - `agents/executor.py` + `resolver.py` + `question_pipeline.py` → 被 `api/page.py` 使用
 - `agents/planner.py` + `config/prompts/planner.py` + `block_compose.py` → 被 `api/workflow.py` 使用
-- `services/entity_resolver.py` → 被 `tools/native_tools.py` 使用
 - `skills/quiz_skill.py` → 被 `tools/quiz_tools.py` 使用
 
 **待完成:**
-- [ ] **4.2** 配置清理 (router_model, executor_model, convergence feature flags)
+- [ ] **4.2 (剩余)** 清理 convergence feature flags (native_agent_enabled 等)
 - [ ] **4.3** 文档更新 (architecture, agents, api docs)
 - [ ] **4.4** 最终验收 (S1-S11 回归, pytest 全通过)
 
