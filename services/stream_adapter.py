@@ -34,6 +34,7 @@ async def adapt_stream(
     stream: StreamedRunResult,
     enc: DataStreamEncoder,
     message_id: str | None = None,
+    pre_text: str | None = None,
 ) -> AsyncIterator[str]:
     """Convert PydanticAI stream into Data Stream Protocol SSE lines.
 
@@ -44,12 +45,23 @@ async def adapt_stream(
         stream: PydanticAI StreamedRunResult (inside async with context).
         enc: DataStreamEncoder instance for SSE formatting.
         message_id: Optional message ID for the start event.
+        pre_text: Optional acknowledgment text emitted immediately before the
+            LLM stream begins.  This gives the user instant feedback (e.g.
+            "好的，正在为您生成...") without depending on the LLM to produce
+            text alongside tool calls in the same response.
 
     Yields:
         SSE-formatted strings ready for StreamingResponse.
     """
     yield enc.start(message_id=message_id)
     yield enc.start_step()
+
+    # Inject immediate acknowledgment text before LLM stream starts
+    if pre_text:
+        ack_id = "t-ack"
+        yield enc.text_start(ack_id)
+        yield enc.text_delta(ack_id, pre_text)
+        yield enc.text_end(ack_id)
 
     # Track state for incremental diffing
     prev_text_len: dict[int, int] = {}  # part_index → last seen text length
@@ -193,17 +205,13 @@ def _emit_semantic_events(
     artifact_type = output.get("artifact_type", "")
     status = output.get("status", "")
 
-    # ── Quiz questions (batch emit) ──
+    # ── Quiz completion signal ──
+    # Individual quiz-question events are already streamed incrementally
+    # via ToolTracker (see quiz_tools.py).  Only emit the completion
+    # signal here to avoid sending every question twice.
     if artifact_type == "quiz" and status == "ok":
-        questions = output.get("questions", [])
-        for i, q in enumerate(questions):
-            q_id = q.get("id", f"q-{i}")
-            lines.append(enc.data("quiz-question", {
-                "index": i,
-                "question": q,
-            }, id=q_id))
         lines.append(enc.data("quiz-complete", {
-            "total": output.get("total", len(questions)),
+            "total": output.get("total", len(output.get("questions", []))),
         }))
 
     # ── Quiz replace (single question refinement) ──
@@ -259,6 +267,17 @@ def _emit_semantic_events(
         clarify = output["clarify"]
         lines.append(enc.data("clarify", {
             "choices": clarify.get("options", []),
+        }))
+
+    # ── RAG search sources (citation transparency) ──
+    # Emitted for any tool that returns a non-empty "sources" list,
+    # typically search_teacher_documents.
+    sources = output.get("sources")
+    if sources and isinstance(sources, list) and len(sources) > 0:
+        lines.append(enc.data("rag-sources", {
+            "query": output.get("query", ""),
+            "sources": sources,
+            "total": output.get("total", 0),
         }))
 
     return lines
