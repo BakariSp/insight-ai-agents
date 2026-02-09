@@ -2,25 +2,30 @@
 
 ## 项目概览
 
-教育场景 AI Agent 服务，用自然语言构建结构化的数据分析，题目生成等可交互页面。当前: FastAPI + PydanticAI + FastMCP + Pydantic 数据模型 + Java 后端 Adapter 层 (Phase 5 完成)。目标: 前端集成 + SSE 升级 + Patch 机制 (Phase 6)。
+教育场景 AI Agent 服务，用自然语言构建结构化的数据分析、题目生成等可交互页面。
+
+**当前架构方向**: AI 原生 Tool Calling — 单 NativeAgent runtime，LLM 自主选择工具编排，取代旧多 Agent 硬编码路由。
+详细方案: `docs/plans/2026-02-09-ai-native-rewrite.md`
+
+技术栈: FastAPI + PydanticAI + LiteLLM + Pydantic 数据模型 + Java 后端 Adapter 层
 
 ## ⚠️ 重要提示
 
-**本项目是全新功能，尚未接入前端或对接 Java 后端生产环境。**
-
 - ✅ **所有代码都可以自由修改**：无需担心用户端的前向兼容
-- ✅ **架构可以重构**：Blueprint/Page 数据模型、API 端点、Agent 逻辑都可以调整
-- ✅ **API 可以 Breaking Change**：Phase 6 之前的设计如不合理可直接重写
+- ✅ **架构正在重构**：从多 Agent 硬编码编排 → AI 原生 Tool Calling 单 runtime
+- ✅ **API 可以 Breaking Change**：原地替换实现，端点路径不变
 - ⚠️ **前提条件**：确保修改后通过测试（`pytest tests/ -v`）
+- ⚠️ **迁移开关**：`NATIVE_AGENT_ENABLED=true`（默认新路径）/ `false`（紧急回退 legacy）
 
 文档入口: `docs/README.md`（导航首页，链接到所有子文档）。
 
 主要文档:
-- `docs/architecture/` — 架构设计（总览、多 Agent、Blueprint 模型）
-- `docs/api/` — API 文档（当前端点、目标端点、SSE 协议）
-- `docs/guides/` — 开发指南（快速开始、添加技能、环境变量）
+- `docs/plans/2026-02-09-ai-native-rewrite.md` — **AI 原生重构完整方案**（Step 0.5–4）
+- `docs/architecture/` — 架构设计（总览、NativeAgent、Artifact 模型）
+- `docs/api/` — API 文档（当前端点、SSE 协议）
+- `docs/guides/` — 开发指南（快速开始、添加工具、环境变量）
 - `docs/integration/` — 集成规范（前端对接、Java 后端）
-- `docs/testing/` — 测试报告与用例记录（各阶段 pytest 报告、Live 日志、Use Cases）
+- `docs/testing/` — 测试报告与用例记录
 - `docs/roadmap.md` — 实施路线图
 - `docs/changelog.md` — 变更日志
 - `docs/tech-stack.md` — 技术栈
@@ -30,9 +35,9 @@
 - Python 3.9+，使用 type hints
 - 遵循 PEP 8
 - 新功能必须有对应测试
-- 新工具在 `tools/` 下定义，通过 `tools/__init__.py` 注册到 FastMCP
-- 旧技能继承 `skills/base.py` 的 `BaseSkill`（仅 ChatAgent 使用）
-- LLM 调用通过 `services/llm_service.py` 的 `LLMService`
+- **新工具**: 在 `tools/` 下定义，用 `@register_tool(toolset="xxx")` 注册到 `tools/registry.py`（单一注册源）
+- **禁止**: 手工 tool loop、意图 if-elif 路由、文本启发式状态判断、生产环境 mock 回退
+- LLM 调用通过 PydanticAI `Agent.run_stream()` / `Agent.run()`
 - 配置通过 `config/settings.py` 的 `Settings(BaseSettings)` + `.env`
 
 ## 文档更新规则
