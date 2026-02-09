@@ -24,7 +24,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.result import StreamedRunResult
 
-from models.errors import ErrorCode, format_llm_error, format_tool_error
+from models.errors import classify_stream_error
 from services.datastream import DataStreamEncoder
 
 logger = logging.getLogger(__name__)
@@ -116,17 +116,7 @@ async def adapt_stream(
     except Exception as e:
         error_occurred = True
         logger.exception("Error during stream adaptation")
-        # Classify the error per FP-4 § 5.3.2 frozen errorText format
-        error_text = str(e)
-        err_lower = error_text.lower()
-        if "timeout" in err_lower or "connection" in err_lower:
-            yield enc.error(format_llm_error(error_text))
-        elif "context length" in err_lower or "token" in err_lower:
-            yield enc.error(format_llm_error(f"Context length exceeded — {error_text}"))
-        elif "content filter" in err_lower or "safety" in err_lower:
-            yield enc.error(format_llm_error(f"Content filtered by safety policy"))
-        else:
-            yield enc.error(f"{ErrorCode.INTERNAL_ERROR}: {error_text}")
+        yield enc.error(classify_stream_error(str(e)))
 
     finally:
         yield enc.finish_step()

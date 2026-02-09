@@ -12,6 +12,7 @@ See: docs/plans/2026-02-09-three-party-freeze-protocol.md § 5.3
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 
 
@@ -55,3 +56,75 @@ def format_error(code: ErrorCode, detail: str) -> str:
         ``{ERROR_CODE}: {detail}``
     """
     return f"{code}: {detail}"
+
+
+# ── Tool name extraction pattern ────────────────────────────────────
+# Matches known tool-function prefixes found in the tools/ registry.
+_TOOL_NAME_RE = re.compile(
+    r"\b("
+    r"get_\w+"
+    r"|generate_\w+"
+    r"|calculate_\w+"
+    r"|save_as_\w+"
+    r"|create_share_\w+"
+    r"|search_teacher_\w+"
+    r"|resolve_entity"
+    r"|patch_artifact"
+    r"|propose_pptx_outline"
+    r"|render_pdf"
+    r"|request_interactive_content"
+    r"|build_report_page"
+    r"|ask_clarification"
+    r"|compare_performance"
+    r"|analyze_student_weakness"
+    r"|get_student_error_patterns"
+    r"|calculate_class_mastery"
+    r")\b"
+)
+
+# Broad patterns that indicate a tool-related failure even when the
+# exact tool name cannot be extracted from the error message.
+_TOOL_HINT_RE = re.compile(
+    r"\btool\b|java api",
+    re.IGNORECASE,
+)
+
+# LLM-provider patterns (timeout, connection, context-length, token limits,
+# content-safety filters).
+_LLM_PROVIDER_RE = re.compile(
+    r"timeout|connection|context length|token|content filter|safety",
+    re.IGNORECASE,
+)
+
+
+def classify_stream_error(error_text: str) -> str:
+    """Classify a raw exception string into a frozen SSE ``errorText``.
+
+    Classification order (first match wins):
+        1. Tool execution failure — matched by known tool-name prefix or
+           generic tool-hint keywords.
+        2. LLM provider error — timeout / connection / context-length / token /
+           content-filter / safety.
+        3. Fallback — ``INTERNAL_ERROR``.
+
+    Returns:
+        A formatted string conforming to FP-4 § 5.3.2.
+    """
+    # 1. Tool execution failure
+    tool_match = _TOOL_NAME_RE.search(error_text)
+    if tool_match:
+        return format_tool_error(tool_match.group(1), error_text)
+    if _TOOL_HINT_RE.search(error_text):
+        return format_tool_error("unknown_tool", error_text)
+
+    # 2. LLM provider error (sub-classify for richer detail)
+    err_lower = error_text.lower()
+    if "content filter" in err_lower or "safety" in err_lower:
+        return format_llm_error("Content filtered by safety policy")
+    if "context length" in err_lower or "token" in err_lower:
+        return format_llm_error(f"Context length exceeded — {error_text}")
+    if "timeout" in err_lower or "connection" in err_lower:
+        return format_llm_error(error_text)
+
+    # 3. Fallback
+    return f"{ErrorCode.INTERNAL_ERROR}: {error_text}"
