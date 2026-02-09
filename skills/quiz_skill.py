@@ -76,6 +76,7 @@ def _build_quiz_prompt(
 7. **选项内容不要带字母前缀**（不要写 "A. xxx"，直接写 "xxx"），前端会自动添加字母标签
 8. **数学公式必须用 LaTeX 格式**：行内公式用 $...$ 包裹（如 $\\frac{{1}}{{2}}$、$x^2 + 1$），不要用纯文本写数学表达式
 9. 题目和选项中的数学符号一律用 LaTeX（积分 $\\int$、求导 $\\frac{{dy}}{{dx}}$、极限 $\\lim$、根号 $\\sqrt{{}}$ 等）
+10. **纯数字不要用 LaTeX 包裹**：选项如果只是数字（如 0.8、100、3.14），直接写数字即可，不要写成 $0.8$。只有包含运算符、变量或数学命令的表达式才需要 $...$（如 $2x+1$、$\\frac{{1}}{{3}}$）
 
 [再次强调] 你必须输出恰好 {count} 道题目的 JSON 数组。从第1道写到第{count}道，缺少任何一道都不合格。""")
 
@@ -227,6 +228,7 @@ async def generate_quiz(
     grade: str = "",
     context: str = "",
     weakness_focus: list[str] | None = None,
+    model_name: str | None = None,
 ) -> AsyncGenerator[QuizQuestionV1, None]:
     """Stream-generate quiz questions — single LLM call, one question per yield.
 
@@ -250,7 +252,8 @@ async def generate_quiz(
     )
 
     settings = get_settings()
-    model = create_model(settings.executor_model)
+    selected_model = (model_name or "").strip() or settings.executor_model
+    model = create_model(selected_model)
 
     # Use PydanticAI Agent for streaming
     from pydantic_ai import Agent
@@ -271,7 +274,12 @@ async def generate_quiz(
     question_count = 0
     _dropped_count = 0
 
-    logger.info("Quiz generation starting: requested=%d, topic='%s'", count, topic)
+    logger.info(
+        "Quiz generation starting: requested=%d, topic='%s', model=%s",
+        count,
+        topic,
+        selected_model,
+    )
 
     async with agent.run_stream(prompt) as stream:
         async for chunk in stream.stream_text(delta=True):
@@ -348,6 +356,7 @@ async def regenerate_question(
 3. 不要输出任何其他文字
 4. 选项不要带字母前缀（不要写 "A. xxx"）
 5. 数学公式用 LaTeX 格式：行内用 $...$ 包裹
+6. 纯数字选项（如 0.8、100）不要用 $...$ 包裹，只有含变量或运算符的表达式才需要 LaTeX
 """
 
     settings = get_settings()

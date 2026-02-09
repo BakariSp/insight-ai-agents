@@ -30,7 +30,7 @@ from tools.render_tools import (
     generate_interactive_html, request_interactive_content,
 )
 from tools.platform_tools import save_as_assignment, create_share_link
-from tools.quiz_tools import generate_quiz_questions
+from tools.quiz_tools import generate_quiz_questions, refine_quiz_questions
 
 mcp = FastMCP("insight-ai-tools")
 
@@ -61,6 +61,7 @@ mcp.tool()(request_interactive_content)
 mcp.tool()(save_as_assignment)
 mcp.tool()(create_share_link)
 mcp.tool()(generate_quiz_questions)
+mcp.tool()(refine_quiz_questions)
 
 # In-process tool registry: name → callable
 TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
@@ -90,6 +91,7 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     "save_as_assignment": save_as_assignment,
     "create_share_link": create_share_link,
     "generate_quiz_questions": generate_quiz_questions,
+    "refine_quiz_questions": refine_quiz_questions,
 }
 
 

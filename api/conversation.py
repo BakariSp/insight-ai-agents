@@ -855,10 +855,11 @@ async def _stream_modify_quiz(
     req: ConversationRequest,
     artifacts: dict,
 ) -> AsyncGenerator[str, None]:
-    """Incrementally modify quiz questions."""
-    import re
-    from skills.quiz_skill import regenerate_question
-    from models.quiz_output import QuizQuestionV1
+    """Incrementally modify quiz questions via LLM + refine tool."""
+    from pydantic_ai import Agent as PydanticAgent
+
+    from agents.provider import create_model, get_model_for_tier
+    from tools.quiz_tools import refine_quiz_questions
 
     quiz_data = artifacts.get("quiz", {})
     questions = quiz_data.get("questions", [])
@@ -871,39 +872,148 @@ async def _stream_modify_quiz(
         yield enc.text_end(tid)
         return
 
-    # Detect single question replacement: "第3题...", "question 3..."
-    index_match = re.search(r"第\s*(\d+)\s*[题道]|question\s*(\d+)", modification, re.IGNORECASE)
-    if index_match:
-        idx_str = index_match.group(1) or index_match.group(2)
-        target_index = int(idx_str) - 1  # 0-based
-        if 0 <= target_index < len(questions):
-            try:
-                original = QuizQuestionV1(**questions[target_index])
-                new_q = await regenerate_question(original, feedback=modification)
-                yield enc.data("quiz-replace", {
-                    "index": target_index,
-                    "question": new_q.model_dump(by_alias=True),
-                    "status": "replaced",
-                })
-                enc.append_to_sink(
-                    f"\n[已替换第{target_index + 1}题: {new_q.question[:80]}]"
-                )
-                tid = enc._id()
-                yield enc.text_start(tid)
-                yield enc.text_delta(tid, f"已替换第{target_index + 1}题。")
-                yield enc.text_end(tid)
-                return
-            except Exception as e:
-                logger.exception("Quiz question replacement failed: %s", e)
+    def _extract_refine_result(agent_messages: list[ModelMessage]) -> dict | None:
+        for call in agent_messages:
+            if not hasattr(call, "parts"):
+                continue
+            for part in call.parts:
+                if (
+                    hasattr(part, "tool_name")
+                    and hasattr(part, "content")
+                    and part.tool_name == "refine_quiz_questions"
+                    and isinstance(part.content, dict)
+                ):
+                    return part.content
+        return None
 
-    # Fallback: can't parse specific modification — inform user
+    model_name = get_model_for_tier("standard")
+    model = create_model(model_name)
+    refine_agent = PydanticAgent(
+        model=model,
+        system_prompt=(
+            "You are a quiz refinement orchestrator.
+"
+            "You have exactly one tool: refine_quiz_questions.
+"
+            "Always call this tool exactly once.
+"
+            "Use action='replace_one' for changing one specific question.
+"
+            "Use action='regenerate_all' for redoing the full quiz.
+"
+            "Use action='clarify' only when user intent is ambiguous.
+"
+            "For replace_one, target_index must be 1-based."
+        ),
+        retries=1,
+        defer_model_check=True,
+    )
+    refine_agent.tool_plain()(refine_quiz_questions)
+
+    question_outline: list[str] = []
+    for i, q in enumerate(questions[:20], start=1):
+        stem = str(q.get("question", "")).strip().replace("
+", " ")
+        question_outline.append(f"{i}. {stem[:120]}")
+    prompt = (
+        f"Teacher request:
+{modification}
+
+"
+        f"Current quiz has {len(questions)} questions.
+"
+        "Question list preview:
+"
+        + "
+".join(question_outline)
+    )
+
+    refine_result: dict | None = None
+    try:
+        async with refine_agent.run_stream(
+            prompt,
+            model_settings={
+                "max_tokens": 1024,
+                "tool_choice": "required",
+            },
+        ) as result:
+            async for _ in result.stream_text(delta=True):
+                pass
+            refine_result = _extract_refine_result(result.all_messages())
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Quiz refine agent failed: %s", e)
+
+    # Fallback for provider outage: preserve deterministic behavior when
+    # there is only one candidate question.
+    if not refine_result:
+        if len(questions) == 1:
+            refine_result = await refine_quiz_questions(
+                questions=questions,
+                instruction=modification,
+                action="replace_one",
+                target_index=1,
+            )
+        else:
+            tid = enc._id()
+            yield enc.text_start(tid)
+            yield enc.text_delta(
+                tid,
+                "我没有成功解析你的修改意图。请说‘第3题太难了，换一道’或‘重新出题’。",
+            )
+            yield enc.text_end(tid)
+            return
+
+    status = str(refine_result.get("status") or "").lower()
+
+    if status == "replaced":
+        idx = int(refine_result.get("target_index", -1))
+        question = refine_result.get("question")
+        if idx >= 0 and isinstance(question, dict):
+            yield enc.data(
+                "quiz-replace",
+                {"index": idx, "question": question, "status": "replaced"},
+            )
+            preview = str(question.get("question", ""))[:80]
+            enc.append_to_sink(f"
+[已替换第{idx + 1}题: {preview}]")
+            tid = enc._id()
+            yield enc.text_start(tid)
+            yield enc.text_delta(tid, f"已替换第{idx + 1}题。")
+            yield enc.text_end(tid)
+            return
+
+    if status == "regenerated":
+        new_questions = refine_result.get("questions")
+        if isinstance(new_questions, list) and new_questions:
+            for idx, q in enumerate(new_questions):
+                if not isinstance(q, dict):
+                    continue
+                yield enc.data(
+                    "quiz-question",
+                    {"index": idx, "question": q, "status": "generated"},
+                )
+            yield enc.data(
+                "quiz-complete",
+                {
+                    "total": len(new_questions),
+                    "message": f"{len(new_questions)} questions generated",
+                },
+            )
+            enc.append_to_sink(f"
+[已重新生成 {len(new_questions)} 题]")
+            tid = enc._id()
+            yield enc.text_start(tid)
+            yield enc.text_delta(tid, f"已按你的要求重新生成全部 {len(new_questions)} 题。")
+            yield enc.text_end(tid)
+            return
+
+    message = str(
+        refine_result.get("message")
+        or "请指定要修改的题号，例如‘第3题太简单了，换一道’；或者说‘重新出题’。"
+    )
     tid = enc._id()
     yield enc.text_start(tid)
-    yield enc.text_delta(
-        tid,
-        "请指定要修改的题目编号，例如「第3题太简单了，换一道」。"
-        "或者说「重新出题」来全部重新生成。",
-    )
+    yield enc.text_delta(tid, message)
     yield enc.text_end(tid)
 
 

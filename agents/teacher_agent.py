@@ -109,20 +109,30 @@ def _get_agent_tools(
 ) -> list:
     """Return tool functions available to the Agent Path.
 
-    Includes: data queries + knowledge retrieval + render tools + platform operations.
-    Excludes: stats/compute tools (those are used by Blueprint path).
+    Base tools (data/knowledge/assessment) are always registered regardless of
+    ``allowed_tool_names`` — they provide data context the Agent needs (§7.2).
+    ``allowed_tool_names`` only narrows the priority / generation set.
+    When ``candidate_tools`` is not supplied, all priority tools are registered.
     """
     tools = []
+
+    # 常驻基座 — always present
     base_names = list(BASE_TOOL_NAMES)
-    preferred_names = [
-        name for name in (candidate_tools or []) if name in PRIORITY_TOOL_NAMES
-    ]
-    names = base_names + preferred_names
-    if not preferred_names:
-        names += list(PRIORITY_TOOL_NAMES)
+
+    # Priority / generation tools — filtered by candidate_tools input
+    if candidate_tools:
+        priority_names = [
+            name for name in candidate_tools if name in PRIORITY_TOOL_NAMES
+        ]
+    else:
+        priority_names = list(PRIORITY_TOOL_NAMES)
+
+    # allowed_tool_names further narrows priority set only, not base
     if allowed_tool_names:
         allowed = set(allowed_tool_names)
-        names = [name for name in names if name in allowed]
+        priority_names = [n for n in priority_names if n in allowed]
+
+    names = base_names + priority_names
 
     for name in names:
         if name in TOOL_REGISTRY:

@@ -340,6 +340,18 @@ async def generate_interactive_stream(
             task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
 
+    # Warn if any phase produced empty content (likely LLM API failure)
+    empty_phases = [p for p in ("html", "css", "js") if not full[p].strip()]
+    if empty_phases:
+        logger.warning(
+            "Interactive generation produced empty phases: %s "
+            "(content lengths: html=%d, css=%d, js=%d)",
+            empty_phases,
+            len(full["html"]),
+            len(full["css"]),
+            len(full["js"]),
+        )
+
     yield {
         "type": "complete",
         "html": full["html"],
