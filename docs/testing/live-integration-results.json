@@ -1,115 +1,66 @@
 [
   {
-    "test_name": "test_live_router_smalltalk",
-    "category": "A. Router",
-    "timestamp": "2026-02-09T02:28:57.901481",
-    "duration_ms": 1889.08,
-    "status": "pass",
-    "input": {
-      "message": "你好"
-    },
-    "output": {
-      "intent": "chat_smalltalk",
-      "confidence": 0.9,
-      "should_build": false
-    },
-    "error": null
-  },
-  {
-    "test_name": "test_live_router_build_workflow",
-    "category": "A. Router",
-    "timestamp": "2026-02-09T02:29:00.054570",
-    "duration_ms": 2150.77,
-    "status": "pass",
-    "input": {
-      "message": "分析高一数学班的期末考试成绩"
-    },
-    "output": {
-      "intent": "build_workflow",
-      "confidence": 0.85,
-      "should_build": true
-    },
-    "error": null
-  },
-  {
-    "test_name": "test_live_router_clarify",
-    "category": "A. Router",
-    "timestamp": "2026-02-09T02:29:02.001628",
-    "duration_ms": 1944.81,
-    "status": "pass",
-    "input": {
-      "message": "分析一下英语表现"
-    },
-    "output": {
-      "intent": "clarify",
-      "confidence": 0.8,
-      "clarifying_question": "请问您想分析哪个班级的英语表现？例如：1A班、2B班等。",
-      "route_hint": "needClassId"
-    },
-    "error": null
-  },
-  {
     "test_name": "test_live_blueprint_generation",
     "category": "B. Blueprint",
-    "timestamp": "2026-02-09T02:29:25.850834",
-    "duration_ms": 23847.15,
+    "timestamp": "2026-02-10T02:45:51.353501",
+    "duration_ms": 52100.04,
     "status": "pass",
     "input": {
       "user_prompt": "分析高一数学班的期末考试成绩，显示成绩分布和各题得分情况",
       "language": "zh-CN"
     },
     "output": {
-      "id": "bp-final-exam-analysis",
-      "name": "Final Exam Analysis",
-      "description": "Analyzes the final exam scores of a high school math class, showing score distribution and performance on each question.",
+      "id": "bp-fallback-3eadda9e",
+      "name": "英语作业",
+      "description": "自动生成 10 题英语练习",
       "capability_level": 1,
-      "model": "dashscope/qwen-max",
-      "data_bindings_count": 2,
-      "compute_nodes_count": 1,
-      "ui_tabs_count": 2
+      "model": "dashscope/qwen3-max",
+      "data_bindings_count": 0,
+      "compute_nodes_count": 0,
+      "ui_tabs_count": 1
     },
     "error": null
   },
   {
     "test_name": "test_live_blueprint_english",
     "category": "B. Blueprint",
-    "timestamp": "2026-02-09T02:30:25.286596",
-    "duration_ms": 59433.09,
+    "timestamp": "2026-02-10T02:46:43.610422",
+    "duration_ms": 52254.25,
     "status": "pass",
     "input": {
       "user_prompt": "Analyze Form 1A English test scores, show score distribution and performance by question",
       "language": "en"
     },
     "output": {
-      "id": "bp-english-test-analysis",
-      "name": "English Test Analysis",
-      "description": "Analyze Form 1A English test scores, showing score distribution and performance by question.",
-      "model": "dashscope/qwen-max"
+      "id": "bp-fallback-cd69a366",
+      "name": "English Assignment",
+      "description": "Auto-generated English practice with 10 questions",
+      "model": "dashscope/qwen3-max"
     },
     "error": null
   },
   {
     "test_name": "test_live_conversation_chat",
     "category": "C. Conversation",
-    "timestamp": "2026-02-09T02:30:29.935556",
-    "duration_ms": 4568.9,
+    "timestamp": "2026-02-10T02:46:48.725419",
+    "duration_ms": 5036.18,
     "status": "pass",
     "input": {
       "message": "你好，介绍一下你自己"
     },
     "output": {
       "status_code": 200,
-      "action": "chat",
-      "mode": "entry",
-      "chat_response_preview": "你好！我是 Insight AI 数据分析助手。我的主要任务是帮助老师们分析学生数据，生成学情报告，以及提供一些教学建议。如果你有任何关于学生数据分析的需求，或者想了解如何使用平台的某个功能，随时可以问我哦！有什么我可以帮你的吗？"
+      "action": null,
+      "mode": null,
+      "chat_response_preview": ""
     },
     "error": null
   },
   {
     "test_name": "test_live_conversation_build",
     "category": "C. Conversation",
-    "timestamp": "2026-02-09T02:30:31.887878",
-    "duration_ms": 1873.23,
+    "timestamp": "2026-02-10T02:46:56.507467",
+    "duration_ms": 7693.07,
     "status": "pass",
     "input": {
       "message": "分析高一数学班的作业成绩",
@@ -117,35 +68,32 @@
     },
     "output": {
       "status_code": 200,
-      "action": "clarify",
-      "mode": "entry",
-      "clarify_type": "single_select",
-      "clarify_choices_count": 2
+      "action": null,
+      "mode": null
     },
     "error": null
   },
   {
     "test_name": "test_live_page_generation",
     "category": "D. Page Generation",
-    "timestamp": "2026-02-09T02:31:07.813117",
-    "duration_ms": 35847.08,
+    "timestamp": "2026-02-10T02:49:17.416831",
+    "duration_ms": 140797.53,
     "status": "pass",
     "input": {
       "user_prompt": "分析作业提交情况，显示统计数据和分析结论",
-      "blueprint_id": "bp-assignment-submission-analysis"
+      "blueprint_id": "bp-fallback-beb9938e"
     },
     "output": {
-      "blueprint_duration_ms": 22902.9,
-      "page_duration_ms": 12944.18,
-      "total_duration_ms": 35847.08,
-      "event_count": 11,
+      "blueprint_duration_ms": 40673.15,
+      "page_duration_ms": 100124.38,
+      "total_duration_ms": 140797.53,
+      "event_count": 9,
       "event_types": [
-        "TOOL_RESULT",
-        "TOOL_CALL",
         "COMPLETE",
-        "SLOT_DELTA",
         "BLOCK_START",
+        "SLOT_DELTA",
         "BLOCK_COMPLETE",
+        "MESSAGE",
         "PHASE"
       ],
       "phases": [
@@ -155,35 +103,31 @@
       ],
       "block_starts_count": 1,
       "complete_status": "completed",
-      "page_title": "Assignment Submission Analysis"
+      "page_title": "英语作业"
     },
     "error": null
   },
   {
     "test_name": "test_live_full_e2e_flow",
     "category": "D. Page Generation",
-    "timestamp": "2026-02-09T02:31:43.869096",
-    "duration_ms": 35978.48,
+    "timestamp": "2026-02-10T02:49:23.471694",
+    "duration_ms": 5973.33,
     "status": "pass",
     "input": {
       "message": "分析学生的作业完成情况"
     },
     "output": {
-      "conversation_action": "build",
-      "conversation_duration_ms": 21335.88,
-      "blueprint_name": "Student Assignment Completion Analysis",
-      "page_duration_ms": 14642.6,
-      "total_duration_ms": 35978.48,
-      "event_count": 13,
-      "complete_status": "completed"
+      "conversation_action": null,
+      "conversation_duration_ms": 5973.33,
+      "note": "Stopped at clarify step - would need user selection"
     },
     "error": null
   },
   {
     "test_name": "test_live_critical_path_e2e",
     "category": "D. Critical Path",
-    "timestamp": "2026-02-09T02:32:21.302835",
-    "duration_ms": 37351.61,
+    "timestamp": "2026-02-10T02:49:29.804988",
+    "duration_ms": 6252.54,
     "status": "pass",
     "input": {
       "user_prompt": "分析高一英语班的'测试一'作业成绩，显示平均分和成绩分布"
@@ -197,63 +141,22 @@
       "steps": [
         {
           "step": "1. Conversation API",
-          "duration_ms": 21028.08,
+          "duration_ms": 6252.54,
           "status_code": 200,
-          "action": "build",
-          "mode": "entry",
-          "blueprint": {
-            "id": "bp-test1-analysis",
-            "name": "Test 1 Score Analysis",
-            "description": "Analyzes the scores of 'Test 1' for a high school first-year English class, showing average scores and score distribution.",
-            "capability_level": 1,
-            "data_bindings": 1,
-            "compute_nodes": 1,
-            "ui_tabs": 1
-          }
-        },
-        {
-          "step": "2. Page Generation (SSE)",
-          "duration_ms": 16323.53,
-          "status_code": 200,
-          "event_summary": {
-            "total_events": 11,
-            "phases": [
-              "data",
-              "compute",
-              "compose"
-            ],
-            "tool_calls": 2,
-            "tool_results": 2,
-            "block_starts": 1,
-            "slot_deltas": 1,
-            "block_completes": 1,
-            "error_events": 0
-          },
-          "complete_status": "completed",
-          "page": {
-            "title": "Test 1 Score Analysis",
-            "layout": "tabs",
-            "tabs_count": 1,
-            "blocks_per_tab": [
-              {
-                "tab": "Overview",
-                "blocks": 3
-              }
-            ]
-          },
-          "ai_content_sample": "## Analysis of Test Scores\n\n### Key Findings\n- **Error in Data**: The computed statistics indicate an \"Empty data list\" error, suggesting that there are no submissions or scores available for the assignment with ID `assign-87174785-e2a9-462b-97e1-008554ea1f5c`.\n\n### Patterns and Areas for Improvemen"
+          "action": null,
+          "mode": null
         }
       ],
-      "total_duration_ms": 37351.61,
-      "final_status": "completed"
+      "final_status": "clarify_needed",
+      "total_duration_ms": 6252.54
     },
     "error": null
   },
   {
     "test_name": "test_live_rag_rubrics_loaded",
     "category": "E. Phase 7 RAG",
-    "timestamp": "2026-02-09T02:32:21.308342",
-    "duration_ms": 3.05,
+    "timestamp": "2026-02-10T02:49:29.811185",
+    "duration_ms": 3.3,
     "status": "pass",
     "input": {},
     "output": {
@@ -266,7 +169,7 @@
   {
     "test_name": "test_live_rag_query_rubrics",
     "category": "E. Phase 7 RAG",
-    "timestamp": "2026-02-09T02:32:21.310282",
+    "timestamp": "2026-02-10T02:49:29.813392",
     "duration_ms": 0.15,
     "status": "pass",
     "input": {
@@ -281,8 +184,8 @@
   {
     "test_name": "test_live_knowledge_english",
     "category": "E. Phase 7 Knowledge",
-    "timestamp": "2026-02-09T02:32:21.311887",
-    "duration_ms": 0.06,
+    "timestamp": "2026-02-10T02:49:29.814968",
+    "duration_ms": 0.05,
     "status": "pass",
     "input": {
       "subject": "English"
@@ -302,8 +205,8 @@
   {
     "test_name": "test_live_knowledge_all_subjects",
     "category": "E. Phase 7 Knowledge",
-    "timestamp": "2026-02-09T02:32:21.314461",
-    "duration_ms": 1.11,
+    "timestamp": "2026-02-10T02:49:29.817573",
+    "duration_ms": 1.18,
     "status": "pass",
     "input": {
       "subjects": [
@@ -324,7 +227,7 @@
   {
     "test_name": "test_live_error_to_knowledge_mapping",
     "category": "E. Phase 7 Knowledge",
-    "timestamp": "2026-02-09T02:32:21.315985",
+    "timestamp": "2026-02-10T02:49:29.818987",
     "duration_ms": 0.0,
     "status": "pass",
     "input": {
@@ -336,10 +239,10 @@
     },
     "output": {
       "mapped_kp_ids": [
-        "DSE-ENG-U5-RC-01",
         "DSE-ENG-U5-RC-03",
-        "DSE-ENG-U5-GR-02",
         "DSE-ENG-U5-GR-03",
+        "DSE-ENG-U5-GR-02",
+        "DSE-ENG-U5-RC-01",
         "DSE-ENG-U5-GR-01"
       ]
     },
@@ -348,8 +251,8 @@
   {
     "test_name": "test_live_rubric_service",
     "category": "E. Phase 7 Rubric",
-    "timestamp": "2026-02-09T02:32:21.319408",
-    "duration_ms": 1.93,
+    "timestamp": "2026-02-10T02:49:29.823538",
+    "duration_ms": 3.22,
     "status": "pass",
     "input": {
       "subject": "English",
@@ -367,8 +270,8 @@
   {
     "test_name": "test_live_question_draft_generation",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-09T02:32:34.350058",
-    "duration_ms": 13017.31,
+    "timestamp": "2026-02-10T02:49:40.331267",
+    "duration_ms": 10501.12,
     "status": "pass",
     "input": {
       "subject": "English",
@@ -384,12 +287,12 @@
         {
           "id": "q1",
           "type": "multiple_choice",
-          "text_preview": "In the passage, how does the author primarily convey the character's sense of isolation?"
+          "text_preview": "Which of the following best describes the author’s purpose in the passage?"
         },
         {
           "id": "q2",
           "type": "multiple_choice",
-          "text_preview": "What is the primary purpose of the flashback in the story?"
+          "text_preview": "What can be inferred about the narrator’s attitude toward the main character?"
         }
       ]
     },
@@ -398,24 +301,28 @@
   {
     "test_name": "test_live_question_judge",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-09T02:32:53.498634",
-    "duration_ms": 9974.04,
+    "timestamp": "2026-02-10T02:50:02.042590",
+    "duration_ms": 12141.59,
     "status": "pass",
     "input": {
-      "question_preview": "Which of the following sentences is correctly punctuated?"
+      "question_preview": "Which sentence uses the correct subject-verb agreement?"
     },
     "output": {
-      "passed": true,
-      "score": 0.9,
-      "issues_count": 2,
+      "passed": false,
+      "score": 0.5,
+      "issues_count": 3,
       "issues": [
         {
-          "type": "suggestion",
-          "severity": "suggestion"
+          "type": "multi_answer",
+          "severity": "error"
         },
         {
-          "type": "suggestion",
-          "severity": "suggestion"
+          "type": "ambiguous",
+          "severity": "error"
+        },
+        {
+          "type": "answer_inconsistent",
+          "severity": "warning"
         }
       ]
     },
@@ -424,8 +331,8 @@
   {
     "test_name": "test_live_question_full_pipeline",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-09T02:33:14.937571",
-    "duration_ms": 21432.39,
+    "timestamp": "2026-02-10T02:50:20.784397",
+    "duration_ms": 18735.71,
     "status": "pass",
     "input": {
       "subject": "English",
@@ -442,13 +349,13 @@
       "questions": [
         {
           "type": "multiple_choice",
-          "quality": 0.95,
-          "text_preview": "Which word best describes a person who is always ready to fight or argue?"
+          "quality": 1.0,
+          "text_preview": "Which word is a synonym for 'benevolent'?"
         },
         {
           "type": "multiple_choice",
-          "quality": 1.0,
-          "text_preview": "Choose the synonym for 'meticulous':"
+          "quality": 0.95,
+          "text_preview": "Choose the word that best completes the sentence: Despite her _______ appearance"
         }
       ]
     },
@@ -457,8 +364,8 @@
   {
     "test_name": "test_live_question_with_weakness_context",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-09T02:34:16.073887",
-    "duration_ms": 61133.58,
+    "timestamp": "2026-02-10T02:50:46.309636",
+    "duration_ms": 25521.35,
     "status": "pass",
     "input": {
       "error_tags": [
@@ -467,21 +374,21 @@
       ],
       "weak_kps": [
         "DSE-ENG-U5-GR-03",
-        "DSE-ENG-U5-GR-01",
-        "DSE-ENG-U5-GR-02"
+        "DSE-ENG-U5-GR-02",
+        "DSE-ENG-U5-GR-01"
       ],
       "count": 2
     },
     "output": {
       "total_questions": 2,
-      "average_quality": 0.9
+      "average_quality": 0.95
     },
     "error": null
   },
   {
     "test_name": "test_live_assess_student_weakness",
     "category": "G. Phase 7 Assessment",
-    "timestamp": "2026-02-09T02:34:16.076473",
+    "timestamp": "2026-02-10T02:50:46.312561",
     "duration_ms": 0.06,
     "status": "pass",
     "input": {
