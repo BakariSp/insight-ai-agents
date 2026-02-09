@@ -1683,6 +1683,7 @@ async def _stream_agent_mode(
                                 "message": queue_payload.message,
                                 "duration_ms": queue_payload.duration_ms,
                             },
+                            id=f"tp-{queue_payload.tool}",
                         )
                     elif msg_type == "final-output" and isinstance(queue_payload, FinalResult):
                         final_result = queue_payload

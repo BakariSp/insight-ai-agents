@@ -101,8 +101,18 @@ class DataStreamEncoder:
 
     # ── Custom Data ──────────────────────────────────────────────
 
-    def data(self, name: str, payload: Any) -> str:
-        return self._sse({"type": f"data-{name}", "data": payload})
+    def data(self, name: str, payload: Any, *, id: str | None = None) -> str:
+        """Emit a custom ``data-{name}`` event.
+
+        When *id* is provided the Vercel AI SDK will **update** the existing
+        part with the same ``type + id`` instead of appending a new one.
+        This is critical for ``data-tool-progress`` so the frontend sees one
+        part per tool (latest status) rather than accumulating running + done.
+        """
+        evt: dict[str, Any] = {"type": f"data-{name}", "data": payload}
+        if id is not None:
+            evt["id"] = id
+        return self._sse(evt)
 
     # ── Session Memory ──────────────────────────────────────────
 
