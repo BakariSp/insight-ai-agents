@@ -182,6 +182,7 @@ def _wrap_with_metrics(func: Callable[..., Any], tool_name: str) -> Callable[...
             return result
         except Exception:
             status = "error"
+            logger.exception("tool %s raised an unhandled exception", tool_name)
             raise
         finally:
             latency_ms = (time.monotonic() - start) * 1000

@@ -16,6 +16,16 @@ class ArtifactVersion:
 
 
 class InMemoryArtifactStore:
+    """In-memory artifact store with capacity limits.
+
+    ``MAX_ARTIFACTS`` caps the total number of artifact versions stored.
+    When the cap is reached, the oldest entry (by insertion order) is evicted.
+    ``MAX_CONVERSATIONS`` caps the conversation→latest-artifact mapping.
+    """
+
+    MAX_ARTIFACTS = 2000
+    MAX_CONVERSATIONS = 1000
+
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._by_id: dict[str, ArtifactVersion] = {}
@@ -49,6 +59,15 @@ class InMemoryArtifactStore:
             self._by_id[aid] = ArtifactVersion(artifact=artifact)
             if conversation_id:
                 self._latest_by_conversation[conversation_id] = aid
+
+            # Evict oldest entries when capacity is exceeded.
+            if len(self._by_id) > self.MAX_ARTIFACTS:
+                oldest_key = next(iter(self._by_id))
+                del self._by_id[oldest_key]
+            if len(self._latest_by_conversation) > self.MAX_CONVERSATIONS:
+                oldest_conv = next(iter(self._latest_by_conversation))
+                del self._latest_by_conversation[oldest_conv]
+
             return artifact
 
     def get_artifact(self, artifact_id: str) -> Artifact | None:

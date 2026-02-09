@@ -24,6 +24,25 @@ def _error(reason: str, **extra: Any) -> dict[str, Any]:
     return {"status": "error", "reason": reason, **extra}
 
 
+def _is_error(result: dict[str, Any]) -> bool:
+    """Detect error from underlying tools.
+
+    data_tools return ``{"status": "error", "reason": ...}`` on failure,
+    while some legacy paths use ``{"error": "..."}``  — handle both.
+    """
+    if result.get("status") == "error":
+        return True
+    if result.get("error"):
+        return True
+    return False
+
+
+def _forward_error(result: dict[str, Any]) -> dict[str, Any]:
+    """Convert an underlying error result into a standard _error() envelope."""
+    reason = result.get("reason") or result.get("error") or "unknown error"
+    return _error(str(reason))
+
+
 def _save_artifact(
     *,
     conversation_id: str,
@@ -54,27 +73,29 @@ def _save_artifact(
 
 @register_tool(toolset="base_data")
 async def get_teacher_classes(ctx: RunContext[AgentDeps]) -> dict:
+    """List all classes assigned to the current teacher."""
     from tools.data_tools import get_teacher_classes as _get_classes
 
     teacher_id = ctx.deps.teacher_id
     if not teacher_id:
         return _error("teacher_id is required")
     result = await _get_classes(teacher_id=teacher_id)
-    if result.get("error"):
-        return _error(str(result["error"]))
+    if _is_error(result):
+        return _forward_error(result)
     return _ok({"classes": result.get("classes", [])})
 
 
 @register_tool(toolset="base_data")
 async def get_class_detail(ctx: RunContext[AgentDeps], class_id: str) -> dict:
+    """Get detailed information for a class including students and assignments."""
     from tools.data_tools import get_class_detail as _get_detail
 
     teacher_id = ctx.deps.teacher_id
     if not teacher_id:
         return _error("teacher_id is required")
     result = await _get_detail(teacher_id=teacher_id, class_id=class_id)
-    if result.get("error"):
-        return _error(str(result["error"]))
+    if _is_error(result):
+        return _forward_error(result)
     return _ok(result)
 
 
@@ -84,14 +105,15 @@ async def get_assignment_submissions(
     class_id: str,
     assignment_id: str,
 ) -> dict:
+    """Get all student submissions and scores for a specific assignment."""
     from tools.data_tools import get_assignment_submissions as _get_subs
 
     teacher_id = ctx.deps.teacher_id
     if not teacher_id:
         return _error("teacher_id is required")
     result = await _get_subs(teacher_id=teacher_id, assignment_id=assignment_id)
-    if result.get("error"):
-        return _error(str(result["error"]))
+    if _is_error(result):
+        return _forward_error(result)
     result["class_id"] = class_id
     return _ok(result)
 
@@ -102,14 +124,15 @@ async def get_student_grades(
     class_id: str,
     student_id: str,
 ) -> dict:
+    """Get all grades for a specific student in a class."""
     from tools.data_tools import get_student_grades as _get_grades
 
     teacher_id = ctx.deps.teacher_id
     if not teacher_id:
         return _error("teacher_id is required")
     result = await _get_grades(teacher_id=teacher_id, student_id=student_id)
-    if result.get("error"):
-        return _error(str(result["error"]))
+    if _is_error(result):
+        return _forward_error(result)
     result["class_id"] = class_id
     return _ok(result)
 
@@ -119,6 +142,7 @@ async def resolve_entity(
     ctx: RunContext[AgentDeps],
     query: str,
 ) -> dict:
+    """Resolve a natural-language entity reference (student name, class name) to IDs."""
     from services.entity_resolver import resolve_entities
 
     teacher_id = ctx.deps.teacher_id
@@ -143,11 +167,12 @@ async def calculate_stats(
     data: list[float],
     metrics: list[str] | None = None,
 ) -> dict:
+    """Compute descriptive statistics (mean, median, stdev, etc.) on a numeric dataset."""
     from tools.stats_tools import calculate_stats as _calc
 
     result = _calc(data=data, metrics=metrics)
-    if result.get("error"):
-        return _error(str(result["error"]))
+    if _is_error(result):
+        return _forward_error(result)
     return _ok(result)
 
 
@@ -158,11 +183,12 @@ async def compare_performance(
     group_b: list[float],
     metrics: list[str] | None = None,
 ) -> dict:
+    """Compare two groups of scores and return comparative statistics."""
     from tools.stats_tools import compare_performance as _compare
 
     result = _compare(group_a=group_a, group_b=group_b, metrics=metrics)
-    if result.get("error"):
-        return _error(str(result["error"]))
+    if _is_error(result):
+        return _forward_error(result)
     return _ok(result)
 
 
@@ -173,6 +199,7 @@ async def analyze_student_weakness(
     subject: str = "",
     submissions: list[dict[str, Any]] | None = None,
 ) -> dict:
+    """Identify common weakness areas across students in a class."""
     from tools.assessment_tools import analyze_student_weakness as _analyze
 
     teacher_id = ctx.deps.teacher_id
@@ -194,6 +221,7 @@ async def get_student_error_patterns(
     class_id: str = "",
     submissions: list[dict[str, Any]] | None = None,
 ) -> dict:
+    """Detect recurring error patterns for a specific student."""
     from tools.assessment_tools import get_student_error_patterns as _patterns
 
     teacher_id = ctx.deps.teacher_id
@@ -214,6 +242,7 @@ async def calculate_class_mastery(
     submissions: list[dict[str, Any]],
     knowledge_point_ids: list[str] | None = None,
 ) -> dict:
+    """Calculate mastery level per knowledge point from submission data."""
     from tools.assessment_tools import calculate_class_mastery as _mastery
 
     result = _mastery(
@@ -239,6 +268,7 @@ async def generate_quiz_questions(
     grade: str = "",
     context: str = "",
 ) -> dict:
+    """Generate quiz questions on a topic, returning a JSON artifact."""
     from tools.quiz_tools import generate_quiz_questions as _generate
 
     result = await _generate(
@@ -272,6 +302,7 @@ async def propose_pptx_outline(
     total_slides: int = 0,
     estimated_duration: int = 0,
 ) -> dict:
+    """Propose a slide-by-slide outline for a PPTX presentation."""
     from tools.render_tools import propose_pptx_outline as _outline
 
     result = await _outline(
@@ -296,6 +327,7 @@ async def generate_pptx(
     title: str = "Presentation",
     template: str = "education",
 ) -> dict:
+    """Generate a PPTX file from a list of slide definitions."""
     from tools.render_tools import generate_pptx as _generate_pptx
 
     result = await _generate_pptx(slides=slides, title=title, template=template)
@@ -315,6 +347,7 @@ async def generate_docx(
     title: str = "Document",
     format: str = "plain",
 ) -> dict:
+    """Generate a DOCX document from text or markdown content."""
     from tools.render_tools import generate_docx as _generate_docx
 
     result = await _generate_docx(content=content, title=title, format=format)
@@ -334,6 +367,7 @@ async def render_pdf(
     title: str = "Document",
     css_template: str = "default",
 ) -> dict:
+    """Render HTML content to a PDF document."""
     from tools.render_tools import render_pdf as _render_pdf
 
     result = await _render_pdf(
@@ -358,6 +392,7 @@ async def generate_interactive_html(
     description: str = "",
     preferred_height: int | None = None,
 ) -> dict:
+    """Wrap self-contained interactive HTML into a renderable artifact."""
     from tools.render_tools import generate_interactive_html as _interactive
 
     result = await _interactive(
@@ -387,6 +422,7 @@ async def request_interactive_content(
     style: str = "modern",
     include_features: list[str] | None = None,
 ) -> dict:
+    """Plan interactive HTML content for three-stream parallel generation."""
     from tools.render_tools import request_interactive_content as _request
 
     result = await _request(
@@ -421,34 +457,44 @@ def _get_path_tokens(path: str) -> list[str]:
 
 
 def _apply_json_patch(content: Any, operations: list[dict[str, Any]]) -> Any:
+    """Apply a list of JSON Patch-like operations to *content*.
+
+    Returns the patched content on success, or raises ``ValueError``
+    with a human-readable message when a single operation fails.
+    """
     patched = copy.deepcopy(content)
-    for op in operations:
+    for idx, op in enumerate(operations):
         action = str(op.get("op", "")).lower()
         path = str(op.get("path", ""))
         tokens = _get_path_tokens(path)
         if not tokens:
             continue
-        parent = patched
-        for token in tokens[:-1]:
-            if isinstance(parent, list):
-                parent = parent[int(token)]
-            else:
-                parent = parent[token]
-        key = tokens[-1]
+        try:
+            parent = patched
+            for token in tokens[:-1]:
+                if isinstance(parent, list):
+                    parent = parent[int(token)]
+                else:
+                    parent = parent[token]
+            key = tokens[-1]
 
-        if isinstance(parent, list):
-            idx = int(key)
-            if action == "remove":
-                parent.pop(idx)
-            elif action == "add":
-                parent.insert(idx, op.get("value"))
+            if isinstance(parent, list):
+                list_idx = int(key)
+                if action == "remove":
+                    parent.pop(list_idx)
+                elif action == "add":
+                    parent.insert(list_idx, op.get("value"))
+                else:
+                    parent[list_idx] = op.get("value")
             else:
-                parent[idx] = op.get("value")
-        else:
-            if action == "remove":
-                parent.pop(key, None)
-            else:
-                parent[key] = op.get("value")
+                if action == "remove":
+                    parent.pop(key, None)
+                else:
+                    parent[key] = op.get("value")
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise ValueError(
+                f"patch operation {idx} failed (op={action!r}, path={path!r}): {exc}"
+            ) from exc
     return patched
 
 
@@ -457,6 +503,7 @@ async def get_artifact(
     ctx: RunContext[AgentDeps],
     artifact_id: str = "",
 ) -> dict:
+    """Retrieve an artifact by ID, or the latest artifact in the current conversation."""
     store = get_artifact_store()
     artifact = (
         store.get_artifact(artifact_id)
@@ -480,13 +527,17 @@ async def patch_artifact(
     artifact_id: str,
     operations: list[dict[str, Any]],
 ) -> dict:
+    """Apply JSON Patch operations to modify an existing artifact in place."""
     store = get_artifact_store()
     artifact = store.get_artifact(artifact_id)
     if artifact is None:
         return _error("artifact not found", artifact_id=artifact_id)
 
     if artifact.content_format.value == "json":
-        new_content = _apply_json_patch(artifact.content, operations)
+        try:
+            new_content = _apply_json_patch(artifact.content, operations)
+        except ValueError as exc:
+            return _error(str(exc), artifact_id=artifact_id)
     elif artifact.content_format.value in {"markdown", "html"}:
         if len(operations) == 1 and operations[0].get("path") == "/content":
             new_content = operations[0].get("value", artifact.content)
@@ -516,14 +567,26 @@ async def regenerate_from_previous(
     artifact_id: str,
     instruction: str,
 ) -> dict:
+    """Regenerate an artifact from scratch using the original parameters and new instructions."""
     store = get_artifact_store()
     artifact = store.get_artifact(artifact_id)
     if artifact is None:
         return _error("artifact not found", artifact_id=artifact_id)
 
     if artifact.artifact_type == "quiz":
-        topic = instruction[:80] if instruction else "General Quiz"
-        regen = await generate_quiz_questions(ctx, topic=topic, count=10)
+        # Preserve original quiz parameters from the artifact content when possible.
+        prev = artifact.content if isinstance(artifact.content, dict) else {}
+        topic = instruction[:80] if instruction else prev.get("topic", "General Quiz")
+        regen = await generate_quiz_questions(
+            ctx,
+            topic=topic,
+            count=prev.get("count", 10),
+            difficulty=prev.get("difficulty", "medium"),
+            types=prev.get("types"),
+            subject=prev.get("subject", ""),
+            grade=prev.get("grade", ""),
+            context=instruction,
+        )
         return regen
     if artifact.artifact_type == "interactive":
         html = str(artifact.content)
@@ -551,6 +614,7 @@ async def search_teacher_documents(
     n_results: int = 5,
     include_public: bool = False,
 ) -> dict:
+    """Search the teacher's uploaded documents via RAG knowledge base."""
     from tools.document_tools import search_teacher_documents as _search
 
     teacher_id = ctx.deps.teacher_id
@@ -562,9 +626,8 @@ async def search_teacher_documents(
         n_results=n_results,
         include_public=include_public,
     )
-    status = result.get("status", "ok")
-    if status == "ok":
-        return result
+    # Pass through the underlying status (ok / no_result / error / degraded)
+    # transparently — document_tools already returns well-structured envelopes.
     return result
 
 
@@ -577,6 +640,7 @@ async def save_as_assignment(
     due_date: str = "",
     description: str = "",
 ) -> dict:
+    """Save generated questions as a class assignment on the platform."""
     from tools.platform_tools import save_as_assignment as _save
 
     result = await _save(
@@ -594,6 +658,7 @@ async def create_share_link(
     ctx: RunContext[AgentDeps],
     assignment_id: str,
 ) -> dict:
+    """Create a shareable link for an assignment."""
     from tools.platform_tools import create_share_link as _share
 
     result = await _share(assignment_id=assignment_id)
@@ -607,6 +672,7 @@ async def ask_clarification(
     options: list[dict[str, str]] | None = None,
     allow_custom_input: bool = True,
 ) -> dict:
+    """Ask the user a clarifying question with optional multiple-choice options."""
     clarify = ClarifyEvent(
         question=question,
         options=[
@@ -619,11 +685,10 @@ async def ask_clarification(
         ],
         allow_custom_input=allow_custom_input,
     )
-    return {
-        "status": "ok",
+    return _ok({
         "action": "clarify",
         "clarify": clarify.model_dump(),
-    }
+    })
 
 
 @register_tool(toolset="platform")

@@ -10,6 +10,11 @@ import math
 import threading
 from collections import defaultdict
 
+# Statuses that count as *errors* for guardrail / success-rate purposes.
+# Legitimate non-error statuses (no_result, planned, proposed, degraded)
+# are recorded in status_breakdown but do NOT inflate tool_error_count.
+_ERROR_STATUSES = frozenset({"error"})
+
 
 def _percentile(values: list[float], p: float) -> float:
     if not values:
@@ -27,7 +32,16 @@ def _percentile(values: list[float], p: float) -> float:
 
 
 class MetricsCollector:
-    """Thread-safe in-memory metrics collector."""
+    """Thread-safe in-memory metrics collector.
+
+    Applies capacity limits to prevent unbounded memory growth in
+    long-running processes:
+    - Per-tool latency lists are capped at ``MAX_LATENCIES_PER_TOOL``.
+    - Turn stats are capped at ``MAX_TURN_STATS`` (oldest evicted first).
+    """
+
+    MAX_LATENCIES_PER_TOOL = 2000
+    MAX_TURN_STATS = 5000
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -45,7 +59,11 @@ class MetricsCollector:
         conversation_id: str = "",
     ) -> None:
         with self._lock:
-            self._tool_latencies[tool_name].append(float(latency_ms))
+            lat_list = self._tool_latencies[tool_name]
+            lat_list.append(float(latency_ms))
+            if len(lat_list) > self.MAX_LATENCIES_PER_TOOL:
+                # Keep the most recent half to amortise the trim cost.
+                del lat_list[: len(lat_list) - self.MAX_LATENCIES_PER_TOOL]
             self._tool_status[tool_name][status] += 1
 
             if turn_id:
@@ -60,9 +78,13 @@ class MetricsCollector:
                     },
                 )
                 turn["tool_call_count"] += 1
-                if status != "ok":
+                if status in _ERROR_STATUSES:
                     turn["tool_error_count"] += 1
                 turn["total_latency_ms"] += float(latency_ms)
+
+            if len(self._turn_stats) > self.MAX_TURN_STATS:
+                oldest_key = next(iter(self._turn_stats))
+                del self._turn_stats[oldest_key]
 
     def get_turn_summary(self, turn_id: str) -> dict:
         with self._lock:
