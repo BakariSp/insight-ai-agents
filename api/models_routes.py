@@ -15,9 +15,9 @@ async def list_models():
     return {
         "default": settings.default_model,
         "examples": [
-            "dashscope/qwen-max",
-            "dashscope/qwen-plus",
-            "dashscope/qwen-turbo",
+            "dashscope/qwen3-max",
+            "dashscope/qwen3-plus",
+            "dashscope/qwen3-coder-plus",
             "zai/glm-4.7",
             "openai/gpt-4o",
             "anthropic/claude-sonnet-4-20250514",

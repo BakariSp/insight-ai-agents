@@ -20,17 +20,17 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # ── LLM ──────────────────────────────────────────────────
-    default_model: str = "dashscope/qwen-max"
-    executor_model: str = "dashscope/qwen-max"
-    router_model: str = "dashscope/qwen-turbo-latest"  # Fast router (~200ms)
-    vision_model: str = "dashscope/qwen-vl-max"  # Vision-capable model for multimodal
-    agent_model: str = "dashscope/qwen-max"  # Agent Path: general content generation
-    strong_model: str = "dashscope/qwen3-coder-plus"  # Strong tier: complex tasks (interactive, quiz)
+    default_model: str = "dashscope/qwen3-max"
+    executor_model: str = "dashscope/qwen3-max"
+    router_model: str = "dashscope/qwen-flash"  # Fast router (~200ms)
+    vision_model: str = "dashscope/qwen3-vl-plus"  # Vision-capable model for multimodal
+    agent_model: str = "dashscope/qwen3-max"  # Agent Path: general content generation
+    strong_model: str = "dashscope/qwen3-max"  # Strong tier: complex tasks (interactive, quiz)
     code_model: str = "dashscope/qwen3-coder-plus"  # Code tier: HTML/CSS/JS generation (interactive pages)
     # Fallback chain: if primary model fails, try these in order
-    strong_model_fallback: str = "dashscope/qwen-max"
-    agent_model_fallback: str = "dashscope/qwen-max"
-    code_model_fallback: str = "dashscope/qwen-max"
+    strong_model_fallback: str = "dashscope/qwen3-max"
+    agent_model_fallback: str = "dashscope/qwen3-max"
+    code_model_fallback: str = "dashscope/qwen3-max"
     agent_max_iterations: int = 15  # Agent Path: max tool-use loop rounds
     max_tokens: int = 4096
     agent_max_tokens: int = 16384  # Agent Path: higher token budget for content generation (PPT, docs)
