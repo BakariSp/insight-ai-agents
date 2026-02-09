@@ -23,6 +23,7 @@ numpy>=1.26
 python-pptx>=1.0
 python-docx>=1.0
 openpyxl>=3.1
+PyMuPDF>=1.24
 
 # RAG / Knowledge Base
 # NOTE: lightrag-hku must be installed BEFORE raganything to avoid dep resolver backtracking.
