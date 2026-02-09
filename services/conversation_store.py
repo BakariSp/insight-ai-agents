@@ -134,10 +134,10 @@ class ConversationSession(BaseModel):
         giving the LLM structured user/assistant message roles instead of
         plain-text history injection.
 
-        For assistant turns that include ``tool_calls_summary``, the summary
-        is prepended to the response text so the LLM sees what tools were
-        previously invoked and avoids redundant calls (e.g. re-generating
-        when it should patch).
+        Tool-call summaries from previous assistant turns are injected as a
+        **user-role context note** *before* the assistant response, NOT inside
+        the assistant message.  This prevents the LLM from mimicking the
+        summary format in its own output (a common failure mode with Qwen3).
 
         Excludes the current (latest) user turn, as that will be passed
         as the ``user_prompt`` argument to ``agent.run()``.
@@ -154,11 +154,16 @@ class ConversationSession(BaseModel):
                     ModelRequest(parts=[UserPromptPart(content=turn.content)])
                 )
             else:
-                content = turn.content
+                # Inject tool-call summary as a preceding user-role context
+                # note so the LLM knows what was done but won't echo it.
                 if turn.tool_calls_summary:
-                    content = f"[Tools used: {turn.tool_calls_summary}]\n{content}"
+                    messages.append(
+                        ModelRequest(parts=[UserPromptPart(
+                            content=f"[系统备注：上轮已执行 {turn.tool_calls_summary}，请勿重复调用]",
+                        )])
+                    )
                 messages.append(
-                    ModelResponse(parts=[TextPart(content=content)])
+                    ModelResponse(parts=[TextPart(content=turn.content)])
                 )
         return messages
 

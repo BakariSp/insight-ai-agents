@@ -28,7 +28,7 @@ _PROVIDER_MAP: dict[str, tuple[str, str]] = {
 def create_model(model_name: str | None = None):
     """Build a PydanticAI model instance.
 
-    Parses the ``"provider/model"`` format (e.g. ``"dashscope/qwen-max"``,
+    Parses the ``"provider/model"`` format (e.g. ``"dashscope/qwen3-max"``,
     ``"anthropic/claude-opus-4-6"``) and creates the appropriate model.
 
     - ``anthropic/*`` → native :class:`AnthropicModel` (supports tool-use, streaming)
@@ -75,11 +75,11 @@ def get_model_for_tier(tier: str) -> str:
     """Map a model tier to the configured model name.
 
     Tier → Settings field mapping:
-    - fast     → router_model   (qwen-turbo-latest)
-    - standard → agent_model    (qwen-max)
-    - strong   → strong_model   (anthropic/claude-opus-4-6)
+    - fast     → router_model   (qwen-flash)
+    - standard → agent_model    (qwen3-max)
+    - strong   → strong_model   (qwen3-max)
     - code     → code_model     (qwen3-coder-plus)
-    - vision   → vision_model   (qwen-vl-max)
+    - vision   → vision_model   (qwen3-vl-plus)
 
     Args:
         tier: One of "fast", "standard", "strong", "code", "vision".
@@ -189,16 +189,47 @@ async def execute_mcp_tool(name: str, arguments: dict[str, Any]) -> Any:
     """Execute a registered tool by name.
 
     .. deprecated:: Step 4
-        Still used by ``agents/executor.py``, ``services/entity_resolver.py``,
-        and ``services/clarify_builder.py``.  Will be removed when those
-        legacy modules are migrated to the native tool-calling path.
+        Still used by ``agents/executor.py``.  Will be removed when
+        that legacy module is migrated to the native tool-calling path.
 
     Looks up the function in :data:`tools.TOOL_REGISTRY` and calls it
-    directly (supports both sync and async tool functions).
+    directly.  Native-registered tools expect ``RunContext[AgentDeps]``
+    as their first parameter; this bridge synthesises a minimal context
+    from the provided *arguments* dict so legacy callers still work.
     """
     fn = TOOL_REGISTRY.get(name)
     if fn is None:
         raise ValueError(f"Tool '{name}' not found in registry")
+
+    # Detect native tools whose first parameter is RunContext[AgentDeps].
+    sig = inspect.signature(fn)
+    params = list(sig.parameters.values())
+    first_annotation = params[0].annotation if params else None
+    needs_ctx = (
+        first_annotation is not inspect.Parameter.empty
+        and "RunContext" in str(first_annotation)
+    )
+
+    if needs_ctx:
+        # Synthesise a minimal RunContext so the native wrapper can
+        # extract deps.teacher_id etc. without the PydanticAI runtime.
+        from pydantic_ai import RunContext
+        from pydantic_ai.usage import RunUsage
+        from agents.native_agent import AgentDeps
+
+        teacher_id = str(arguments.pop("teacher_id", "") or "")
+        ctx = RunContext(
+            deps=AgentDeps(
+                teacher_id=teacher_id,
+                conversation_id="legacy-executor",
+            ),
+            model=create_model(),
+            usage=RunUsage(),
+        )
+        # Remaining arguments (e.g. class_id) are passed as kwargs.
+        if inspect.iscoroutinefunction(fn):
+            return await fn(ctx, **arguments)
+        return fn(ctx, **arguments)
 
     if inspect.iscoroutinefunction(fn):
         return await fn(**arguments)

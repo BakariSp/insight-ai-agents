@@ -21,8 +21,9 @@ import logging
 import re
 from typing import Any
 
-from agents.provider import execute_mcp_tool
 from models.entity import EntityType, ResolvedEntity, ResolveResult
+from tools.data_tools import get_teacher_classes as _raw_get_teacher_classes
+from tools.data_tools import get_class_detail as _raw_get_class_detail
 
 logger = logging.getLogger(__name__)
 
@@ -606,9 +607,7 @@ async def _fetch_teacher_classes(teacher_id: str) -> list[dict[str, Any]]:
     if not teacher_id:
         return []
     try:
-        data = await execute_mcp_tool(
-            "get_teacher_classes", {"teacher_id": teacher_id}
-        )
+        data = await _raw_get_teacher_classes(teacher_id=teacher_id)
         return data.get("classes", [])
     except Exception:
         logger.exception("Failed to fetch classes for entity resolution")
@@ -620,10 +619,7 @@ async def _fetch_class_detail(
 ) -> dict[str, Any] | None:
     """Fetch class detail (students + assignments) via MCP tool."""
     try:
-        data = await execute_mcp_tool(
-            "get_class_detail",
-            {"teacher_id": teacher_id, "class_id": class_id},
-        )
+        data = await _raw_get_class_detail(teacher_id=teacher_id, class_id=class_id)
         if data.get("error"):
             return None
         return data

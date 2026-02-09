@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import logging
 
-from agents.provider import execute_mcp_tool
 from models.conversation import ClarifyChoice, ClarifyOptions
+from tools.data_tools import get_teacher_classes as _raw_get_teacher_classes
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +72,7 @@ async def build_clarify_options(
 async def _build_class_choices(teacher_id: str) -> ClarifyOptions:
     """Fetch teacher's classes and return as selectable options."""
     try:
-        data = await execute_mcp_tool(
-            "get_teacher_classes", {"teacher_id": teacher_id}
-        )
+        data = await _raw_get_teacher_classes(teacher_id=teacher_id)
         classes = data.get("classes", [])
         choices = [
             ClarifyChoice(
