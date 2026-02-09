@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def test_imports():
     print("[1/6] Testing imports...")
     from tools.registry import get_registered_count, get_toolset_counts
-    from agents.native_agent import NativeAgent, AgentDeps, select_toolsets
+    from agents.native_agent import NativeAgent, AgentDeps, _select_toolsets_keyword as select_toolsets
     from services.stream_adapter import adapt_stream
     from services.datastream import DataStreamEncoder
     from models.tool_contracts import ToolResult, Artifact, ClarifyEvent
@@ -54,7 +54,7 @@ def test_registry():
 
 def test_toolset_selection():
     print("[3/6] Testing toolset selection...")
-    from agents.native_agent import AgentDeps, select_toolsets
+    from agents.native_agent import AgentDeps, _select_toolsets_keyword as select_toolsets
 
     deps = AgentDeps(teacher_id="t-001", conversation_id="conv-test")
 

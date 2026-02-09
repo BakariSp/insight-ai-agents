@@ -202,6 +202,81 @@ class TestSelectToolsetsPlanner:
         assert TOOLSET_BASE_DATA in result
         assert TOOLSET_PLATFORM in result
 
+    @pytest.mark.asyncio
+    async def test_hard_constraint_has_artifacts_forces_artifact_ops(self):
+        """Planner omits artifact_ops but has_artifacts=True → code enforces it."""
+        deps = _make_deps(has_artifacts=True)
+        mock_result = ToolsetPlannerResult(
+            toolsets=[],  # planner returns nothing
+            confidence=0.99,
+        )
+        with (
+            patch("agents.native_agent.get_settings") as mock_settings,
+            patch(
+                "agents.toolset_planner.plan_toolsets",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ),
+        ):
+            mock_settings.return_value.toolset_planner_enabled = True
+            mock_settings.return_value.toolset_planner_confidence_threshold = 0.6
+            mock_settings.return_value.toolset_planner_timeout_s = 0.5
+            result = await select_toolsets("改一下", deps)
+
+        assert "artifact_ops" in result, (
+            f"has_artifacts=True but artifact_ops missing from {result}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_hard_constraint_class_id_forces_analysis(self):
+        """Planner omits analysis but class_id is set → code enforces it."""
+        deps = _make_deps(class_id="c-001")
+        mock_result = ToolsetPlannerResult(
+            toolsets=[],  # planner returns nothing
+            confidence=0.99,
+        )
+        with (
+            patch("agents.native_agent.get_settings") as mock_settings,
+            patch(
+                "agents.toolset_planner.plan_toolsets",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ),
+        ):
+            mock_settings.return_value.toolset_planner_enabled = True
+            mock_settings.return_value.toolset_planner_confidence_threshold = 0.6
+            mock_settings.return_value.toolset_planner_timeout_s = 0.5
+            result = await select_toolsets("查看成绩", deps)
+
+        assert "analysis" in result, (
+            f"class_id set but analysis missing from {result}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_hard_constraint_both_forces_both(self):
+        """Planner returns only generation but both constraints active → all enforced."""
+        deps = _make_deps(has_artifacts=True, class_id="c-002")
+        mock_result = ToolsetPlannerResult(
+            toolsets=["generation"],
+            confidence=0.95,
+        )
+        with (
+            patch("agents.native_agent.get_settings") as mock_settings,
+            patch(
+                "agents.toolset_planner.plan_toolsets",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ),
+        ):
+            mock_settings.return_value.toolset_planner_enabled = True
+            mock_settings.return_value.toolset_planner_confidence_threshold = 0.6
+            mock_settings.return_value.toolset_planner_timeout_s = 0.5
+            result = await select_toolsets("再出几道题", deps)
+
+        assert "generation" in result
+        assert "artifact_ops" in result, f"artifact_ops missing from {result}"
+        assert "analysis" in result, f"analysis missing from {result}"
+
 
 # ── Keyword Fallback (unchanged logic) ─────────────────────
 

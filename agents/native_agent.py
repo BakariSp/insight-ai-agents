@@ -130,6 +130,11 @@ async def select_toolsets(message: str, deps: AgentDeps) -> list[str]:
 
         if planner_result.confidence >= settings.toolset_planner_confidence_threshold:
             sets = list(ALWAYS_TOOLSETS) + list(planner_result.toolsets)
+            # Hard constraints — planner may omit these, enforce in code
+            if deps.has_artifacts and TOOLSET_ARTIFACT_OPS not in sets:
+                sets.append(TOOLSET_ARTIFACT_OPS)
+            if deps.class_id and TOOLSET_ANALYSIS not in sets:
+                sets.append(TOOLSET_ANALYSIS)
             _log_toolset_selection(
                 deps, message, sets,
                 source="planner",
