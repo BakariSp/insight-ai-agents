@@ -1,0 +1,443 @@
+{
+  "generated_at": "2026-02-08T22:48:20.009261",
+  "request": {
+    "message": "请出5道一元二次方程选择题，附简短解析。",
+    "language": "zh-CN",
+    "teacherId": "t-phase1-acceptance"
+  },
+  "rounds_per_mode": 10,
+  "thresholds": {
+    "max_regression_pct": 20.0,
+    "min_success_rate": 0.95
+  },
+  "summary": {
+    "legacy_skill": {
+      "mode": "legacy_skill",
+      "rounds": 10,
+      "success_rate": 1.0,
+      "fallback_rate": 0.0,
+      "ttfq_p50_ms": 27567.108149996784,
+      "ttfq_p95_ms": 34916.80153000343,
+      "total_p50_ms": 27567.166399996495,
+      "total_p95_ms": 34916.848669997125,
+      "avg_question_count": 4.9
+    },
+    "unified_agent": {
+      "mode": "unified_agent",
+      "rounds": 10,
+      "success_rate": 1.0,
+      "fallback_rate": 0.0,
+      "ttfq_p50_ms": 31303.637749995687,
+      "ttfq_p95_ms": 36708.488109997415,
+      "total_p50_ms": 31303.686250001192,
+      "total_p95_ms": 36708.536334997916,
+      "avg_question_count": 5.0
+    }
+  },
+  "runs": {
+    "legacy_skill": [
+      {
+        "mode": "legacy_skill",
+        "round_idx": 1,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 36502.16889999865,
+        "total_ms": 36502.21729998884,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 2,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 26895.861199998762,
+        "total_ms": 26895.909500002745,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 3,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 28238.355099994806,
+        "total_ms": 28238.423299990245,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 4,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 28320.32800000161,
+        "total_ms": 28320.379400000093,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 5,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 25709.69759998843,
+        "total_ms": 25709.741499988013,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 6,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 29366.299099987373,
+        "total_ms": 29366.364599991357,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 7,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 32979.130300009274,
+        "total_ms": 32979.17590000725,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 8,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 25525.434600000153,
+        "total_ms": 25525.501200012513,
+        "question_count": 4,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 9,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 26750.550699987798,
+        "total_ms": 26750.60059998941,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "legacy_skill",
+        "round_idx": 10,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 25138.174799998524,
+        "total_ms": 25138.228000010713,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate"
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      }
+    ],
+    "unified_agent": [
+      {
+        "mode": "unified_agent",
+        "round_idx": 1,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 34381.35619999957,
+        "total_ms": 34381.40260000364,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 2,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 29272.85120000306,
+        "total_ms": 29272.92220000527,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 3,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 34483.71000000043,
+        "total_ms": 34483.75600000145,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 4,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 27978.426800007583,
+        "total_ms": 27978.47990000446,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 5,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 37217.28159999475,
+        "total_ms": 37217.33410000161,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 6,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 30223.6331999884,
+        "total_ms": 30223.68219999771,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 7,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 27576.645699999062,
+        "total_ms": 27576.699899989762,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 8,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 36086.629400000675,
+        "total_ms": 36086.672399993404,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 9,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 24225.930500004324,
+        "total_ms": 24225.97780000069,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      },
+      {
+        "mode": "unified_agent",
+        "round_idx": 10,
+        "success": true,
+        "http_status": 200,
+        "ttfq_ms": 32383.642300002975,
+        "total_ms": 32383.690300004673,
+        "question_count": 5,
+        "quiz_complete": true,
+        "action_events": [
+          {
+            "action": "quiz_generate",
+            "mode": "entry",
+            "orchestrator": "unified_agent",
+            "modelCandidates": [
+              "dashscope/qwen-max",
+              "anthropic/claude-opus-4-6"
+            ]
+          }
+        ],
+        "fallback_detected": false,
+        "error": null
+      }
+    ]
+  }
+}

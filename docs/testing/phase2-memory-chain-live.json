@@ -1,0 +1,63 @@
+{
+  "conversation_id": "phase2-memory-chain-004",
+  "total_ms": 240647.52,
+  "results": [
+    {
+      "turn": "quiz",
+      "status": 200,
+      "duration_ms": 53683.99,
+      "action": {
+        "action": "quiz_generate",
+        "orchestrator": "unified_agent",
+        "mode": "entry",
+        "intent": "quiz_generate",
+        "modelTier": "strong"
+      },
+      "event_count": 22,
+      "has_quiz_complete": true,
+      "has_ppt_outline": false,
+      "has_interactive_content": false,
+      "is_clarify": false
+    },
+    {
+      "turn": "ppt",
+      "status": 200,
+      "duration_ms": 37358.57,
+      "action": {
+        "action": "agent",
+        "orchestrator": "unified_agent",
+        "mode": "entry",
+        "intent": "content_create",
+        "modelTier": "standard"
+      },
+      "event_count": 18,
+      "has_quiz_complete": false,
+      "has_ppt_outline": true,
+      "has_interactive_content": false,
+      "is_clarify": false
+    },
+    {
+      "turn": "interactive",
+      "status": 200,
+      "duration_ms": 149601.73,
+      "action": {
+        "action": "agent",
+        "orchestrator": "unified_agent",
+        "mode": "entry",
+        "intent": "content_create",
+        "modelTier": "strong"
+      },
+      "event_count": 1404,
+      "has_quiz_complete": false,
+      "has_ppt_outline": false,
+      "has_interactive_content": true,
+      "is_clarify": false
+    }
+  ],
+  "notes": [
+    "Single conversation_id was used across all turns.",
+    "Memory continuity objective passed: turn2 references turn1 quiz, turn3 references turn2 PPT key points.",
+    "Runtime warning observed: list_classes expected list but got NoneType (non-blocking).",
+    "One dropped malformed quiz JSON block occurred in generation, resulting in 4 emitted quiz questions in that run."
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-02-09 02:20:00",
+  "conversation_id": "phase2-switch-e2e-003",
+  "total_duration_ms": 254571.48,
+  "turn_count": 3,
+  "results": [
+    {
+      "turn": "quiz",
+      "message": "Generate 5 multiple-choice questions on linear functions for grade 8.",
+      "duration_ms": 50863.96,
+      "http_status": 200,
+      "action": {
+        "action": "quiz_generate",
+        "orchestrator": "unified_agent",
+        "mode": "entry",
+        "intent": "quiz_generate",
+        "modelTier": "strong"
+      },
+      "event_count": 25,
+      "artifact_flags": {
+        "quiz_complete": true,
+        "ppt_outline": false,
+        "interactive_content": false
+      }
+    },
+    {
+      "turn": "ppt",
+      "message": "Create a PPT outline for Newton's First Law for junior secondary physics.",
+      "duration_ms": 50993.41,
+      "http_status": 200,
+      "action": {
+        "action": "agent",
+        "orchestrator": "unified_agent",
+        "mode": "entry",
+        "intent": "content_create",
+        "modelTier": "standard"
+      },
+      "event_count": 18,
+      "artifact_flags": {
+        "quiz_complete": false,
+        "ppt_outline": true,
+        "interactive_content": false
+      }
+    },
+    {
+      "turn": "interactive",
+      "message": "Build an interactive web page where students can drag parameters to explore a parabola.",
+      "duration_ms": 152709.89,
+      "http_status": 200,
+      "action": {
+        "action": "agent",
+        "orchestrator": "unified_agent",
+        "mode": "entry",
+        "intent": "content_create",
+        "modelTier": "strong"
+      },
+      "event_count": 1764,
+      "artifact_flags": {
+        "quiz_complete": false,
+        "ppt_outline": false,
+        "interactive_content": true
+      }
+    }
+  ]
+}

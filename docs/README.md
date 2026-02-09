@@ -91,6 +91,19 @@
 | [AI-MCP Java 集成](integration/ai-mcp-java-integration.md) | 无状态计算 + JWT 透传 | ⚠️ Phase 2+ |
 | [RAG 向量数据库架构](integration/rag-vectordb-architecture.md) | RAG-Anything + LightRAG + pgvector 完整方案 | Phase 9 |
 
+### Agent 收敛（Convergence）
+
+| 文档 | 内容 |
+|------|------|
+| [收敛工作区](convergence/README.md) | 对话生成统一、Phase 1/2 测试报告索引、关键配置 |
+| [收敛总方案](../../docs/studio-v1/architecture/07-agent-convergence-plan.md) | 架构设计、分阶段迁移、验收指标、回退策略 |
+
+### Build Runtime
+
+| 文档 | 内容 |
+|------|------|
+| [Build Runtime](build-runtime/README.md) | Compile / Execute / Save as App — 按钮触发的独立流水线 |
+
 ### 测试与用例
 
 | 文档 | 内容 |
