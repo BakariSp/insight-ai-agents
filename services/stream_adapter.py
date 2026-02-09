@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any, AsyncIterator
 
 from pydantic_ai.messages import (
@@ -55,6 +56,7 @@ async def adapt_stream(
     emitted_tool_input: set[int] = set()  # part indices where we emitted tool-input-available
     text_ids: dict[int, str] = {}  # part_index → text-id for SSE
     text_started: set[int] = set()  # part indices where we emitted text-start
+    text_ended: set[int] = set()  # part indices where we already emitted text-end
 
     error_occurred = False
 
@@ -77,10 +79,12 @@ async def adapt_stream(
                         yield enc.text_delta(text_id, delta)
                         prev_text_len[idx] = current_len
 
-                    if is_last and idx not in emitted_tool_start:
-                        yield enc.text_end(text_id)
-
                 elif isinstance(part, ToolCallPart):
+                    # Close any preceding text parts before starting tool call
+                    for tidx in text_started - text_ended:
+                        yield enc.text_end(text_ids[tidx])
+                        text_ended.add(tidx)
+
                     # ── Tool call streaming ──
                     call_id = part.tool_call_id or f"tc-{idx}"
 
@@ -99,14 +103,14 @@ async def adapt_stream(
             if isinstance(msg, ModelRequest):
                 for part in msg.parts:
                     if isinstance(part, ToolReturnPart):
-                        call_id = part.tool_call_id or enc._id()
+                        call_id = part.tool_call_id or uuid.uuid4().hex[:8]
                         output = _serialize_tool_output(part.content)
                         yield enc.tool_output_available(call_id, output)
 
-        # Close any open text parts
-        for idx in text_started:
-            if idx in text_ids and idx not in emitted_tool_start:
-                pass  # Already closed above
+        # Close any text parts still open after stream completes
+        for tidx in text_started - text_ended:
+            yield enc.text_end(text_ids[tidx])
+            text_ended.add(tidx)
 
     except Exception as e:
         error_occurred = True

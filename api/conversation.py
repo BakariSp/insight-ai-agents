@@ -16,7 +16,6 @@ Environment switch:
 from __future__ import annotations
 
 import logging
-import os
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
@@ -35,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # ── Entry switch ────────────────────────────────────────────
 
-_NATIVE_ENABLED = os.environ.get("NATIVE_AGENT_ENABLED", "true").lower() != "false"
+_NATIVE_ENABLED = get_settings().native_agent_enabled
 
 if not _NATIVE_ENABLED:
     # Emergency fallback: import legacy router directly

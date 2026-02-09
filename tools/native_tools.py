@@ -8,10 +8,14 @@ Import this module at startup to populate the registry.
 
 from __future__ import annotations
 
+import logging
+
 from pydantic_ai import RunContext
 
 from agents.native_agent import AgentDeps
 from tools.registry import register_tool
+
+logger = logging.getLogger(__name__)
 
 
 # ── generation toolset ──────────────────────────────────────
@@ -108,6 +112,7 @@ async def search_teacher_documents(
             return {"status": "no_result", "query": query, "results": [], "total": 0}
         return {"status": "ok", **result}
     except Exception as e:
+        logger.exception("search_teacher_documents failed for teacher %s", teacher_id)
         return {"status": "error", "reason": str(e), "query": query, "results": []}
 
 
@@ -134,6 +139,7 @@ async def get_teacher_classes(
         result = await _get_classes(teacher_id=teacher_id)
         return {"status": "ok", "classes": result if isinstance(result, list) else result.get("classes", [])}
     except Exception as e:
+        logger.exception("get_teacher_classes failed for teacher %s", teacher_id)
         settings = get_settings()
         if settings.debug:
             from services.mock_data import _mock_teacher_classes
@@ -165,6 +171,7 @@ async def get_class_detail(
         result = await _get_detail(teacher_id=teacher_id, class_id=class_id)
         return {"status": "ok", **(result if isinstance(result, dict) else {"data": result})}
     except Exception as e:
+        logger.exception("get_class_detail failed for teacher %s class %s", teacher_id, class_id)
         return {"status": "error", "reason": str(e)}
 
 
@@ -198,6 +205,7 @@ async def get_assignment_submissions(
         )
         return {"status": "ok", **(result if isinstance(result, dict) else {"submissions": result})}
     except Exception as e:
+        logger.exception("get_assignment_submissions failed for teacher %s class %s assignment %s", teacher_id, class_id, assignment_id)
         return {"status": "error", "reason": str(e)}
 
 
@@ -231,6 +239,7 @@ async def get_student_grades(
         )
         return {"status": "ok", **(result if isinstance(result, dict) else {"grades": result})}
     except Exception as e:
+        logger.exception("get_student_grades failed for teacher %s class %s", teacher_id, class_id)
         return {"status": "error", "reason": str(e)}
 
 
@@ -262,6 +271,7 @@ async def calculate_stats(
         result = _calc(data=data, metrics=metrics)
         return {"status": "ok", **(result if isinstance(result, dict) else {"stats": result})}
     except Exception as e:
+        logger.exception("calculate_stats failed")
         return {"status": "error", "reason": str(e)}
 
 
@@ -291,4 +301,5 @@ async def compare_performance(
         result = _compare(group_a=group_a, group_b=group_b, metrics=metrics)
         return {"status": "ok", **(result if isinstance(result, dict) else {"comparison": result})}
     except Exception as e:
+        logger.exception("compare_performance failed")
         return {"status": "error", "reason": str(e)}
