@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from typing import Any, AsyncIterator
 
@@ -34,14 +35,16 @@ def _parse_tabs_from_markdown(markdown_content: str) -> dict | None:
     """
     Parse [TAB:key] markers from markdown and build AIReportResponse structure.
 
+    Supports structured ```block:type JSON fences within tabs.
+    Content between fences becomes markdown blocks; fences become typed blocks
+    (kpi_grid, chart, table, suggestion_list, etc.).
+
     Args:
         markdown_content: Full markdown content with tab markers
 
     Returns:
         dict with {layout: "tabs", tabs: [...]} structure, or None if no tabs found
     """
-    import re
-
     # Pattern: ## [TAB:key] label
     tab_pattern = re.compile(r"^## \[TAB:(\w+)\] (.+)$", re.MULTILINE)
 
@@ -60,18 +63,13 @@ def _parse_tabs_from_markdown(markdown_content: str) -> dict | None:
         end = matches[i + 1].start() if i + 1 < len(matches) else len(markdown_content)
 
         content = markdown_content[start:end].strip()
+        blocks = _parse_blocks_from_content(content)
 
-        # MVP: wrap content as single MarkdownBlock
         tabs.append(
             {
                 "key": tab_key,
                 "label": tab_label,
-                "blocks": [
-                    {
-                        "type": "markdown",
-                        "content": content,
-                    }
-                ],
+                "blocks": blocks,
             }
         )
 
@@ -79,6 +77,95 @@ def _parse_tabs_from_markdown(markdown_content: str) -> dict | None:
         "layout": "tabs",
         "tabs": tabs,
     }
+
+
+# Valid block types that the frontend ReportRenderer supports
+_VALID_BLOCK_TYPES = frozenset({
+    "kpi_grid", "chart", "table", "markdown", "suggestion_list",
+})
+
+# Pattern: ```block:type ... ``` (with content in between)
+_BLOCK_FENCE_PATTERN = re.compile(
+    r"```block:(\w+)\s*\n(.*?)```",
+    re.DOTALL,
+)
+
+
+def _parse_blocks_from_content(content: str) -> list[dict]:
+    """Parse a tab's content into a list of typed blocks.
+
+    Splits content by ```block:type fences. Text between fences
+    becomes markdown blocks; fences become structured blocks.
+    If a fence has invalid JSON, it degrades to a markdown block.
+
+    Args:
+        content: Raw content string within a single tab
+
+    Returns:
+        List of block dicts, each with at least a "type" key
+    """
+    blocks: list[dict] = []
+    last_end = 0
+
+    for match in _BLOCK_FENCE_PATTERN.finditer(content):
+        # Text before this fence → markdown block
+        text_before = content[last_end:match.start()].strip()
+        if text_before:
+            blocks.append({"type": "markdown", "content": text_before})
+
+        block_type = match.group(1)
+        json_str = match.group(2).strip()
+        last_end = match.end()
+
+        # Try to parse JSON and create typed block
+        block = _try_parse_block(block_type, json_str)
+        blocks.append(block)
+
+    # Remaining text after last fence → markdown block
+    remaining = content[last_end:].strip()
+    if remaining:
+        blocks.append({"type": "markdown", "content": remaining})
+
+    # If no blocks were created (no fences and no text), add empty markdown
+    if not blocks:
+        blocks.append({"type": "markdown", "content": content})
+
+    return blocks
+
+
+def _try_parse_block(block_type: str, json_str: str) -> dict:
+    """Try to parse a block fence into a typed block dict.
+
+    On success, returns the parsed JSON with "type" set.
+    On failure (bad JSON or unknown type), degrades to a markdown block.
+
+    Args:
+        block_type: The block type from the fence (e.g., "kpi_grid", "chart")
+        json_str: The raw JSON string inside the fence
+
+    Returns:
+        A block dict with "type" key
+    """
+    if block_type not in _VALID_BLOCK_TYPES:
+        logger.warning("Unknown block type '%s', degrading to markdown", block_type)
+        return {"type": "markdown", "content": f"```{block_type}\n{json_str}\n```"}
+
+    try:
+        data = json.loads(json_str)
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning(
+            "Failed to parse JSON for block:%s — %s. Degrading to markdown.",
+            block_type, e,
+        )
+        return {"type": "markdown", "content": f"```json\n{json_str}\n```"}
+
+    if not isinstance(data, dict):
+        logger.warning("Block:%s JSON is not an object, degrading to markdown", block_type)
+        return {"type": "markdown", "content": f"```json\n{json_str}\n```"}
+
+    # Merge parsed data with type
+    data["type"] = block_type
+    return data
 
 
 async def adapt_stream(
@@ -126,8 +213,8 @@ async def adapt_stream(
     text_started: set[int] = set()  # part indices where we emitted text-start
     text_ended: set[int] = set()  # part indices where we already emitted text-end
 
-    # Collect full text content for tab parsing
-    full_text_parts: dict[int, list[str]] = {}
+    # Collect full cumulative text per part index for tab parsing
+    full_text_parts: dict[int, str] = {}
 
     error_occurred = False
 
@@ -150,10 +237,11 @@ async def adapt_stream(
                         yield enc.text_delta(text_id, delta)
                         prev_text_len[idx] = current_len
 
-                    # Collect full text content for tab parsing
-                    if idx not in full_text_parts:
-                        full_text_parts[idx] = []
-                    full_text_parts[idx] = [part.content]
+                    # Record latest cumulative text for tab parsing.
+                    # TextPart.content is cumulative (not a delta), so we
+                    # overwrite rather than append — the last value is the
+                    # complete text for this part index.
+                    full_text_parts[idx] = part.content
 
                 elif isinstance(part, ToolCallPart):
                     # Close any preceding text parts before starting tool call
@@ -231,11 +319,10 @@ async def adapt_stream(
 
             # Only process tabs for "report" artifact type
             if "report" in expected_artifacts and full_text_parts:
-                # Combine all text parts
-                all_text = []
-                for idx in sorted(full_text_parts.keys()):
-                    all_text.extend(full_text_parts[idx])
-                full_text = "".join(all_text)
+                # Combine all text parts (each is the final cumulative string)
+                full_text = "".join(
+                    full_text_parts[idx] for idx in sorted(full_text_parts)
+                )
 
                 tab_structure = _parse_tabs_from_markdown(full_text)
 
@@ -336,9 +423,11 @@ def _emit_semantic_events(
         }))
 
     # ── Interactive content (complete HTML) ──
-    elif artifact_type == "interactive" and output.get("html"):
+    # "html" from generate_interactive_html; "content" from patch_artifact
+    elif artifact_type == "interactive" and (output.get("html") or output.get("content")):
+        html_body = output.get("html") or output.get("content")
         lines.append(enc.data("interactive-content", {
-            "html": output["html"],
+            "html": html_body,
             "title": output.get("title", ""),
             "description": output.get("description", ""),
             "preferredHeight": output.get("preferredHeight", 500),

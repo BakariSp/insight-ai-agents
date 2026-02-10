@@ -25,6 +25,7 @@ from pydantic_ai.result import StreamedRunResult
 from pydantic_ai.settings import ModelSettings
 
 from agents.provider import create_model
+from config.prompts.block_schemas import BLOCK_SCHEMA_PROMPT
 from config.prompts.native_agent import SYSTEM_PROMPT
 from config.settings import get_settings
 from services.metrics import get_metrics_collector
@@ -287,20 +288,20 @@ class NativeAgent:
         system_prompt = self._build_system_prompt(deps.context)
 
         model = create_model(self._model_name)
+
+        # Only send enable_thinking for Qwen models (dashscope provider).
+        # Other providers (OpenAI, Gemini, etc.) reject unknown parameters.
+        settings_kwargs: dict[str, Any] = {"max_tokens": 8192}
+        resolved_name = self._model_name or get_settings().default_model
+        if resolved_name.startswith("dashscope/") or resolved_name.startswith("qwen"):
+            settings_kwargs["extra_body"] = {"enable_thinking": False}
+
         return Agent(
             model=model,
             instructions=system_prompt,
             deps_type=AgentDeps,
             toolsets=[toolset],
-            model_settings=ModelSettings(
-                max_tokens=8192,
-                temperature=0.3,
-                # Disable Qwen3 thinking mode to improve tool-calling
-                # reliability.  In thinking mode the model may output
-                # stop-words inside <think> blocks, causing the provider
-                # to mis-parse tool calls.
-                extra_body={"enable_thinking": False},
-            ),
+            model_settings=ModelSettings(**settings_kwargs),
             output_retries=3,
         )
 
@@ -333,16 +334,19 @@ class NativeAgent:
             if hints and hints.get("expectedArtifacts"):
                 artifacts = hints["expectedArtifacts"]
 
-                # If "report" in artifacts, inject tab structure guidance
+                # If "report" in artifacts, inject tab structure + block schemas
                 if "report" in artifacts and hints.get("tabs"):
                     tabs = hints["tabs"]
-                    prompt += "\n\n## 输出结构建议\n"
-                    prompt += "请按以下 tab 结构组织输出:\n"
+                    prompt += "\n\n## 输出结构要求 (Blueprint 报告模式)\n"
+                    prompt += "这是一个 Blueprint 模板执行，你正在生成一份**专业分析报告**。\n"
+                    prompt += "请按以下 tab 结构组织输出，每个 tab 用 `## [TAB:{key}] {label}` 标记开头:\n\n"
                     for tab in tabs:
                         desc = tab.get("description", "")
-                        prompt += f"- {tab['label']} (key: {tab['key']}): {desc}\n"
+                        prompt += f"### {tab['label']} (key: {tab['key']})\n{desc}\n\n"
 
-                    prompt += "\n每个 tab 用 `## [TAB:{key}] {label}` 标记开头。"
+                    # Inject block schemas — LLM uses ```block:type fences
+                    prompt += BLOCK_SCHEMA_PROMPT
+
                     prompt += "\n根据实际数据灵活调整，如数据不支持某个 tab 可跳过。"
 
         return prompt
