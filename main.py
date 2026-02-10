@@ -93,6 +93,7 @@ from api.conversation import router as conversation_router  # noqa: E402
 from api.internal import router as internal_router  # noqa: E402
 from api.files import router as files_router  # noqa: E402
 from api.knowledge import router as knowledge_router  # noqa: E402
+from api.blueprint import router as blueprint_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(models_router)
@@ -102,6 +103,7 @@ app.include_router(conversation_router)
 app.include_router(internal_router)
 app.include_router(files_router)
 app.include_router(knowledge_router)
+app.include_router(blueprint_router)
 
 
 if __name__ == "__main__":

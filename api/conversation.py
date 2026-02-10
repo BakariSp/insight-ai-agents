@@ -175,6 +175,18 @@ async def conversation_stream(req: ConversationRequest):
     # last artifact content in req.artifacts for re-injection.
     _rehydrate_artifacts(conversation_id, req.artifact_type, req.artifacts)
 
+    # Extract blueprint context from request
+    blueprint_context = {}
+    if req.context:
+        if "blueprintId" in req.context:
+            blueprint_context["blueprint_id"] = req.context["blueprintId"]
+
+        if "resolvedEntities" in req.context:
+            blueprint_context["resolved_entities"] = req.context["resolvedEntities"]
+
+        if "outputHints" in req.context:
+            blueprint_context["blueprint_hints"] = req.context["outputHints"]
+
     # Build agent deps — check both frontend payload AND in-memory store
     # to determine if the conversation has artifacts.  The frontend may
     # not re-send ``req.artifacts`` on every turn after the first generation.
@@ -189,7 +201,7 @@ async def conversation_stream(req: ConversationRequest):
         language=req.language,
         class_id=class_id,
         has_artifacts=req.artifacts is not None or store_has_artifact,
-        context=req.context or {},
+        context={**(req.context or {}), **blueprint_context},
     )
 
     # Load message history for multi-turn context
@@ -289,7 +301,7 @@ async def conversation_stream(req: ConversationRequest):
                     _stream_ref.append(stream)
                     msg_id = f"msg-{uuid.uuid4().hex[:12]}"
                     async for line in adapt_stream(
-                        stream, enc, message_id=msg_id,
+                        stream, enc, message_id=msg_id, context=blueprint_context,
                     ):
                         await merged.put(line)
             except Exception as e:
