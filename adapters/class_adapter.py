@@ -59,9 +59,22 @@ async def list_classes(client: JavaClient, teacher_id: str) -> list[ClassInfo]:
     """Fetch all classes for a teacher.
 
     GET /dify/teacher/{teacherId}/classes/me
+
+    Raises:
+        ValueError: When the Java backend returns null/unexpected data,
+            indicating a transient failure (e.g. token expired, backend hiccup).
+            This allows PydanticAI's ``max_retries`` to trigger an automatic retry
+            instead of silently returning an empty list that the LLM interprets
+            as "teacher has no classes".
     """
     resp = await client.get(f"/dify/teacher/{teacher_id}/classes/me")
     items = _unwrap_data(resp)
+    if items is None:
+        raise ValueError(
+            f"list_classes: Java backend returned null data for teacher {teacher_id}. "
+            "This is likely a transient error (token expired, backend hiccup). "
+            "The tool will be retried automatically."
+        )
     if not isinstance(items, list):
         logger.warning("list_classes: expected list, got %s", type(items))
         return []
@@ -75,6 +88,11 @@ async def get_detail(client: JavaClient, teacher_id: str, class_id: str) -> Clas
     """
     resp = await client.get(f"/dify/teacher/{teacher_id}/classes/{class_id}")
     raw = _unwrap_data(resp)
+    if raw is None:
+        raise ValueError(
+            f"get_detail: Java backend returned null data for class {class_id}. "
+            "Transient error — will be retried."
+        )
     if not isinstance(raw, dict):
         return ClassDetail(class_id=class_id, name="Unknown")
 
@@ -115,6 +133,12 @@ async def list_assignments(
         params={"limit": 100},
     )
     raw = _unwrap_data(resp)
+
+    if raw is None:
+        raise ValueError(
+            f"list_assignments: Java backend returned null data for class {class_id}. "
+            "Transient error — will be retried."
+        )
 
     # Response is PageResponseDTOClassAssignmentDTO → {data: [...], pagination: {...}}
     if isinstance(raw, dict) and "data" in raw:

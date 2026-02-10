@@ -105,6 +105,10 @@ async def get_teacher_classes(teacher_id: str) -> dict:
             "teacher_id": teacher_id,
             "classes": [c.model_dump() for c in classes],
         }
+    except ValueError:
+        # Null-data from Java backend — transient error.
+        # Re-raise so PydanticAI's max_retries triggers automatic retry.
+        raise
     except Exception as exc:
         logger.exception("get_teacher_classes failed")
         if _should_use_mock():
@@ -140,6 +144,8 @@ async def get_class_detail(teacher_id: str, class_id: str) -> dict:
         # Override stale counter with real assignment count
         result["assignment_count"] = len(assignments)
         return result
+    except ValueError:
+        raise  # Null-data transient error — let PydanticAI retry
     except Exception as exc:
         logger.exception("get_class_detail failed")
         if _should_use_mock():
@@ -178,6 +184,8 @@ async def get_assignment_submissions(teacher_id: str, assignment_id: str) -> dic
         result = data.model_dump()
         result["teacher_id"] = teacher_id
         return result
+    except ValueError:
+        raise  # Null-data transient error — let PydanticAI retry
     except Exception as exc:
         logger.exception("get_assignment_submissions failed")
         if _should_use_mock():
@@ -222,6 +230,8 @@ async def get_student_grades(teacher_id: str, student_id: str) -> dict:
         result = data.model_dump()
         result["teacher_id"] = teacher_id
         return result
+    except ValueError:
+        raise  # Null-data transient error — let PydanticAI retry
     except Exception as exc:
         logger.exception("get_student_grades failed")
         if _should_use_mock():

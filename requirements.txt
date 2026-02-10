@@ -35,6 +35,9 @@ asyncpg>=0.30
 # Redis
 redis>=5.0
 
+# Volcengine Ark SDK (image/video generation)
+volcengine-python-sdk>=5.0.9
+
 # Config
 python-dotenv>=1.0
 

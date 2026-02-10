@@ -142,6 +142,28 @@ class TestClassAdapter:
         assert result == []
 
     @pytest.mark.asyncio
+    async def test_list_classes_null_data_raises(self):
+        """When Java returns data=null, adapter must raise ValueError (not silently return []).
+
+        This triggers PydanticAI's max_retries for automatic retry instead of
+        telling the LLM "teacher has 0 classes" when the backend is flaky.
+        """
+        from adapters.class_adapter import list_classes
+
+        client = _mock_client({"code": 200, "data": None})
+        with pytest.raises(ValueError, match="null data"):
+            await list_classes(client, "teacher-uuid-001")
+
+    @pytest.mark.asyncio
+    async def test_get_detail_null_data_raises(self):
+        """get_detail must raise on null data."""
+        from adapters.class_adapter import get_detail
+
+        client = _mock_client({"code": 200, "data": None})
+        with pytest.raises(ValueError, match="null data"):
+            await get_detail(client, "teacher-uuid-001", "cls-001")
+
+    @pytest.mark.asyncio
     async def test_get_detail(self):
         from adapters.class_adapter import get_detail
 
@@ -224,6 +246,15 @@ class TestSubmissionAdapter:
         assert result.scores == []
 
     @pytest.mark.asyncio
+    async def test_get_submissions_null_data_raises(self):
+        """get_submissions must raise on null data."""
+        from adapters.submission_adapter import get_submissions
+
+        client = _mock_client({"code": 200, "data": None})
+        with pytest.raises(ValueError, match="null data"):
+            await get_submissions(client, "t-001", "asgn-001")
+
+    @pytest.mark.asyncio
     async def test_submission_status_mapping(self):
         from adapters.submission_adapter import _parse_submission
 
@@ -284,6 +315,15 @@ class TestGradeAdapter:
         assert result.grades == []
         assert result.total_graded == 0
         assert result.average_score is None
+
+    @pytest.mark.asyncio
+    async def test_get_student_submissions_null_data_raises(self):
+        """get_student_submissions must raise on null data."""
+        from adapters.grade_adapter import get_student_submissions
+
+        client = _mock_client({"code": 200, "data": None})
+        with pytest.raises(ValueError, match="null data"):
+            await get_student_submissions(client, "t-001", "s-001")
 
 
 # =========================================================================

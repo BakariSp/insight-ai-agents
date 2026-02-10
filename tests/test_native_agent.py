@@ -88,6 +88,17 @@ class TestSelectToolsets:
         assert TOOLSET_PLATFORM in result
         assert "generation" in result
 
+    def test_generation_included_for_kb_chain(self):
+        """Regression: KB quiz chain requires generation toolset."""
+        deps = _make_deps()
+        result = _select_toolsets_keyword("根据知识库帮我出三角函数的测验题", deps)
+        assert "generation" in result
+
+    def test_generation_included_for_exam(self):
+        deps = _make_deps()
+        result = _select_toolsets_keyword("帮我创建考试题", deps)
+        assert "generation" in result
+
 
 class TestKeywordMatchers:
     """Verify the loose keyword matching functions."""
@@ -96,6 +107,14 @@ class TestKeywordMatchers:
         assert _might_generate("帮我出题")
         assert _might_generate("生成一份文稿")
         assert _might_generate("做一个PPT")
+
+    def test_might_generate_quiz_keywords(self):
+        """Regression: common quiz/exam phrasings must trigger generation."""
+        assert _might_generate("根据知识库帮我出三角函数的测验题")
+        assert _might_generate("帮我出测验题")
+        assert _might_generate("创建一套考试题")
+        assert _might_generate("帮我做一个练习")
+        assert _might_generate("写一些习题")
 
     def test_might_generate_english(self):
         assert _might_generate("create a quiz")

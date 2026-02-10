@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     brave_api_key: str = ""
     memory_dir: str = "data"
 
+    # ── Volcengine (火山引擎 — 图片/视频生成) ─────────────
+    ark_api_key: str = ""
+    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    ark_image_model: str = "doubao-seedream-3-0-t2i-250415"
+    ark_video_model: str = "doubao-seedance-1-0-lite-t2v-250428"
+    ark_video_poll_interval: int = 5   # seconds between status polls
+    ark_video_max_wait: int = 300      # max wait for video generation (seconds)
+
     # ── Java Backend ──────────────────────────────────────────
     spring_boot_base_url: str = "https://api.insightai.hk"
     spring_boot_api_prefix: str = "/api"

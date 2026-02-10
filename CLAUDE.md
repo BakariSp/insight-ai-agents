@@ -54,6 +54,28 @@
 - 完成某阶段测试/新增用例 → `docs/testing/` (报告 + Use Case 索引)
 - 所有变更 → `docs/changelog.md`（追加记录）
 
+## 虚拟环境
+
+本项目使用 `venv/` 目录的 Python 虚拟环境（不是 `.venv`）。
+
+```bash
+# 虚拟环境路径
+insight-ai-agent/venv/
+
+# Windows 激活
+venv\Scripts\activate
+
+# Linux/Mac 激活
+source venv/bin/activate
+
+# 安装依赖（必须在虚拟环境内）
+pip install -r requirements.txt
+```
+
+> **Claude Code 注意**: 执行 Python/pip 命令时必须使用虚拟环境内的解释器：
+> - Windows: `d:/Insight-AI/insight-ai-agent/venv/Scripts/python.exe`
+> - 不要使用系统 Python 或全局 pip
+
 ## 常用命令
 
 ```bash

@@ -60,6 +60,11 @@ async def get_student_submissions(
     )
     items = _unwrap_data(resp)
 
+    if items is None:
+        raise ValueError(
+            f"get_student_submissions: Java backend returned null data for student {student_id}. "
+            "Transient error — will be retried."
+        )
     if not isinstance(items, list):
         logger.warning("get_student_submissions: expected list, got %s", type(items))
         items = []
@@ -89,6 +94,11 @@ async def get_course_grades(
     )
     raw = _unwrap_data(resp)
 
+    if raw is None:
+        raise ValueError(
+            f"get_course_grades: Java backend returned null data for course {course_id}. "
+            "Transient error — will be retried."
+        )
     if not isinstance(raw, dict):
         logger.warning("get_course_grades: expected dict, got %s", type(raw))
         return GradeData(student_id=student_id)

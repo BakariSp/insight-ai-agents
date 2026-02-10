@@ -82,7 +82,7 @@ class SoftBlueprint(CamelModel):
     tags: list[str] = Field(default_factory=list, description="Tags for categorization")
 
     entity_slots: list[EntitySlot] = Field(
-        ..., description="Parameterized entities (class, assignment, etc.)"
+        default_factory=list, description="Parameterized entities; empty [] for static templates"
     )
     execution_prompt: str = Field(
         ...,

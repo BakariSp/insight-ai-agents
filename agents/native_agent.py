@@ -74,6 +74,16 @@ _GENERATE_KEYWORDS = [
     # Step 3 regression: expanded for common education generation patterns.
     # "道" = counter word for questions, "再出"/"重新" = redo/regenerate.
     "道", "再出", "重新",
+    # Common quiz/exam phrasings that missed keyword matching:
+    # "测验" = quiz/test (distinct from "测试"), "考试" = exam,
+    # "考题" = exam question, "练习" = exercise, "习题" = exercise question,
+    # "出.*题" patterns: "出几道题" / "出测验题" — add "出" as single char
+    # to catch "帮我出三角函数的测验题" (出+...+题 with gap).
+    "测验", "考试", "考题", "练习", "习题", "出",
+    # Image / video generation (Seedream + Seedance)
+    "图片", "图", "画", "照片", "插画", "图像", "海报",
+    "image", "picture", "draw", "photo", "illustration",
+    "视频", "动画", "video", "clip", "animate",
 ]
 
 _MODIFY_KEYWORDS = [

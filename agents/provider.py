@@ -7,9 +7,12 @@ Includes fallback/degradation strategy for provider resilience.
 from __future__ import annotations
 
 import inspect
+import json
 import logging
+import uuid
 from typing import Any
 
+import httpx
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.alibaba import AlibabaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -18,6 +21,97 @@ from config.settings import get_settings
 from tools import TOOL_REGISTRY, get_tool_descriptions
 
 logger = logging.getLogger(__name__)
+
+
+# ── DashScope response patching ──────────────────────────────
+# Some models on DashScope (e.g. Kimi-k2.5) return tool_calls with
+# id=null, which fails OpenAI client validation.  This transport
+# patches null IDs with synthetic values before the client sees them.
+
+class _PatchDashScopeTransport(httpx.AsyncBaseTransport):
+    """Wrap an httpx transport to fix DashScope model response quirks.
+
+    Fixes applied:
+    1. Null tool_call.id — some models (Kimi) return id=null; we generate synthetic IDs.
+    2. Split tool_calls — Kimi sends name and args as separate entries with the same
+       index; we merge them into a single tool_call.
+    """
+
+    def __init__(self, wrapped: httpx.AsyncBaseTransport):
+        self._wrapped = wrapped
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        response = await self._wrapped.handle_async_request(request)
+        await response.aread()
+        body = response.content
+        if b'"tool_calls"' in body:
+            try:
+                data = json.loads(body)
+                if self._patch_tool_calls(data):
+                    patched_body = json.dumps(data).encode("utf-8")
+                    # Drop Content-Encoding (patched body is raw JSON, not gzip)
+                    headers = {k: v for k, v in response.headers.items()
+                               if k.lower() != "content-encoding"}
+                    headers["content-length"] = str(len(patched_body))
+                    return httpx.Response(
+                        status_code=response.status_code,
+                        headers=headers,
+                        content=patched_body,
+                        request=request,
+                    )
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+        return response
+
+    @staticmethod
+    def _patch_tool_calls(data: dict) -> bool:
+        """Merge split tool_calls + fix null IDs. Returns True if anything changed."""
+        patched = False
+        for choice in data.get("choices", []):
+            msg = choice.get("message") or {}
+            tool_calls = msg.get("tool_calls")
+            if not tool_calls:
+                continue
+
+            # Phase 1: merge split entries by index
+            # Kimi sends: [{name:"foo", args:""}, {name:"", args:"{...}"}]
+            # both with the same index — merge into one.
+            by_index: dict[int, dict] = {}
+            for tc in tool_calls:
+                idx = tc.get("index", 0)
+                if idx not in by_index:
+                    by_index[idx] = tc
+                else:
+                    existing = by_index[idx]
+                    # Merge function fields
+                    efn = existing.get("function") or {}
+                    nfn = tc.get("function") or {}
+                    if not efn.get("name") and nfn.get("name"):
+                        efn["name"] = nfn["name"]
+                    if not efn.get("arguments") and nfn.get("arguments"):
+                        efn["arguments"] = nfn["arguments"]
+                    existing["function"] = efn
+                    # Take non-null id
+                    if existing.get("id") is None and tc.get("id") is not None:
+                        existing["id"] = tc["id"]
+                    patched = True
+
+            if len(by_index) != len(tool_calls):
+                msg["tool_calls"] = list(by_index.values())
+
+            # Phase 2: fix null IDs
+            for tc in msg.get("tool_calls") or []:
+                if tc.get("id") is None:
+                    tc["id"] = f"call_{uuid.uuid4().hex[:24]}"
+                    patched = True
+
+        return patched
+
+
+def _create_dashscope_http_client() -> httpx.AsyncClient:
+    """Create an httpx client with DashScope response patching."""
+    transport = _PatchDashScopeTransport(httpx.AsyncHTTPTransport())
+    return httpx.AsyncClient(transport=transport)
 
 # Provider prefix → (base_url, settings_key_attr)
 _PROVIDER_MAP: dict[str, tuple[str, str]] = {
@@ -67,7 +161,8 @@ def create_model(model_name: str | None = None):
         if prefix == "dashscope":
             base_url, key_attr = _PROVIDER_MAP[prefix]
             api_key = getattr(settings, key_attr, "")
-            provider = AlibabaProvider(api_key=api_key, base_url=base_url)
+            http_client = _create_dashscope_http_client()
+            provider = AlibabaProvider(api_key=api_key, base_url=base_url, http_client=http_client)
             return OpenAIChatModel(model_id, provider=provider)
 
         # ── Google Gemini — use native GoogleProvider ──

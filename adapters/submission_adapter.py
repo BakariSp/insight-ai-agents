@@ -49,6 +49,11 @@ async def get_submissions(
     )
     items = _unwrap_data(resp)
 
+    if items is None:
+        raise ValueError(
+            f"get_submissions: Java backend returned null data for assignment {assignment_id}. "
+            "Transient error — will be retried."
+        )
     if not isinstance(items, list):
         logger.warning("get_submissions: expected list, got %s", type(items))
         items = []

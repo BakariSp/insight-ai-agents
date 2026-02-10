@@ -70,9 +70,11 @@ def _build_distill_prompt(conversation_history: list[dict[str, Any]]) -> str:
 
 ## 规则
 
-1. entity_slots: 识别对话中的可替换参数
+1. entity_slots: 识别对话中的可替换参数（可以为空列表 []）
    - 班级/学生/作业 → 对应的 selector type
    - 如果某个参数在对话中是固定的但逻辑上应该可变，也要提取
+   - 如果对话完全通用（如生成网页、通用出题），entity_slots 可以为空
+   - 可选：添加一个 text_input 类型的"附加说明"slot，让用户执行时可以补充上下文或附件
 
 2. execution_prompt: 写一段精炼的可复用指令
    - 用 {{slot_key}} 作为占位符 (例如 {{class_name}}, {{assignment_name}})
@@ -125,11 +127,11 @@ def _validate_blueprint(blueprint: SoftBlueprint) -> None:
     Raises:
         ValueError: If validation fails
     """
-    # Check entity_slots not empty
+    # Empty entity_slots is valid (e.g., generic web page generation, general quiz)
     if not blueprint.entity_slots:
-        raise ValueError("entity_slots cannot be empty")
+        logger.info("Blueprint '%s' has no entity_slots (static template)", blueprint.name)
 
-    # Check placeholder consistency (both directions)
+    # Check placeholder consistency (both directions) — skip if no slots
     placeholders_in_prompt = set(re.findall(r"\{(\w+)\}", blueprint.execution_prompt))
     slot_keys = {slot.key for slot in blueprint.entity_slots}
 

@@ -14,6 +14,15 @@ from __future__ import annotations
 from typing import Any
 
 
+def _get(d: dict, *keys, default=None):
+    """Get first non-None value from dict for given keys. Unlike ``or``, treats 0 as valid."""
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
 def summarize_tool_result(tool_name: str, result: dict[str, Any]) -> dict | None:
     """Return a summary dict for the given tool result, or None."""
     fn = _EXTRACTORS.get(tool_name)
@@ -35,7 +44,7 @@ def _summarize_teacher_classes(r: dict) -> dict | None:
     items = []
     for c in classes:
         name = c.get("className") or c.get("name") or "未命名"
-        count = c.get("studentCount") or c.get("student_count") or "?"
+        count = _get(c, "studentCount", "student_count", default="?")
         cid = c.get("classId") or c.get("id") or ""
         items.append({"label": name, "value": f"{count} 名学生", "id": cid})
     return {"text": f"{len(classes)} 个班级", "details": items}
@@ -68,8 +77,8 @@ def _summarize_class_detail(r: dict) -> dict | None:
 
 def _summarize_assignment_submissions(r: dict) -> dict | None:
     submissions = r.get("submissions") or []
-    total = r.get("total") or len(submissions)
-    avg = r.get("averageScore") or r.get("average_score")
+    total = _get(r, "total", default=len(submissions))
+    avg = _get(r, "averageScore", "average_score")
     parts = [f"{total} 份提交"]
     if avg is not None:
         parts.append(f"均分 {avg}")
@@ -102,7 +111,7 @@ def _summarize_search_documents(r: dict) -> dict | None:
 
 def _summarize_generate_quiz(r: dict) -> dict | None:
     questions = r.get("questions") or []
-    total = r.get("total") or len(questions)
+    total = _get(r, "total", default=len(questions))
     if total == 0:
         return {"text": "生成完成", "details": None}
     return {"text": f"已生成 {total} 道题目", "details": None}

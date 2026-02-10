@@ -53,12 +53,12 @@ class TestRegistryPopulated:
         counts = get_toolset_counts()
         assert counts.get(TOOLSET_BASE_DATA, 0) == 5
         assert counts.get(TOOLSET_ANALYSIS, 0) == 5
-        assert counts.get(TOOLSET_GENERATION, 0) == 6
+        assert counts.get(TOOLSET_GENERATION, 0) == 9
         assert counts.get(TOOLSET_ARTIFACT_OPS, 0) == 3
-        assert counts.get(TOOLSET_PLATFORM, 0) == 5
+        assert counts.get(TOOLSET_PLATFORM, 0) == 3
 
     def test_step2_total_tool_count(self):
-        assert get_registered_count() == 24
+        assert get_registered_count() == 25
 
 
 class TestGetTools:

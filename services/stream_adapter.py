@@ -53,6 +53,14 @@ def _parse_tabs_from_markdown(markdown_content: str) -> dict | None:
     if not matches:
         return None  # No tabs found, use default rendering
 
+    # Extract a report title from # heading before the first tab (if any)
+    first_tab_start = matches[0].start()
+    preamble = markdown_content[:first_tab_start].strip()
+    report_title = "AI Report"
+    title_match = re.search(r"^#\s+(.+)$", preamble, re.MULTILINE)
+    if title_match:
+        report_title = title_match.group(1).strip()
+
     tabs = []
     for i, match in enumerate(matches):
         tab_key = match.group(1)
@@ -67,13 +75,17 @@ def _parse_tabs_from_markdown(markdown_content: str) -> dict | None:
 
         tabs.append(
             {
-                "key": tab_key,
+                "id": tab_key,
+                "key": tab_key,  # backward compat
                 "label": tab_label,
                 "blocks": blocks,
             }
         )
 
     return {
+        "meta": {
+            "reportTitle": report_title,
+        },
         "layout": "tabs",
         "tabs": tabs,
     }

@@ -519,6 +519,27 @@ async def generate_interactive_html(
     p5.js, D3.js, Three.js, Matter.js, marked.js are pre-loaded).  Do NOT
     reference local files or relative URLs — they will fail to load.
 
+    ## 图片与图标规则（重要）
+
+    页面在沙箱 iframe 中渲染，`<base href="about:blank">`，相对路径、
+    不存在的 URL、未预加载的图标库都**无法加载**。
+
+    **允许的图片方式（按推荐顺序）：**
+    1. **Emoji** — 最简单可靠：`<span style="font-size:64px">🐰</span>`
+    2. **Inline SVG** — 可自由绘制：`<svg viewBox="0 0 100 100">...</svg>`
+    3. **CSS 绘制** — 用 border-radius / gradient 等纯 CSS 画图形
+    4. **Data URI** — `<img src="data:image/svg+xml;base64,...">`
+    5. **HTTPS CDN 绝对链接** — 如 `https://cdn.jsdelivr.net/...`（必须 https）
+
+    **禁止：**
+    - ❌ 相对路径（`/images/x.png`、`./assets/x.jpg`）
+    - ❌ 不存在的域名或猜测的 URL
+    - ❌ Font Awesome / Material Icons 等未预加载的图标库
+    - ❌ `<link rel="stylesheet" href="...">` 引入外部图标 CSS
+
+    **最佳实践**: 需要图标/图片装饰时，优先用 Emoji 或 inline SVG，
+    它们零依赖、必定能显示。
+
     ## AI 实时对话功能 (可选)
 
     当教师要求生成可以 **实时对话、角色扮演、口语练习、AI 陪练** 等
@@ -543,13 +564,25 @@ async def generate_interactive_html(
     - ❌ "生成赤壁夜话对话展示" → 不使用，纯展示
     - ❌ "做一个物理模拟动画" → 不使用，无需对话
 
-    ### AI 回复内容渲染（重要）
+    ### AI 回复长度与格式（重要）
+
+    **instructions 中必须包含简洁回复要求**，避免 AI 一次返回过长内容：
+    - 要求每次回复 2-4 句话（不超过 150 词）
+    - 如果有语音朗读功能，要求用纯文本回复（不用 Markdown）
+    - 复杂话题分多轮对话，每轮只讲一个要点
+
+    示例 instructions:
+    ```
+    "Reply concisely in 2-4 sentences. Use plain text, no Markdown. If the topic is complex, cover one point and invite follow-up."
+    ```
+
+    ### AI 回复内容渲染
 
     `InsightAI.chat()` 返回的文本**可能包含 Markdown**（加粗、列表、换行等）。
     你必须决定如何处理，不可直接 `innerHTML += reply`，否则 Markdown 符号会
     原样显示。两种方式任选：
     - 用平台预加载的 `InsightAI.renderMarkdown(reply)` 或 `marked.parse(reply)` 转 HTML
-    - 在 `instructions` 中写明 `"Reply in plain text, no Markdown"` 让 AI 回复纯文本
+    - 在 `instructions` 中写明 `"Reply in plain text, no Markdown"` 让 AI 回复纯文本（推荐，尤其是有语音朗读时）
 
     ### 典型用法
     ```html
@@ -568,7 +601,7 @@ async def generate_interactive_html(
         var reply = await InsightAI.chat(text, {
           role: 'English Teacher',
           scenario: 'Casual conversation practice',
-          instructions: 'Reply in English. Gently correct grammar mistakes.'
+          instructions: 'Reply in English, 2-4 sentences max. Use plain text, no Markdown. Gently correct grammar mistakes.'
         });
         log.innerHTML += '<p><b>Teacher:</b> ' + InsightAI.renderMarkdown(reply) + '</p>';
       } catch(e) {
@@ -578,6 +611,120 @@ async def generate_interactive_html(
     </script>
     ```
     以上只是最小示例。请根据场景自由设计 UI 样式和交互方式。
+
+    ## 语音朗读功能 (用户点击触发)
+
+    **核心原则：语音必须由用户点击按钮触发，严禁自动播放。**
+    自动朗读会吓到用户且无法停止，体验极差。
+
+    **规则：以下场景应加入语音朗读按钮（🔊），由用户点击触发：**
+    - 使用了 `InsightAI.chat()` 的 AI 对话 → 每条回复旁加 🔊 按钮
+    - 英语/外语学习、口语练习、单词学习 → 文本可点击朗读
+    - 听力练习、课文朗读、故事讲述 → 播放按钮触发
+    - 角色扮演对话 → 每句对白旁加朗读按钮
+
+    **⚠️ 严禁自动朗读：**
+    - ❌ 页面加载后自动调用 speak/synthesize
+    - ❌ AI 回复返回后立刻调用 speak（必须等用户点按钮）
+    - ❌ 没有停止按钮的朗读功能
+
+    ### 文本一致性（重要）
+    **传给 synthesize/speak 的文本必须与页面上显示的文本完全一致。**
+    - 显示什么就朗读什么，不要传不同的变量或拼接的文本
+    - 平台 bridge 会自动清理 Markdown 符号，你不需要手动处理
+    - 初始欢迎语如果有朗读按钮，按钮 onclick 里传的文本必须和显示的文本变量相同
+
+    ### 首选方式：专业语音合成 — InsightAI.synthesize(text, options)
+    **对话、角色扮演、朗读等场景统一使用 synthesize，声音自然不呆板。**
+
+    **按钮必须有三个状态**，让用户清楚当前进度：
+    - 🔊 空闲 → 点击开始生成
+    - ⏳ 生成语音中... → 等后端合成，禁止重复点击
+    - ⏹ 播放中 → 可点击停止
+
+    ```js
+    // AI 对话场景：回复旁加三态 🔊 按钮
+    var reply = await InsightAI.chat(text, context);
+    var replyDiv = document.createElement('div');
+    replyDiv.className = 'reply';
+    replyDiv.innerHTML = InsightAI.renderMarkdown(reply);
+
+    var speakBtn = document.createElement('button');
+    speakBtn.textContent = '🔊';
+    speakBtn.className = 'speak-btn';
+    speakBtn.dataset.state = 'idle';
+
+    speakBtn.onclick = function() {
+      var state = speakBtn.dataset.state;
+      if (state === 'loading') return;           // 生成中，忽略
+      if (state === 'playing') {                 // 播放中 → 停止
+        InsightAI.stopSpeaking();
+        speakBtn.textContent = '🔊';
+        speakBtn.dataset.state = 'idle';
+        speakBtn.style.opacity = '1';
+        return;
+      }
+      // 空闲 → 开始生成
+      speakBtn.textContent = '⏳';
+      speakBtn.dataset.state = 'loading';
+      speakBtn.style.opacity = '0.6';
+      InsightAI.synthesize(reply, {
+        voice: "Jam", lang: "en-US", speed: 0.9,
+        onPlaying: function() {                  // 生成完成，开始播放
+          speakBtn.textContent = '⏹';
+          speakBtn.dataset.state = 'playing';
+          speakBtn.style.opacity = '1';
+        }
+      }).finally(function() {                    // 播放结束或出错
+        speakBtn.textContent = '🔊';
+        speakBtn.dataset.state = 'idle';
+        speakBtn.style.opacity = '1';
+      });
+    };
+    replyDiv.appendChild(speakBtn);
+    chatLog.appendChild(replyDiv);
+    ```
+
+    可选声音: Tongtong(温柔女声), Chuichui(童声), Xiaochen(亲切女声),
+    Jam(磁性男声), Kazi(女声), Douji(沉稳男声), Luodo(女声), Kelly(粤语)
+    返回 Promise，音频播放结束后 resolve。
+    `onPlaying` 回调在音频开始播放时触发（生成完成）。
+    `InsightAI.stopSpeaking()` — 立即停止当前朗读，无参数。
+
+    ### 备选方式：浏览器语音 — InsightAI.speak(text, options)
+    **仅用于单词/短句的即时点击发音**，不用于对话或段落朗读。
+
+    ```js
+    // 单词点击即时发音（短文本，无需高品质）
+    word.onclick = function() {
+      InsightAI.speak(word.textContent, { lang: "en-US" });
+    };
+    ```
+
+    Options: lang (BCP47), rate (0.5-2.0), pitch (0-2), volume (0-1)
+
+    ### 选择 synthesize 还是 speak
+    | 场景 | 方法 | 原因 |
+    |------|------|------|
+    | AI 对话回复朗读 | **synthesize** | 声音自然，体验好 |
+    | 角色扮演对白 | **synthesize** | 声音有感情，沉浸感 |
+    | 课文/段落朗读 | **synthesize** | 清晰自然 |
+    | 听力练习材料 | **synthesize** | 高品质、专业声音 |
+    | 故事/绘本讲述 | **synthesize** | 童声(Chuichui)更生动 |
+    | 单词/短句点击发音 | speak | 即时反馈，无网络延迟 |
+
+    ### 声音选择建议
+    | 内容语言 | 推荐声音 | 备选 |
+    |---------|---------|------|
+    | 英语对话/角色扮演 | Jam(磁性男声) | Tongtong(女声) |
+    | 中文对话/讲解 | Tongtong(温柔女声) | Douji(沉稳男声) |
+    | 儿童/低龄内容 | Chuichui(童声) | Xiaochen(亲切女声) |
+    | 粤语内容 | Kelly | — |
+
+    ### 不使用语音的场景
+    - ❌ 纯数据图表展示（柱状图、饼图）
+    - ❌ 物理/化学模拟动画（无文本朗读需求）
+    - ❌ 纯数学计算/公式推导
     """
     from tools.render_tools import generate_interactive_html as _interactive
 
@@ -601,6 +748,136 @@ async def generate_interactive_html(
 # (no HTML), so the stream adapter never emitted a data-interactive-content
 # event and the frontend saw nothing.  Re-enable when three-stream is built.
 # See: render_tools.py:request_interactive_content
+
+
+@register_tool(toolset="generation")
+async def generate_tts_audio(
+    ctx: RunContext[AgentDeps],
+    text: str,
+    voice: str = "longxiaochun",
+    language: str = "zh-CN",
+    speed: float = 1.0,
+    title: str = "",
+) -> dict:
+    """Generate text-to-speech audio using CosyVoice via Java backend.
+
+    The backend synthesizes audio, stores the file, and returns a playable URL.
+    You can use ANY CosyVoice voice ID — not limited to the 8 frontend voices.
+
+    Common voices:
+    - longxiaochun: 温柔女声 (default)
+    - longyue: 甜美女声
+    - longxiaobai: 亲切女声
+    - longshu: 知性女声
+    - longwan: 温和女声
+    - longshuo: 阳光男声
+    - longhua: 沉稳男声
+    - longfei: 活力男声
+    - longjing: 新闻播音女声
+    - longlaotie: 东北方言男声
+    Full list: https://help.aliyun.com/zh/model-studio/cosyvoice-voice-list
+
+    Args:
+        text: Text to synthesize (max 3000 chars).
+        voice: CosyVoice voice ID (e.g. "longxiaochun", "longhua").
+        language: Language code (zh-CN, yue-CN, en-US, en-GB).
+        speed: Speech speed (0.5-2.0, default 1.0).
+        title: Optional title for the audio record.
+    """
+    from tools.tts_tools import synthesize_speech as _synthesize
+
+    result = await _synthesize(
+        text=text,
+        voice=voice,
+        language=language,
+        speed=speed,
+        title=title,
+    )
+    if _is_error(result):
+        return _forward_error(result)
+    return _ok(result)
+
+
+@register_tool(toolset="generation")
+async def generate_image(
+    ctx: RunContext[AgentDeps],
+    prompt: str,
+    size: str = "1024x1024",
+    seed: int = -1,
+) -> dict:
+    """Generate an image from a text description using Seedream AI model.
+
+    Create images for educational materials: diagrams, illustrations, visual aids, posters.
+    Supported sizes: 512x512, 1024x1024, 1024x1792, 1792x1024, 2048x2048.
+    The prompt should be descriptive and detailed for best results (max 300 tokens).
+
+    Args:
+        prompt: Detailed description of the image to generate.
+        size: Image dimensions (default 1024x1024).
+        seed: Random seed for reproducibility (-1 for random).
+    """
+    _tool_key = "generate_image"
+    if _tool_key in ctx.deps._called_gen_tools:
+        return _ok({"message": "Image already generated this turn.", "duplicate": True})
+    ctx.deps._called_gen_tools.add(_tool_key)
+
+    from tools.volcengine_media import generate_image as _gen
+
+    result = await _gen(prompt=prompt, size=size, seed=seed)
+    if _is_error(result):
+        return _forward_error(result)
+    artifact_meta = _save_artifact(
+        conversation_id=ctx.deps.conversation_id,
+        artifact_type="image",
+        content_format="url",
+        content={"image_url": result["image_url"], "prompt": prompt},
+    )
+    return _ok({**result, **artifact_meta, "artifact_type": "image", "content_format": "url"})
+
+
+@register_tool(toolset="generation")
+async def generate_video(
+    ctx: RunContext[AgentDeps],
+    prompt: str,
+    duration: int = 5,
+    aspect_ratio: str = "16:9",
+    image_url: str = "",
+) -> dict:
+    """Generate a short video from text or image using Seedance AI model.
+
+    Create educational videos, animations, visual demonstrations.
+    Duration: 5 or 10 seconds. Aspect ratios: 16:9, 9:16, 4:3, 1:1.
+    Optionally provide image_url to animate an existing image into video.
+    Note: video generation takes 1-5 minutes — inform the user about the wait.
+
+    Args:
+        prompt: Detailed description of the video content and motion.
+        duration: Video length in seconds (5 or 10).
+        aspect_ratio: Video aspect ratio (16:9, 9:16, 4:3, 1:1).
+        image_url: Optional image URL for image-to-video generation.
+    """
+    _tool_key = "generate_video"
+    if _tool_key in ctx.deps._called_gen_tools:
+        return _ok({"message": "Video already generated this turn.", "duplicate": True})
+    ctx.deps._called_gen_tools.add(_tool_key)
+
+    from tools.volcengine_media import generate_video as _gen
+
+    result = await _gen(
+        prompt=prompt,
+        duration=duration,
+        aspect_ratio=aspect_ratio,
+        image_url=image_url,
+    )
+    if _is_error(result):
+        return _forward_error(result)
+    artifact_meta = _save_artifact(
+        conversation_id=ctx.deps.conversation_id,
+        artifact_type="video",
+        content_format="url",
+        content={"video_url": result["video_url"], "prompt": prompt},
+    )
+    return _ok({**result, **artifact_meta, "artifact_type": "video", "content_format": "url"})
 
 
 # ---------------------------------------------------------------------------
