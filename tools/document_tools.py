@@ -11,6 +11,26 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# LightRAG sometimes returns these generic refusal strings instead of real
+# content when the knowledge base has nothing relevant.  We filter them out
+# so the NativeAgent sees a clean ``no_result`` with a continuation hint
+# rather than a misleading "ok" with garbage text.
+_NOISE_PATTERNS: list[str] = [
+    "sorry",
+    "i'm not able to",
+    "i am not able to",
+    "unable to provide",
+    "no relevant",
+    "cannot provide an answer",
+    "don't have enough information",
+]
+
+
+def _is_noise(content: str) -> bool:
+    """Return True if the content is a LightRAG refusal/noise string."""
+    lowered = content.strip().lower()
+    return any(p in lowered for p in _NOISE_PATTERNS)
+
 
 async def search_teacher_documents(
     teacher_id: str,
@@ -61,6 +81,11 @@ async def search_teacher_documents(
             if not isinstance(item, dict):
                 normalized_results.append(item)
                 continue
+            # Filter out LightRAG noise/refusal strings
+            content = str(item.get("content", ""))
+            if _is_noise(content):
+                logger.info("Filtered noise result for query %r: %s", query, content[:80])
+                continue
             normalized_results.append({
                 **item,
                 "source": item.get("source", "public" if include_public else "private"),
@@ -79,6 +104,10 @@ async def search_teacher_documents(
                 "results": [],
                 "total": 0,
                 "sources": sources,
+                "fallback_hint": (
+                    "知识库无相关内容。请继续完成用户请求，"
+                    "基于通用学科知识生成内容，并注明未引用知识库。"
+                ),
             }
 
         return {

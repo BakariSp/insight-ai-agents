@@ -32,6 +32,7 @@ from services.tool_tracker import ToolTracker, ToolEvent
 from agents.native_agent import AgentDeps, NativeAgent
 from services.stream_adapter import adapt_stream, extract_tool_calls_summary
 from services.artifact_store import get_artifact_store
+from services.tool_summaries import summarize_tool_result
 
 logger = logging.getLogger(__name__)
 
@@ -259,12 +260,20 @@ async def conversation_stream(req: ConversationRequest):
                         }, id=f"tp-{event.tool}")
                     )
                 elif event.status == "done":
+                    payload: dict = {
+                        "toolName": event.tool,
+                        "status": "done",
+                        "duration_ms": event.duration_ms,
+                    }
+                    # Extract human-readable summary from tool result
+                    if event.data:
+                        summary = summarize_tool_result(event.tool, event.data)
+                        if summary:
+                            payload["summary"] = summary["text"]
+                            if summary.get("details"):
+                                payload["details"] = summary["details"]
                     await merged.put(
-                        enc.data("tool-progress", {
-                            "toolName": event.tool,
-                            "status": "done",
-                            "duration_ms": event.duration_ms,
-                        }, id=f"tp-{event.tool}")
+                        enc.data("tool-progress", payload, id=f"tp-{event.tool}")
                     )
                 elif event.status == "error":
                     await merged.put(

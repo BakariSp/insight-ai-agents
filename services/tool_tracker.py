@@ -96,8 +96,16 @@ class ToolTracker:
             try:
                 result = await fn(*args, **kwargs)
                 ms = (time.monotonic() - start) * 1000
+                # Attach result to "done" event so conversation layer can
+                # extract a human-readable summary for the frontend.
+                result_data = result if isinstance(result, dict) else None
                 await tracker_ref.queue.put(
-                    ToolEvent(tool=tool_name, status="done", duration_ms=ms)
+                    ToolEvent(
+                        tool=tool_name,
+                        status="done",
+                        duration_ms=ms,
+                        data=result_data,
+                    )
                 )
                 return result
             except Exception as e:
