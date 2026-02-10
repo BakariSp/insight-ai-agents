@@ -30,11 +30,63 @@ from services.datastream import DataStreamEncoder
 logger = logging.getLogger(__name__)
 
 
+def _parse_tabs_from_markdown(markdown_content: str) -> dict | None:
+    """
+    Parse [TAB:key] markers from markdown and build AIReportResponse structure.
+
+    Args:
+        markdown_content: Full markdown content with tab markers
+
+    Returns:
+        dict with {layout: "tabs", tabs: [...]} structure, or None if no tabs found
+    """
+    import re
+
+    # Pattern: ## [TAB:key] label
+    tab_pattern = re.compile(r"^## \[TAB:(\w+)\] (.+)$", re.MULTILINE)
+
+    matches = list(tab_pattern.finditer(markdown_content))
+
+    if not matches:
+        return None  # No tabs found, use default rendering
+
+    tabs = []
+    for i, match in enumerate(matches):
+        tab_key = match.group(1)
+        tab_label = match.group(2)
+
+        # Extract content between this tab and next tab
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(markdown_content)
+
+        content = markdown_content[start:end].strip()
+
+        # MVP: wrap content as single MarkdownBlock
+        tabs.append(
+            {
+                "key": tab_key,
+                "label": tab_label,
+                "blocks": [
+                    {
+                        "type": "markdown",
+                        "content": content,
+                    }
+                ],
+            }
+        )
+
+    return {
+        "layout": "tabs",
+        "tabs": tabs,
+    }
+
+
 async def adapt_stream(
     stream: StreamedRunResult,
     enc: DataStreamEncoder,
     message_id: str | None = None,
     pre_text: str | None = None,
+    context: dict | None = None,
 ) -> AsyncIterator[str]:
     """Convert PydanticAI stream into Data Stream Protocol SSE lines.
 
@@ -49,6 +101,7 @@ async def adapt_stream(
             LLM stream begins.  This gives the user instant feedback (e.g.
             "好的，正在为您生成...") without depending on the LLM to produce
             text alongside tool calls in the same response.
+        context: Optional context dict (may contain blueprint_hints for tab parsing)
 
     Yields:
         SSE-formatted strings ready for StreamingResponse.
@@ -73,6 +126,9 @@ async def adapt_stream(
     text_started: set[int] = set()  # part indices where we emitted text-start
     text_ended: set[int] = set()  # part indices where we already emitted text-end
 
+    # Collect full text content for tab parsing
+    full_text_parts: dict[int, list[str]] = {}
+
     error_occurred = False
 
     try:
@@ -93,6 +149,11 @@ async def adapt_stream(
                         delta = part.content[prev_len:]
                         yield enc.text_delta(text_id, delta)
                         prev_text_len[idx] = current_len
+
+                    # Collect full text content for tab parsing
+                    if idx not in full_text_parts:
+                        full_text_parts[idx] = []
+                    full_text_parts[idx] = [part.content]
 
                 elif isinstance(part, ToolCallPart):
                     # Close any preceding text parts before starting tool call
@@ -162,6 +223,27 @@ async def adapt_stream(
         for tidx in text_started - text_ended:
             yield enc.text_end(text_ids[tidx])
             text_ended.add(tidx)
+
+        # After stream completes, check if we should emit data-page
+        if context and context.get("blueprint_hints"):
+            hints = context["blueprint_hints"]
+            expected_artifacts = hints.get("expectedArtifacts", [])
+
+            # Only process tabs for "report" artifact type
+            if "report" in expected_artifacts and full_text_parts:
+                # Combine all text parts
+                all_text = []
+                for idx in sorted(full_text_parts.keys()):
+                    all_text.extend(full_text_parts[idx])
+                full_text = "".join(all_text)
+
+                tab_structure = _parse_tabs_from_markdown(full_text)
+
+                if tab_structure:
+                    # Emit data-page event with tab structure
+                    yield enc.data("page", tab_structure)
+
+                    logger.info("Emitted data-page with %d tabs", len(tab_structure["tabs"]))
 
     except Exception as e:
         error_occurred = True

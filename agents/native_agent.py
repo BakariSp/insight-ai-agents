@@ -283,14 +283,18 @@ class NativeAgent:
         else:
             toolset = get_tools(toolsets)
 
+        # Build system prompt with optional context injection
+        system_prompt = self._build_system_prompt(deps.context)
+
         model = create_model(self._model_name)
         return Agent(
             model=model,
-            instructions=SYSTEM_PROMPT,
+            instructions=system_prompt,
             deps_type=AgentDeps,
             toolsets=[toolset],
             model_settings=ModelSettings(
                 max_tokens=8192,
+                temperature=0.3,
                 # Disable Qwen3 thinking mode to improve tool-calling
                 # reliability.  In thinking mode the model may output
                 # stop-words inside <think> blocks, causing the provider
@@ -299,6 +303,49 @@ class NativeAgent:
             ),
             output_retries=3,
         )
+
+    def _build_system_prompt(self, context: dict[str, Any]) -> str:
+        """Build system prompt with optional context injection.
+
+        Args:
+            context: Context dict from AgentDeps (may contain resolved_entities, blueprint_hints)
+
+        Returns:
+            System prompt string with injected context
+        """
+        prompt = SYSTEM_PROMPT
+
+        # Inject resolved entities from blueprint execution
+        if "resolved_entities" in context:
+            resolved_entities = context["resolved_entities"]
+            if resolved_entities:
+                entity_lines = []
+                for key, entity in resolved_entities.items():
+                    entity_lines.append(f"- {key} = {entity['id']} ({entity['displayName']})")
+
+                prompt += "\n\n## 当前上下文实体\n"
+                prompt += "\n".join(entity_lines)
+                prompt += "\n调用工具时请使用上述 ID。"
+
+        # Inject output hints from blueprint
+        if "blueprint_hints" in context:
+            hints = context["blueprint_hints"]
+            if hints and hints.get("expectedArtifacts"):
+                artifacts = hints["expectedArtifacts"]
+
+                # If "report" in artifacts, inject tab structure guidance
+                if "report" in artifacts and hints.get("tabs"):
+                    tabs = hints["tabs"]
+                    prompt += "\n\n## 输出结构建议\n"
+                    prompt += "请按以下 tab 结构组织输出:\n"
+                    for tab in tabs:
+                        desc = tab.get("description", "")
+                        prompt += f"- {tab['label']} (key: {tab['key']}): {desc}\n"
+
+                    prompt += "\n每个 tab 用 `## [TAB:{key}] {label}` 标记开头。"
+                    prompt += "\n根据实际数据灵活调整，如数据不支持某个 tab 可跳过。"
+
+        return prompt
 
     async def run_stream(
         self,
