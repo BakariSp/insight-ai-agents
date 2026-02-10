@@ -5,8 +5,9 @@ from __future__ import annotations
 import copy
 import json
 import logging
-from typing import Any
+from typing import Annotated, Any
 
+from pydantic import BeforeValidator
 from pydantic_ai import RunContext
 
 from agents.native_agent import AgentDeps
@@ -15,6 +16,27 @@ from services.artifact_store import get_artifact_store
 from tools.registry import register_tool
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_json_str_to_list(v: Any) -> Any:
+    """LLMs sometimes double-encode a JSON array as a string.
+
+    e.g. the model sends ``types: '["a","b"]'`` instead of ``types: ["a","b"]``.
+    This validator coerces the string back into a list so validation succeeds.
+    """
+    if isinstance(v, str):
+        v = v.strip()
+        if v.startswith("["):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return v
+
+
+StrList = Annotated[list[str] | None, BeforeValidator(_coerce_json_str_to_list)]
 
 
 def _ok(data: dict[str, Any]) -> dict[str, Any]:
@@ -232,7 +254,7 @@ async def resolve_entity(
 async def calculate_stats(
     ctx: RunContext[AgentDeps],
     data: list[float],
-    metrics: list[str] | None = None,
+    metrics: StrList = None,
 ) -> dict:
     """Compute descriptive statistics (mean, median, stdev, etc.) on a numeric dataset."""
     from tools.stats_tools import calculate_stats as _calc
@@ -248,7 +270,7 @@ async def compare_performance(
     ctx: RunContext[AgentDeps],
     group_a: list[float],
     group_b: list[float],
-    metrics: list[str] | None = None,
+    metrics: StrList = None,
 ) -> dict:
     """Compare two groups of scores and return comparative statistics."""
     from tools.stats_tools import compare_performance as _compare
@@ -307,7 +329,7 @@ async def get_student_error_patterns(
 async def calculate_class_mastery(
     ctx: RunContext[AgentDeps],
     submissions: list[dict[str, Any]],
-    knowledge_point_ids: list[str] | None = None,
+    knowledge_point_ids: StrList = None,
 ) -> dict:
     """Calculate mastery level per knowledge point from submission data."""
     from tools.assessment_tools import calculate_class_mastery as _mastery
@@ -330,7 +352,7 @@ async def generate_quiz_questions(
     topic: str,
     count: int = 10,
     difficulty: str = "medium",
-    types: list[str] | None = None,
+    types: StrList = None,
     subject: str = "",
     grade: str = "",
     context: str = "",

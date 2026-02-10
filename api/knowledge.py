@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from insight_backend.rag_engine import get_rag_engine
@@ -67,3 +67,17 @@ async def get_knowledge_graph(req: GraphRequest):
         "edges": [e.model_dump() for e in kg.edges],
         "is_truncated": kg.is_truncated,
     }
+
+
+@router.get("/health")
+async def knowledge_health(teacher_id: str = Query(...)):
+    """Diagnose RAG workspace health — check KG vs vector store counts.
+
+    Use this to debug why searches return [no-context] when the KG has data.
+    """
+    tid = _normalize_teacher_id(teacher_id)
+    if not tid:
+        raise HTTPException(status_code=400, detail="teacher_id is required")
+
+    engine = get_rag_engine()
+    return await engine.diagnose_workspace(tid)
