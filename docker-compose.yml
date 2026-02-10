@@ -1,0 +1,135 @@
+services:
+  # ── AI Agent Service ──────────────────────────────────────
+  ai-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: insight-ai-agent
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      # Service
+      DEBUG: "true"
+      SERVICE_PORT: "5000"
+      CORS_ORIGINS: '["*"]'
+
+      # LLM
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-dashscope/qwen3-max}
+      EXECUTOR_MODEL: ${EXECUTOR_MODEL:-dashscope/qwen3-max}
+      CODE_MODEL: ${CODE_MODEL:-dashscope/qwen3-coder-plus}
+      MAX_TOKENS: "4096"
+
+      # Provider API Keys (pass from host .env)
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      ZAI_API_KEY: ${ZAI_API_KEY}
+      ZAI_API_BASE: ${ZAI_API_BASE:-https://open.bigmodel.cn/api/paas/v4/}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # MCP
+      MCP_SERVER_NAME: "insight-ai-agent"
+
+      # Skills
+      BRAVE_API_KEY: ${BRAVE_API_KEY}
+      MEMORY_DIR: "data"
+
+      # Spring Boot Backend
+      SPRING_BOOT_BASE_URL: ${SPRING_BOOT_BASE_URL:-http://host.docker.internal:8080}
+      SPRING_BOOT_API_PREFIX: "/api"
+      SPRING_BOOT_TIMEOUT: "15"
+      USE_MOCK_DATA: "false"
+
+      # Service account
+      SPRING_BOOT_DIFY_ACCOUNT: ${SPRING_BOOT_DIFY_ACCOUNT}
+      SPRING_BOOT_DIFY_PASSWORD: ${SPRING_BOOT_DIFY_PASSWORD}
+      SPRING_BOOT_DIFY_ROLE: ${SPRING_BOOT_DIFY_ROLE:-DIFY}
+      SPRING_BOOT_DIFY_SCHOOL_ID: "1"
+
+      # PostgreSQL (RAG/LightRAG)
+      RAG_POSTGRES_HOST: "postgres"
+      RAG_POSTGRES_PORT: "5432"
+      RAG_POSTGRES_DB: "insight_agent"
+      RAG_POSTGRES_USER: "insight"
+      RAG_POSTGRES_PASSWORD: "insight_dev_pass"
+
+      # Redis (Conversation Store)
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # AI Native Agent
+      NATIVE_AGENT_ENABLED: "true"
+
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    networks:
+      - insight-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── PostgreSQL + pgvector ─────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: insight-ai-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: insight_agent
+      POSTGRES_USER: insight
+      POSTGRES_PASSWORD: insight_dev_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - insight-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insight -d insight_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: insight-ai-agent-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - insight-network
+    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ── Volumes ───────────────────────────────────────────────
+volumes:
+  postgres_data:
+    name: insight_ai_agent_pgdata
+  redis_data:
+    name: insight_ai_agent_redis_data
+
+# ── Networks ──────────────────────────────────────────────
+networks:
+  insight-network:
+    name: insight-ai-network
+    driver: bridge
