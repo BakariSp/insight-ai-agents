@@ -28,6 +28,8 @@ def _parse_submission(raw: dict[str, Any]) -> SubmissionRecord:
         submitted=raw.get("status", "").lower() not in ("not_submitted", ""),
         status=raw.get("status", ""),
         feedback=raw.get("feedback") or raw.get("teacherComment") or "",
+        submission_type=raw.get("submissionType") or "student",
+        identity_type=raw.get("identityType") or "registered_account",
     )
 
 

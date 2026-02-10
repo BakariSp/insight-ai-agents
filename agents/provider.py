@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.alibaba import AlibabaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from config.settings import get_settings
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 _PROVIDER_MAP: dict[str, tuple[str, str]] = {
     "dashscope": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "dashscope_api_key"),
     "zai": ("https://open.bigmodel.cn/api/paas/v4/", "zai_api_key"),
+    "zai-intl": ("https://api.z.ai/api/paas/v4/", "zai_intl_api_key"),
 }
 
 
@@ -57,7 +59,26 @@ def create_model(model_name: str | None = None):
             provider = AnthropicProvider(api_key=settings.anthropic_api_key)
             return AnthropicModel(model_id, provider=provider)
 
-        # ── OpenAI-compatible providers ──
+        # ── DashScope (Alibaba) — use dedicated AlibabaProvider ──
+        # AlibabaProvider applies qwen_model_profile() which sets:
+        # - InlineDefsJsonSchemaTransformer (correct tool schema format for Qwen)
+        # - ignore_streamed_leading_whitespace=True (prevents <think> tags
+        #   from being treated as final text output, which would abort tool calls)
+        if prefix == "dashscope":
+            base_url, key_attr = _PROVIDER_MAP[prefix]
+            api_key = getattr(settings, key_attr, "")
+            provider = AlibabaProvider(api_key=api_key, base_url=base_url)
+            return OpenAIChatModel(model_id, provider=provider)
+
+        # ── Google Gemini — use native GoogleProvider ──
+        if prefix == "gemini":
+            from pydantic_ai.models.google import GoogleModel
+            from pydantic_ai.providers.google import GoogleProvider
+
+            provider = GoogleProvider(api_key=settings.gemini_api_key)
+            return GoogleModel(model_id, provider=provider)
+
+        # ── Other OpenAI-compatible providers ──
         if prefix in _PROVIDER_MAP:
             base_url, key_attr = _PROVIDER_MAP[prefix]
             api_key = getattr(settings, key_attr, "")

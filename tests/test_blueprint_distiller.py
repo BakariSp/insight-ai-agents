@@ -157,7 +157,9 @@ async def test_distill_conversation_success():
         mock_instance.get = AsyncMock(return_value=session)
         mock_get_store.return_value = mock_instance
 
-        with patch("services.blueprint_distiller._distill_agent") as mock_agent:
+        with patch("services.blueprint_distiller._get_distill_agent") as mock_get_agent:
+            mock_agent = MagicMock()
+            mock_get_agent.return_value = mock_agent
             mock_result = MagicMock()
             mock_result.output = mock_blueprint
             mock_agent.run = AsyncMock(return_value=mock_result)
@@ -194,7 +196,9 @@ async def test_distill_conversation_validation_failure():
         mock_instance.get = AsyncMock(return_value=session)
         mock_get_store.return_value = mock_instance
 
-        with patch("services.blueprint_distiller._distill_agent") as mock_agent:
+        with patch("services.blueprint_distiller._get_distill_agent") as mock_get_agent:
+            mock_agent = MagicMock()
+            mock_get_agent.return_value = mock_agent
             mock_result = MagicMock()
             mock_result.output = bad_blueprint
             mock_agent.run = AsyncMock(return_value=mock_result)
@@ -219,7 +223,9 @@ async def test_distill_conversation_llm_failure():
         mock_instance.get = AsyncMock(return_value=session)
         mock_get_store.return_value = mock_instance
 
-        with patch("services.blueprint_distiller._distill_agent") as mock_agent:
+        with patch("services.blueprint_distiller._get_distill_agent") as mock_get_agent:
+            mock_agent = MagicMock()
+            mock_get_agent.return_value = mock_agent
             mock_agent.run = AsyncMock(side_effect=Exception("LLM API error"))
 
             with pytest.raises(RuntimeError, match="Failed to distill"):

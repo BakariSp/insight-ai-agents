@@ -45,6 +45,7 @@ def _parse_assignment(raw: dict[str, Any]) -> AssignmentInfo:
         status=raw.get("status") or "",
         due_date=str(raw["due_date"]) if raw.get("due_date") else (str(raw["dueDate"]) if raw.get("dueDate") else None),
         submission_count=raw.get("submission_count") or raw.get("submissionCount") or 0,
+        guest_submission_count=raw.get("guest_submission_count") or raw.get("guestSubmissionCount") or 0,
         total_students=raw.get("total_students") or raw.get("totalStudents") or 0,
         average_score=raw.get("average_score") or raw.get("averageScore"),
     )

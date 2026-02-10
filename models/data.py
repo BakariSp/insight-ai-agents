@@ -106,6 +106,7 @@ class AssignmentInfo(BaseModel):
     status: str = ""
     due_date: str | None = None
     submission_count: int = 0
+    guest_submission_count: int = 0
     total_students: int = 0
     average_score: float | None = None
 
@@ -126,13 +127,15 @@ class ClassDetail(BaseModel):
 # ---------------------------------------------------------------------------
 
 class SubmissionRecord(BaseModel):
-    """A single student's submission for an assignment."""
+    """A single student or guest submission for an assignment."""
     student_id: str
     name: str
     score: float | None = None
     submitted: bool = True
     status: str = ""
     feedback: str = ""
+    submission_type: str = "student"  # "student" | "guest"
+    identity_type: str = "registered_account"  # "registered_account" | "guest_name"
     # Phase 7: 题目级明细
     items: list[QuestionItem] = Field(default_factory=list)
 

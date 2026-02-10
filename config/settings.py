@@ -65,8 +65,11 @@ class Settings(BaseSettings):
     dashscope_api_key: str = ""
     zai_api_key: str = ""
     zai_api_base: str = "https://open.bigmodel.cn/api/paas/v4/"
+    zai_intl_api_key: str = ""  # GLM overseas endpoint (lower latency outside China)
+    zai_intl_api_base: str = "https://api.z.ai/api/paas/v4/"
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    gemini_api_key: str = ""
 
     # ── Skills / Tools ───────────────────────────────────────
     brave_api_key: str = ""

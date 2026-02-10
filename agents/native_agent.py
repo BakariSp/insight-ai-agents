@@ -289,11 +289,15 @@ class NativeAgent:
 
         model = create_model(self._model_name)
 
-        # Only send enable_thinking for Qwen models (dashscope provider).
-        # Other providers (OpenAI, Gemini, etc.) reject unknown parameters.
+        # Qwen-specific tuning: low temperature improves tool-calling
+        # reliability (high temp causes Qwen to prefer text over tools),
+        # and enable_thinking must be disabled to avoid stop-word issues.
+        # Other providers (OpenAI, Gemini, etc.) work fine with defaults
+        # and would reject the extra_body parameter.
         settings_kwargs: dict[str, Any] = {"max_tokens": 8192}
         resolved_name = self._model_name or get_settings().default_model
         if resolved_name.startswith("dashscope/") or resolved_name.startswith("qwen"):
+            settings_kwargs["temperature"] = 0.3
             settings_kwargs["extra_body"] = {"enable_thinking": False}
 
         return Agent(

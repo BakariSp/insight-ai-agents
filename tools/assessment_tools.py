@@ -69,6 +69,9 @@ async def analyze_student_weakness(
 
     for sub_data in submissions:
         sub = SubmissionRecord(**sub_data) if isinstance(sub_data, dict) else sub_data
+        # Skip guest submissions — class weakness analysis is for registered students only
+        if sub.submission_type == "guest":
+            continue
         if not sub.items:
             continue
 
@@ -228,6 +231,9 @@ def calculate_class_mastery(
 
     for sub_data in submissions:
         sub = SubmissionRecord(**sub_data) if isinstance(sub_data, dict) else sub_data
+        # Skip guest submissions — mastery analysis is for registered students only
+        if sub.submission_type == "guest":
+            continue
         if not sub.items:
             continue
 

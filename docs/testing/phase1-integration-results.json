@@ -2,8 +2,8 @@
   {
     "test_name": "test_full_chain_class_to_detail",
     "category": "Data Pipeline",
-    "timestamp": "2026-02-10T02:44:52.279110",
-    "duration_ms": 148.23,
+    "timestamp": "2026-02-10T12:44:21.254590",
+    "duration_ms": 162.5,
     "status": "pass",
     "input": {
       "teacher_id": "ad09ddd5-d688-4409-9b1b-e418d80ef5cf"
@@ -12,7 +12,7 @@
       "steps": [
         {
           "step": "get_teacher_classes",
-          "duration_ms": 23.8,
+          "duration_ms": 26.2,
           "class_count": 3,
           "class_names": [
             "高一数学班",
@@ -23,29 +23,29 @@
         {
           "step": "resolve_entities",
           "input": "高一数学班",
-          "duration_ms": 18.6,
+          "duration_ms": 21.7,
           "entities_count": 1,
           "scope_mode": "single"
         },
         {
           "step": "get_class_detail",
           "class_id": "1167ccd0-12e9-4523-9e30-d45bd80fc2ce",
-          "duration_ms": 105.8,
+          "duration_ms": 114.5,
           "has_name": true,
           "has_students": true,
           "has_assignments": true,
           "student_count": 5,
-          "assignment_count": 15
+          "assignment_count": 16
         }
       ],
-      "total_duration_ms": 148.2
+      "total_duration_ms": 162.5
     },
     "error": null
   },
   {
     "test_name": "test_class_list_field_format",
     "category": "Data Pipeline — Fields",
-    "timestamp": "2026-02-10T02:44:52.953496",
+    "timestamp": "2026-02-10T12:44:22.120921",
     "duration_ms": 0,
     "status": "pass",
     "input": {
@@ -75,8 +75,8 @@
   {
     "test_name": "test_java_backend_reachable",
     "category": "Data Pipeline — Connectivity",
-    "timestamp": "2026-02-10T02:44:53.172646",
-    "duration_ms": 27.29,
+    "timestamp": "2026-02-10T12:44:22.317383",
+    "duration_ms": 19.23,
     "status": "pass",
     "input": {
       "endpoint": "/dify/teacher/…/classes/me"
@@ -90,8 +90,8 @@
   {
     "test_name": "test_exact_class_name_match",
     "category": "Entity Resolver — Exact",
-    "timestamp": "2026-02-10T02:44:53.360655",
-    "duration_ms": 54.12,
+    "timestamp": "2026-02-10T12:44:22.513535",
+    "duration_ms": 84.2,
     "status": "pass",
     "input": {
       "total_classes": 3
@@ -106,8 +106,8 @@
   {
     "test_name": "test_fuzzy_match",
     "category": "Entity Resolver — Fuzzy",
-    "timestamp": "2026-02-10T02:44:53.430494",
-    "duration_ms": 65.13,
+    "timestamp": "2026-02-10T12:44:22.608860",
+    "duration_ms": 72.35,
     "status": "pass",
     "input": {
       "total_cases": 3
@@ -122,8 +122,8 @@
   {
     "test_name": "test_two_class_comparison",
     "category": "Entity Resolver — Multi-class",
-    "timestamp": "2026-02-10T02:44:53.543998",
-    "duration_ms": 26.17,
+    "timestamp": "2026-02-10T12:44:22.724018",
+    "duration_ms": 19.67,
     "status": "pass",
     "input": {
       "query": "对比 高一数学班 和 高一英语班 的成绩"

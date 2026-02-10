@@ -100,7 +100,8 @@ async def _modify_interactive_html(original_html: str, instruction: str) -> str:
     from pydantic_ai.settings import ModelSettings
     from agents.provider import create_model, get_model_for_tier
 
-    model = create_model(get_model_for_tier("code"))
+    code_model_name = get_model_for_tier("code")
+    model = create_model(code_model_name)
     agent: Agent[None, str] = Agent(
         model=model,
         system_prompt=(
@@ -115,13 +116,15 @@ async def _modify_interactive_html(original_html: str, instruction: str) -> str:
         ),
         output_type=str,
     )
+    # Only send enable_thinking for Qwen (dashscope) models
+    settings_kwargs: dict = {"max_tokens": 16384}
+    if code_model_name.startswith("dashscope/") or code_model_name.startswith("qwen"):
+        settings_kwargs["extra_body"] = {"enable_thinking": False}
+
     result = await agent.run(
         f"## Original HTML\n```html\n{original_html}\n```\n\n"
         f"## Modification Request\n{instruction}",
-        model_settings=ModelSettings(
-            max_tokens=16384,
-            extra_body={"enable_thinking": False},
-        ),
+        model_settings=ModelSettings(**settings_kwargs),
     )
     modified = result.output
 
@@ -167,6 +170,8 @@ async def get_class_detail(ctx: RunContext[AgentDeps], class_id: str) -> dict:
     """Get full details for a specific class: student roster + assignment list.
 
     Returns student names/IDs, assignment titles/scores/due dates, and class metadata.
+    Each assignment includes submission_count (registered students only) and
+    guest_submission_count (guest submissions via share link) as separate fields.
     Always call this when the user asks about a class's students or assignments.
     The class_id can be obtained from get_teacher_classes.
     """
@@ -187,9 +192,12 @@ async def get_assignment_submissions(
     class_id: str,
     assignment_id: str,
 ) -> dict:
-    """Get all student submissions and scores for a specific assignment.
+    """Get all submissions and scores for a specific assignment (registered students + guests).
 
     Returns per-student scores, submission status, and a raw scores array.
+    Each submission has a submission_type field: "student" (registered) or "guest".
+    Guest submissions come from share-link access and have identity_type="guest_name".
+    When analyzing class performance, filter by submission_type to separate registered vs guest data.
     The assignment_id can be obtained from get_class_detail.
     """
     from tools.data_tools import get_assignment_submissions as _get_subs
@@ -508,8 +516,8 @@ async def generate_interactive_html(
     IMPORTANT: The HTML must be fully self-contained — ALL CSS must be in
     <style> tags (never <link>), ALL JS must be in <script> tags (never
     external src for your own code).  External CDN libs are OK (Chart.js,
-    p5.js, D3.js, Three.js, Matter.js are pre-loaded).  Do NOT reference
-    local files or relative URLs — they will fail to load.
+    p5.js, D3.js, Three.js, Matter.js, marked.js are pre-loaded).  Do NOT
+    reference local files or relative URLs — they will fail to load.
 
     ## AI 实时对话功能 (可选)
 
@@ -535,6 +543,14 @@ async def generate_interactive_html(
     - ❌ "生成赤壁夜话对话展示" → 不使用，纯展示
     - ❌ "做一个物理模拟动画" → 不使用，无需对话
 
+    ### AI 回复内容渲染（重要）
+
+    `InsightAI.chat()` 返回的文本**可能包含 Markdown**（加粗、列表、换行等）。
+    你必须决定如何处理，不可直接 `innerHTML += reply`，否则 Markdown 符号会
+    原样显示。两种方式任选：
+    - 用平台预加载的 `InsightAI.renderMarkdown(reply)` 或 `marked.parse(reply)` 转 HTML
+    - 在 `instructions` 中写明 `"Reply in plain text, no Markdown"` 让 AI 回复纯文本
+
     ### 典型用法
     ```html
     <div id="chat-log"></div>
@@ -554,13 +570,14 @@ async def generate_interactive_html(
           scenario: 'Casual conversation practice',
           instructions: 'Reply in English. Gently correct grammar mistakes.'
         });
-        log.innerHTML += '<p><b>Teacher:</b> ' + reply + '</p>';
+        log.innerHTML += '<p><b>Teacher:</b> ' + InsightAI.renderMarkdown(reply) + '</p>';
       } catch(e) {
         log.innerHTML += '<p style="color:red">Failed: ' + e.message + '</p>';
       }
     }
     </script>
     ```
+    以上只是最小示例。请根据场景自由设计 UI 样式和交互方式。
     """
     from tools.render_tools import generate_interactive_html as _interactive
 

@@ -47,7 +47,8 @@ async def distill_blueprint(req: DistillRequest) -> SoftBlueprint:
 
     sem = _distill_semaphores[teacher_id]
 
-    # Check if already running
+    # Check-then-acquire is safe in asyncio: no preemption between locked()
+    # and async-with because there is no await in between.
     if sem.locked():
         logger.warning("Distillation already in progress for teacher %s", teacher_id)
         raise HTTPException(status_code=429, detail="已有蒸馏任务进行中，请稍后再试")

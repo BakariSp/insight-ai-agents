@@ -2,15 +2,15 @@
   {
     "test_name": "test_live_blueprint_generation",
     "category": "B. Blueprint",
-    "timestamp": "2026-02-10T02:45:51.353501",
-    "duration_ms": 52100.04,
+    "timestamp": "2026-02-10T12:44:50.098087",
+    "duration_ms": 21133.19,
     "status": "pass",
     "input": {
       "user_prompt": "分析高一数学班的期末考试成绩，显示成绩分布和各题得分情况",
       "language": "zh-CN"
     },
     "output": {
-      "id": "bp-fallback-3eadda9e",
+      "id": "bp-fallback-c37be0f7",
       "name": "英语作业",
       "description": "自动生成 10 题英语练习",
       "capability_level": 1,
@@ -24,15 +24,15 @@
   {
     "test_name": "test_live_blueprint_english",
     "category": "B. Blueprint",
-    "timestamp": "2026-02-10T02:46:43.610422",
-    "duration_ms": 52254.25,
+    "timestamp": "2026-02-10T12:45:07.505140",
+    "duration_ms": 17404.26,
     "status": "pass",
     "input": {
       "user_prompt": "Analyze Form 1A English test scores, show score distribution and performance by question",
       "language": "en"
     },
     "output": {
-      "id": "bp-fallback-cd69a366",
+      "id": "bp-fallback-c4f6193d",
       "name": "English Assignment",
       "description": "Auto-generated English practice with 10 questions",
       "model": "dashscope/qwen3-max"
@@ -42,8 +42,8 @@
   {
     "test_name": "test_live_conversation_chat",
     "category": "C. Conversation",
-    "timestamp": "2026-02-10T02:46:48.725419",
-    "duration_ms": 5036.18,
+    "timestamp": "2026-02-10T12:45:13.644022",
+    "duration_ms": 6064.28,
     "status": "pass",
     "input": {
       "message": "你好，介绍一下你自己"
@@ -59,8 +59,8 @@
   {
     "test_name": "test_live_conversation_build",
     "category": "C. Conversation",
-    "timestamp": "2026-02-10T02:46:56.507467",
-    "duration_ms": 7693.07,
+    "timestamp": "2026-02-10T12:45:18.764728",
+    "duration_ms": 5030.31,
     "status": "pass",
     "input": {
       "message": "分析高一数学班的作业成绩",
@@ -76,25 +76,25 @@
   {
     "test_name": "test_live_page_generation",
     "category": "D. Page Generation",
-    "timestamp": "2026-02-10T02:49:17.416831",
-    "duration_ms": 140797.53,
+    "timestamp": "2026-02-10T12:47:41.405376",
+    "duration_ms": 142536.18,
     "status": "pass",
     "input": {
       "user_prompt": "分析作业提交情况，显示统计数据和分析结论",
-      "blueprint_id": "bp-fallback-beb9938e"
+      "blueprint_id": "bp-fallback-694bcae7"
     },
     "output": {
-      "blueprint_duration_ms": 40673.15,
-      "page_duration_ms": 100124.38,
-      "total_duration_ms": 140797.53,
+      "blueprint_duration_ms": 14887.22,
+      "page_duration_ms": 127648.96,
+      "total_duration_ms": 142536.18,
       "event_count": 9,
       "event_types": [
-        "COMPLETE",
-        "BLOCK_START",
         "SLOT_DELTA",
-        "BLOCK_COMPLETE",
+        "COMPLETE",
         "MESSAGE",
-        "PHASE"
+        "PHASE",
+        "BLOCK_START",
+        "BLOCK_COMPLETE"
       ],
       "phases": [
         "data",
@@ -110,15 +110,15 @@
   {
     "test_name": "test_live_full_e2e_flow",
     "category": "D. Page Generation",
-    "timestamp": "2026-02-10T02:49:23.471694",
-    "duration_ms": 5973.33,
+    "timestamp": "2026-02-10T12:47:46.630535",
+    "duration_ms": 5141.91,
     "status": "pass",
     "input": {
       "message": "分析学生的作业完成情况"
     },
     "output": {
       "conversation_action": null,
-      "conversation_duration_ms": 5973.33,
+      "conversation_duration_ms": 5141.91,
       "note": "Stopped at clarify step - would need user selection"
     },
     "error": null
@@ -126,8 +126,8 @@
   {
     "test_name": "test_live_critical_path_e2e",
     "category": "D. Critical Path",
-    "timestamp": "2026-02-10T02:49:29.804988",
-    "duration_ms": 6252.54,
+    "timestamp": "2026-02-10T12:47:53.694517",
+    "duration_ms": 6983.21,
     "status": "pass",
     "input": {
       "user_prompt": "分析高一英语班的'测试一'作业成绩，显示平均分和成绩分布"
@@ -141,22 +141,22 @@
       "steps": [
         {
           "step": "1. Conversation API",
-          "duration_ms": 6252.54,
+          "duration_ms": 6983.21,
           "status_code": 200,
           "action": null,
           "mode": null
         }
       ],
       "final_status": "clarify_needed",
-      "total_duration_ms": 6252.54
+      "total_duration_ms": 6983.21
     },
     "error": null
   },
   {
     "test_name": "test_live_rag_rubrics_loaded",
     "category": "E. Phase 7 RAG",
-    "timestamp": "2026-02-10T02:49:29.811185",
-    "duration_ms": 3.3,
+    "timestamp": "2026-02-10T12:47:53.701248",
+    "duration_ms": 3.56,
     "status": "pass",
     "input": {},
     "output": {
@@ -169,8 +169,8 @@
   {
     "test_name": "test_live_rag_query_rubrics",
     "category": "E. Phase 7 RAG",
-    "timestamp": "2026-02-10T02:49:29.813392",
-    "duration_ms": 0.15,
+    "timestamp": "2026-02-10T12:47:53.702837",
+    "duration_ms": 0.14,
     "status": "pass",
     "input": {
       "query": "argumentative essay writing criteria"
@@ -184,8 +184,8 @@
   {
     "test_name": "test_live_knowledge_english",
     "category": "E. Phase 7 Knowledge",
-    "timestamp": "2026-02-10T02:49:29.814968",
-    "duration_ms": 0.05,
+    "timestamp": "2026-02-10T12:47:53.704263",
+    "duration_ms": 0.06,
     "status": "pass",
     "input": {
       "subject": "English"
@@ -205,8 +205,8 @@
   {
     "test_name": "test_live_knowledge_all_subjects",
     "category": "E. Phase 7 Knowledge",
-    "timestamp": "2026-02-10T02:49:29.817573",
-    "duration_ms": 1.18,
+    "timestamp": "2026-02-10T12:47:53.706640",
+    "duration_ms": 1.06,
     "status": "pass",
     "input": {
       "subjects": [
@@ -227,7 +227,7 @@
   {
     "test_name": "test_live_error_to_knowledge_mapping",
     "category": "E. Phase 7 Knowledge",
-    "timestamp": "2026-02-10T02:49:29.818987",
+    "timestamp": "2026-02-10T12:47:53.707997",
     "duration_ms": 0.0,
     "status": "pass",
     "input": {
@@ -239,11 +239,11 @@
     },
     "output": {
       "mapped_kp_ids": [
-        "DSE-ENG-U5-RC-03",
-        "DSE-ENG-U5-GR-03",
-        "DSE-ENG-U5-GR-02",
+        "DSE-ENG-U5-GR-01",
         "DSE-ENG-U5-RC-01",
-        "DSE-ENG-U5-GR-01"
+        "DSE-ENG-U5-RC-03",
+        "DSE-ENG-U5-GR-02",
+        "DSE-ENG-U5-GR-03"
       ]
     },
     "error": null
@@ -251,8 +251,8 @@
   {
     "test_name": "test_live_rubric_service",
     "category": "E. Phase 7 Rubric",
-    "timestamp": "2026-02-10T02:49:29.823538",
-    "duration_ms": 3.22,
+    "timestamp": "2026-02-10T12:47:53.711769",
+    "duration_ms": 2.37,
     "status": "pass",
     "input": {
       "subject": "English",
@@ -270,8 +270,8 @@
   {
     "test_name": "test_live_question_draft_generation",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-10T02:49:40.331267",
-    "duration_ms": 10501.12,
+    "timestamp": "2026-02-10T12:48:02.600878",
+    "duration_ms": 8887.0,
     "status": "pass",
     "input": {
       "subject": "English",
@@ -287,12 +287,12 @@
         {
           "id": "q1",
           "type": "multiple_choice",
-          "text_preview": "Which of the following best describes the author’s purpose in the passage?"
+          "text_preview": "Which of the following best describes the author's purpose in the passage?"
         },
         {
           "id": "q2",
           "type": "multiple_choice",
-          "text_preview": "What can be inferred about the narrator’s attitude toward the main character?"
+          "text_preview": "What can be inferred about the main character based on their actions in the passage?"
         }
       ]
     },
@@ -301,8 +301,8 @@
   {
     "test_name": "test_live_question_judge",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-10T02:50:02.042590",
-    "duration_ms": 12141.59,
+    "timestamp": "2026-02-10T12:48:19.723899",
+    "duration_ms": 10284.71,
     "status": "pass",
     "input": {
       "question_preview": "Which sentence uses the correct subject-verb agreement?"
@@ -331,8 +331,8 @@
   {
     "test_name": "test_live_question_full_pipeline",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-10T02:50:20.784397",
-    "duration_ms": 18735.71,
+    "timestamp": "2026-02-10T12:48:39.158355",
+    "duration_ms": 19405.22,
     "status": "pass",
     "input": {
       "subject": "English",
@@ -355,7 +355,7 @@
         {
           "type": "multiple_choice",
           "quality": 0.95,
-          "text_preview": "Choose the word that best completes the sentence: Despite her _______ appearance"
+          "text_preview": "Choose the word that best completes the sentence: The scientist’s ______ approac"
         }
       ]
     },
@@ -364,8 +364,8 @@
   {
     "test_name": "test_live_question_with_weakness_context",
     "category": "F. Phase 7 Question Pipeline",
-    "timestamp": "2026-02-10T02:50:46.309636",
-    "duration_ms": 25521.35,
+    "timestamp": "2026-02-10T12:48:59.125191",
+    "duration_ms": 19964.11,
     "status": "pass",
     "input": {
       "error_tags": [
@@ -373,23 +373,23 @@
         "tense"
       ],
       "weak_kps": [
+        "DSE-ENG-U5-GR-01",
         "DSE-ENG-U5-GR-03",
-        "DSE-ENG-U5-GR-02",
-        "DSE-ENG-U5-GR-01"
+        "DSE-ENG-U5-GR-02"
       ],
       "count": 2
     },
     "output": {
       "total_questions": 2,
-      "average_quality": 0.95
+      "average_quality": 0.975
     },
     "error": null
   },
   {
     "test_name": "test_live_assess_student_weakness",
     "category": "G. Phase 7 Assessment",
-    "timestamp": "2026-02-10T02:50:46.312561",
-    "duration_ms": 0.06,
+    "timestamp": "2026-02-10T12:48:59.127869",
+    "duration_ms": 0.07,
     "status": "pass",
     "input": {
       "submission_count": 3

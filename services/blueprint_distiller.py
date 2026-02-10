@@ -10,24 +10,31 @@ import re
 from typing import Any
 
 from pydantic_ai import Agent
+from pydantic_ai.settings import ModelSettings
 
 from agents.provider import create_model
-from config.llm_config import LLMConfig
 from models.soft_blueprint import SoftBlueprint
 from services.conversation_store import get_conversation_store
 
 logger = logging.getLogger(__name__)
 
-# Distillation LLM config — low temperature for consistency
-DISTILL_LLM_CONFIG = LLMConfig(temperature=0.2, max_tokens=8192)
+# Distillation settings — low temperature for consistency
+DISTILL_MODEL_SETTINGS = ModelSettings(temperature=0.2, max_tokens=8192)
 
-# Module-level agent
-_distill_agent = Agent(
-    model=create_model(),
-    output_type=SoftBlueprint,
-    retries=2,  # Up to 3 attempts total
-    defer_model_check=True,
-)
+# Lazy-initialized agent (avoids import-time model creation)
+_distill_agent: Agent | None = None
+
+
+def _get_distill_agent() -> Agent:
+    global _distill_agent
+    if _distill_agent is None:
+        _distill_agent = Agent(
+            model=create_model(),
+            output_type=SoftBlueprint,
+            retries=2,  # Up to 3 attempts total
+            defer_model_check=True,
+        )
+    return _distill_agent
 
 
 def _build_distill_prompt(conversation_history: list[dict[str, Any]]) -> str:
@@ -68,7 +75,7 @@ def _build_distill_prompt(conversation_history: list[dict[str, Any]]) -> str:
    - 如果某个参数在对话中是固定的但逻辑上应该可变，也要提取
 
 2. execution_prompt: 写一段精炼的可复用指令
-   - 用 {{{{slot_key}}}} 作为占位符 (例如 {{{{class_name}}}}, {{{{assignment_name}}}})
+   - 用 {{slot_key}} 作为占位符 (例如 {{class_name}}, {{assignment_name}})
    - 包含输出结构的参考（模仿教师满意的那次输出）
    - 不要包含具体班级/学生名字，用占位符代替
 
@@ -92,21 +99,21 @@ def _build_distill_prompt(conversation_history: list[dict[str, Any]]) -> str:
 ---
 
 现在输出 JSON，schema 如下:
-{{{{
+{{
   "name": "string — 简洁的模板名称",
   "description": "string — 一句话描述",
   "icon": "string — chart|quiz|file-text|lightbulb|book|globe",
   "tags": ["string"],
   "entity_slots": [
-    {{{{"key": "string", "label": "string", "type": "string", "required": bool, "depends_on": "string|null"}}}}
+    {{"key": "string", "label": "string", "type": "string", "required": bool, "depends_on": "string|null"}}
   ],
   "execution_prompt": "string — 含占位符的指令模板",
-  "output_hints": {{{{
+  "output_hints": {{
     "expected_artifacts": ["string — report|quiz|interactive|document"],
-    "tabs": [{{{{"key": "string", "label": "string", "description": "string"}}}}] | null,
+    "tabs": [{{"key": "string", "label": "string", "description": "string"}}] | null,
     "preferred_components": ["string"]
-  }}}}
-}}}}
+  }}
+}}
 """
     return prompt
 
@@ -122,7 +129,7 @@ def _validate_blueprint(blueprint: SoftBlueprint) -> None:
     if not blueprint.entity_slots:
         raise ValueError("entity_slots cannot be empty")
 
-    # Check placeholder consistency
+    # Check placeholder consistency (both directions)
     placeholders_in_prompt = set(re.findall(r"\{(\w+)\}", blueprint.execution_prompt))
     slot_keys = {slot.key for slot in blueprint.entity_slots}
 
@@ -132,12 +139,22 @@ def _validate_blueprint(blueprint: SoftBlueprint) -> None:
         expected_placeholders.add(key)
         expected_placeholders.add(f"{key}_name")
 
-    if not placeholders_in_prompt.issubset(expected_placeholders):
+    # 1. Warn if prompt has unknown placeholders
+    unknown = placeholders_in_prompt - expected_placeholders
+    if unknown:
         logger.warning(
-            "Placeholder mismatch: prompt has %s, slots have %s",
-            placeholders_in_prompt,
+            "Prompt has placeholders not in slots: %s (slots: %s)",
+            unknown,
             slot_keys,
         )
+
+    # 2. Warn if slot keys have no corresponding placeholder in prompt
+    for key in slot_keys:
+        if key not in placeholders_in_prompt and f"{key}_name" not in placeholders_in_prompt:
+            logger.warning(
+                "Slot key '%s' has no placeholder in execution_prompt",
+                key,
+            )
 
     # Check for system prompt injection
     dangerous_patterns = ["system:", "<system>", "[SYSTEM]", "ignore previous"]
@@ -199,9 +216,10 @@ async def distill_conversation(
 
     # Run agent with retries (handled by PydanticAI)
     try:
-        result = await _distill_agent.run(
+        agent = _get_distill_agent()
+        result = await agent.run(
             distill_prompt,
-            model_settings=DISTILL_LLM_CONFIG.to_litellm_kwargs(),
+            model_settings=DISTILL_MODEL_SETTINGS,
         )
 
         blueprint: SoftBlueprint = result.output
