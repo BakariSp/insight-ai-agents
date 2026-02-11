@@ -1,0 +1,79 @@
+====================================================================================================
+  REVALIDATION REPORT — D2 + D8 (GPT + Gemini retest)
+====================================================================================================
+
+  OVERALL RANKING:
+             Model |       D2 |       D8 |    Total |   Rate | Tier
+  ------------------------------------------------------------
+      gemini-3-pro |  14/17   |  16/17   |  30/34   |    88% |    S
+           gpt-5.2 |  15/17   |  14/17   |  29/34   |    85% |    S
+        gpt-5-mini |  15/17   |  14/17   |  29/34   |    85% |    S
+    gemini-3-flash |  12/17   |  16/17   |  28/34   |    82% |    A
+
+====================================================================================================
+  D2: BOUNDARY CONFUSION — Detailed Results
+====================================================================================================
+  Case         Type          gpt-5.2     gpt-5-mini   gemini-3-pro gemini-3-flash
+  ------------------------------------------------------------------------------
+  trap-01      TRAP   PASS ask_clarific PASS ask_clarific PASS ask_clarific FAIL get_teacher_
+  trap-02      TRAP   PASS (none)    PASS (none)    PASS (none)    PASS (none)   
+  trap-03      TRAP   FAIL search_teach FAIL search_teach FAIL search_teach FAIL search_teach
+  trap-04      TRAP   PASS ask_clarific PASS (none)    PASS ask_clarific PASS ask_clarific
+  trap-05      TRAP   PASS ask_clarific PASS (none)    FAIL get_teacher_ FAIL get_teacher_
+  trap-06      TRAP   PASS (none)    PASS (none)    PASS (none)    PASS (none)   
+  trap-07      TRAP   PASS ask_clarific PASS ask_clarific PASS (none)    PASS (none)   
+  trap-08      TRAP   PASS (none)    PASS (none)    PASS (none)    PASS (none)   
+  trap-09      TRAP   PASS (none)    PASS (none)    PASS (none)    PASS (none)   
+  trap-10      TRAP   PASS (none)    PASS (none)    PASS (none)    PASS (none)   
+  impl-01      IMPL   PASS ask_clarific PASS ask_clarific PASS ask_clarific PASS ask_clarific
+  impl-02      IMPL   FAIL ask_clarific FAIL ask_clarific FAIL build_report FAIL ask_clarific
+  impl-03      IMPL   PASS get_teacher_ PASS get_teacher_ PASS get_teacher_ PASS get_teacher_
+  impl-04      IMPL   PASS search_teach PASS search_teach PASS search_teach FAIL (none)   
+  impl-05      IMPL   PASS ask_clarific PASS ask_clarific PASS ask_clarific PASS ask_clarific
+  impl-06      IMPL   PASS ask_clarific PASS ask_clarific PASS ask_clarific PASS ask_clarific
+  impl-07      IMPL   PASS ask_clarific PASS ask_clarific PASS ask_clarific PASS ask_clarific
+
+  D2 FAILURE DETAILS:
+
+  [gpt-5.2] — 2 failures:
+    trap-03: tools=['search_teacher_documents'] | 我这边检索到您已上传的资料里，暂时没有找到“光合作用”相关文档（目前命中的是《期末复习大纲》，内容偏数学二次函数）。  您可以： 1) 把该文档的标题/关键词（例如文件名里包含的词）发我；或   2)
+    impl-02: tools=['ask_clarification'] | 您想做成什么课堂场景的“酷炫页面”？先选一个方案（点选即可）：  - 讲解型长页面：滚动叙事 + 分阶段动效（间期→前期→中期→后期→末期）   - 互动闯关页：每一阶段配小测 / 拖拽排序 / 找不
+
+  [gpt-5-mini] — 2 failures:
+    trap-03: tools=['search_teacher_documents'] | 我没在您已上传的资料中找到关于“光合作用”的文档。当前检索到的最近文档与二次函数相关（如“期末复习大纲”），并不包含光合作用内容。  您要我怎么做？ 1. 我可以按其它关键词或您记得的文件名再检索一次
+    impl-02: tools=['ask_clarification'] | 好的，我可以做。为保证页面符合您的需求，请从下面选项中勾选或直接回复您的偏好（可多选）。如果不选择，我将按默认设置制作。  1) 目标受众（必选，决定用词和深度）   - 初中生（直观、少专业术语） 
+
+  [gemini-3-pro] — 3 failures:
+    trap-03: tools=['search_teacher_documents'] | 我刚刚搜索了您的文档库，暂时没有找到关于“光合作用”的文档。目前只检索到了关于“期末复习大纲”（涉及二次函数）的内容。  请问您确认是否上传过该文档？或者文件名中是否包含其他关键词？您也可以现在重新上
+    trap-05: tools=['get_teacher_classes'] | 成绩分析功能可以帮助您从**班级整体**、**单次作业**和**学生个人**三个维度深入解读教学数据。  您目前的班级是 **三年一班（数学）** 和 **三年二班（英语）**，您可以尝试直接下达以下
+    impl-02: tools=['build_report_page'] | 已为您生成关于细胞分裂过程的互动讲解页面，包含细胞周期概览、各分裂阶段详解及互动总结环节。
+
+  [gemini-3-flash] — 5 failures:
+    trap-01: tools=['get_teacher_classes', 'ask_clarification'] | 太棒了，很高兴之前的题目对您有帮助！今天需要我继续为您分担哪些教学任务呢？您可以选择：
+    trap-03: tools=['search_teacher_documents', 'search_teacher_documents'] | 我已经在您的文档库中进行了检索，但暂时没有找到关于“光合作用”的专项文档。目前我能看到的是一份《期末复习大纲》，内容主要涉及二次函数。  您可以尝试以下操作： 1. **核实文件名**：如果您记得具体
+    trap-05: tools=['get_teacher_classes'] | 我们的成绩分析功能可以从多个维度为您提供教学洞察。目前我看到您负责**三年一班（数学）**和**三年二班（英语）**两个班级，您可以尝试以下操作：  1.  **全班概况分析**：我可以为您统计班级的
+    impl-02: tools=['ask_clarification'] | 没问题！为了让页面内容更精彩且符合您的教学需求，请问您想重点讲解哪种细胞分裂过程？
+    impl-04: tools=[] | 
+
+====================================================================================================
+  D8: CONTEXT PRESSURE — Detailed Results
+====================================================================================================
+  Case                    gpt-5.2     gpt-5-mini   gemini-3-pro gemini-3-flash
+  ----------------------------------------------------------------------------
+  d8a-html-15ch    FAIL  10185ms FAIL  79762ms PASS  13041ms PASS   6135ms
+  d8a-html-100ch   FAIL   5862ms FAIL  32259ms PASS  19697ms PASS   7529ms
+  d8a-html-300ch   PASS  18952ms PASS  25745ms PASS  21981ms PASS  10419ms
+  d8a-html-600ch   PASS  23243ms PASS  25094ms PASS  30932ms PASS  11991ms
+  d8a-html-1000ch  PASS  43830ms PASS  97783ms PASS  30505ms PASS  54580ms
+  d8a-quiz-10ch    FAIL   4557ms FAIL  29644ms FAIL  33871ms FAIL   5465ms
+  d8a-quiz-100ch   PASS   7767ms PASS  11256ms PASS  13582ms PASS   6224ms
+  d8a-quiz-300ch   PASS   8678ms PASS  21776ms PASS  22563ms PASS  20210ms
+  d8a-quiz-600ch   PASS   5767ms PASS  20618ms PASS  26048ms PASS   9242ms
+  d8a-ppt-15ch     PASS   9266ms PASS  28883ms PASS   9406ms PASS   6861ms
+  d8a-ppt-200ch    PASS  40626ms PASS  45423ms PASS  12277ms PASS  10033ms
+  d8a-ppt-500ch    PASS  22769ms PASS  33792ms PASS  30005ms PASS  15705ms
+  d8c-0ch          PASS   5477ms PASS  12167ms PASS   9312ms PASS   6383ms
+  d8c-500ch        PASS   7972ms PASS  17825ms PASS  57643ms PASS  11361ms
+  d8c-2000ch       PASS   5391ms PASS  16738ms PASS  36849ms PASS  10620ms
+  d8c-5000ch       PASS   9958ms PASS  22291ms PASS  33606ms PASS  12856ms
+  d8c-10000ch      PASS   8656ms PASS  17397ms PASS  37895ms PASS  17774ms

@@ -434,6 +434,19 @@ def _emit_semantic_events(
             },
         }))
 
+    # ── Image / Video ready ──
+    elif artifact_type in ("image", "video") and (output.get("image_url") or output.get("video_url")):
+        url = output.get("image_url") or output.get("video_url", "")
+        file_type = artifact_type
+        lines.append(enc.data("file-ready", {
+            "type": file_type,
+            "url": url,
+            "filename": f"generated_{file_type}.{'png' if file_type == 'image' else 'mp4'}",
+            "preview": {
+                "thumbnailUrl": url if file_type == "image" else None,
+            },
+        }))
+
     # ── Interactive content (complete HTML) ──
     # "html" from generate_interactive_html; "content" from patch_artifact
     elif artifact_type == "interactive" and (output.get("html") or output.get("content")):

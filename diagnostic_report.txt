@@ -1,0 +1,191 @@
+==========================================================================================
+  TOOL CALLING DIAGNOSTIC REPORT
+==========================================================================================
+
+             Model |    zh-tool |    en-tool |    zh-chat |    en-chat |            Diagnosis
+  --------------------------------------------------------------------------------------
+      glm-4.7-intl |       PASS |       PASS |       PASS |       PASS |             ALL GOOD
+           glm-4.7 |       PASS |       PASS |       PASS |       PASS |             ALL GOOD
+         qwen3-max |       PASS |       PASS |       PASS |       PASS |             ALL GOOD
+       qwen3-coder |       PASS |       PASS |       PASS |       PASS |             ALL GOOD
+     glm-4.7f-intl |       PASS |       PASS |       PASS |       PASS |             ALL GOOD
+           gpt-5.2 |      ERROR |      ERROR |      ERROR |      ERROR |             API DEAD
+        gpt-5-mini |      ERROR |      ERROR |      ERROR |      ERROR |             API DEAD
+      gemini-3-pro |      ERROR |      ERROR |      ERROR |      ERROR |             API DEAD
+    gemini-3-flash |      ERROR |      ERROR |      ERROR |      ERROR |             API DEAD
+
+==========================================================================================
+  DETAILED OUTPUT
+==========================================================================================
+
+  ── glm-4.7-intl ──
+    [zh-tool] PASS
+      message: 帮我出5道数学选择题
+      tools:   generate_quiz_questions, ask_clarification
+      output:  请问您想生成哪个主题的数学选择题？↵↵- 代数-二次函数↵- 代数-方程与不等式↵- 几何-三角函数↵- 几何-圆与椭圆↵- 概率与统计↵- 数列与极限↵- 微积分基础
+      latency: 32155ms
+    [en-tool] PASS
+      message: Generate 5 math multiple choice quiz questions for my students
+      tools:   generate_quiz_questions
+      output:  I've generated 5 math multiple choice quiz questions for your students. The questions cover fundamental math concepts and are ready to use in your classroom. Each question includes multiple answer opt
+      latency: 10889ms
+    [zh-chat] PASS
+      message: 你好
+      output:  你好！我是 Insight AI 教育助手，很高兴为您服务。我可以帮助您完成各种教学任务，比如：↵↵- 查看班级信息和学生学习情况↵- 生成教学题目、互动课件和教案↵- 分析学生成绩和作业提交情况↵- 检索您上传的教学文档和知识库内容↵↵请问有什么我可以帮助您的吗？
+      latency: 3612ms
+    [en-chat] PASS
+      message: Hello
+      output:  Hello! I'm here to help you with your teaching tasks. What can I assist you with today?
+      latency: 1330ms
+
+  ── glm-4.7 ──
+    [zh-tool] PASS
+      message: 帮我出5道数学选择题
+      tools:   ask_clarification, ask_clarification, generate_quiz_questions
+      output:  已为您生成5道数学选择题，主题为二次函数，包含标准答案与解析。
+      latency: 30277ms
+    [en-tool] PASS
+      message: Generate 5 math multiple choice quiz questions for my students
+      tools:   generate_quiz_questions
+      output:  I've generated 5 math multiple choice quiz questions for your students. The questions cover fundamental math concepts and are ready for use in your classroom.
+      latency: 3247ms
+    [zh-chat] PASS
+      message: 你好
+      output:  你好！我是 Insight AI 教育助手，很高兴为您服务。↵↵我可以帮助您完成各种教学任务，例如：↵- 📊 查看和管理班级信息、学生成绩↵- 📝 生成测试题目、教案、教学课件↵- 🔍 检索和整理教学资料↵- 📈 分析学生学习情况↵↵请问有什么可以帮您的吗？
+      latency: 3554ms
+    [en-chat] PASS
+      message: Hello
+      output:  你好！我是 Insight AI 教育助手，很高兴为你服务。我可以帮你完成各种教学相关的任务，比如：↵↵- 查看班级和学生信息↵- 分析作业成绩↵- 生成教学题目和课件↵- 搜索教学文档↵↵有什么我可以帮你的吗？
+      latency: 4251ms
+
+  ── qwen3-max ──
+    [zh-tool] PASS
+      message: 帮我出5道数学选择题
+      tools:   generate_quiz_questions
+      output:  已为您生成5道数学选择题，涵盖基础运算等内容。题目已准备就绪，您可以直接使用或进行调整。
+      latency: 16060ms
+    [en-tool] PASS
+      message: Generate 5 math multiple choice quiz questions for my students
+      tools:   generate_quiz_questions
+      output:  I've generated 5 math multiple choice questions for your students. The quiz is ready and available for you to review and use.
+      latency: 4877ms
+    [zh-chat] PASS
+      message: 你好
+      output:  你好！我是 Insight AI 教育助手，有什么教学相关的问题我可以帮您解决吗？
+      latency: 7754ms
+    [en-chat] PASS
+      message: Hello
+      output:  Hello! How can I assist you with your teaching tasks today?
+      latency: 2204ms
+
+  ── qwen3-coder ──
+    [zh-tool] PASS
+      message: 帮我出5道数学选择题
+      tools:   generate_quiz_questions
+      output:  已为您生成5道数学选择题，涵盖基础运算知识点。题目已准备好供您使用。
+      latency: 8466ms
+    [en-tool] PASS
+      message: Generate 5 math multiple choice quiz questions for my students
+      tools:   generate_quiz_questions
+      output:  已为您生成5道数学选择题，涵盖基础运算知识点。题目已准备好，您可以直接使用。
+      latency: 4971ms
+    [zh-chat] PASS
+      message: 你好
+      output:  您好！我是 Insight AI 教育助手，很高兴为您服务。我可以帮助您完成各种教学相关任务，比如：↵↵- 生成练习题、测验或考试题目↵- 创建教学 PPT 和课程材料  ↵- 分析学生作业和成绩数据↵- 制作互动教学网页↵- 根据您的知识库文档生成教学内容↵↵请问您今天需要什么帮助呢？
+      latency: 2623ms
+    [en-chat] PASS
+      message: Hello
+      output:  您好！我是 Insight AI 教育助手，很高兴为您服务。我可以帮助您完成各种教学相关任务，比如：↵↵- 生成练习题、测验或考试题目↵- 创建教学 PPT 和互动课件↵- 分析学生学习数据和成绩↵- 制作教学报告和统计图表↵- 根据您的知识库文档生成教学内容↵↵您希望我协助您完成什么任务呢？
+      latency: 2821ms
+
+  ── glm-4.7f-intl ──
+    [zh-tool] PASS
+      message: 帮我出5道数学选择题
+      tools:   ask_clarification
+      output:  您想要什么科目的题目呢？我提供以下选项：↵↵- **数学-二次函数**：关于二次函数的性质、图像、方程求解等↵- **英语-语法**：英语语法知识选择题↵- **物理-力学**：力学概念和计算题↵↵请选择一个您需要的科目方向。
+      latency: 8612ms
+    [en-tool] PASS
+      message: Generate 5 math multiple choice quiz questions for my students
+      tools:   generate_quiz_questions
+      output:  已为您生成5道数学选择题，涵盖基础运算、代数方程、函数图像、几何计算和概率统计等核心主题。题目包含选项和正确答案，可直接用于课堂测验或在线作业。
+      latency: 4830ms
+    [zh-chat] PASS
+      message: 你好
+      output:  您好！我是您的教育 AI 助手，很高兴为您服务。↵↵我可以帮您完成各种教学任务，比如：↵- 📚 查看班级信息和学生名单↵- 📝 查看作业提交和成绩分析↵- 📊 生成测验题目或练习题↵- 📄 制作 PPT 教学课件↵- 🔍 检索教学文档和资料↵↵请问今天有什么需要我帮忙的吗？
+      latency: 3399ms
+    [en-chat] PASS
+      message: Hello
+      output:  你好！我是你的教育 AI 助手，随时准备帮你完成各种教学任务。😊↵↵我可以帮你：↵- 查询班级学生、作业提交和成绩数据↵- 生成题目和测试卷↵- 制作 PPT 课件↵- 搜索教学文档和资料↵- 分析班级情况并生成报告↵↵有什么我可以帮你的吗？
+      latency: 4043ms
+
+  ── gpt-5.2 ──
+    [zh-tool] ERROR
+      message: 帮我出5道数学选择题
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5.2, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_paramete
+      latency: 5155ms
+    [en-tool] ERROR
+      message: Generate 5 math multiple choice quiz questions for my students
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5.2, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_paramete
+      latency: 904ms
+    [zh-chat] ERROR
+      message: 你好
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5.2, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_paramete
+      latency: 3109ms
+    [en-chat] ERROR
+      message: Hello
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5.2, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_paramete
+      latency: 3797ms
+
+  ── gpt-5-mini ──
+    [zh-tool] ERROR
+      message: 帮我出5道数学选择题
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5-mini, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_param
+      latency: 5546ms
+    [en-tool] ERROR
+      message: Generate 5 math multiple choice quiz questions for my students
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5-mini, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_param
+      latency: 2916ms
+    [zh-chat] ERROR
+      message: 你好
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5-mini, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_param
+      latency: 2501ms
+    [en-chat] ERROR
+      message: Hello
+      error:   ModelHTTPError: status_code: 400, model_name: gpt-5-mini, body: {'message': "Unknown parameter: 'enable_thinking'.", 'type': 'invalid_request_error', 'param': 'enable_thinking', 'code': 'unknown_param
+      latency: 2861ms
+
+  ── gemini-3-pro ──
+    [zh-tool] ERROR
+      message: 帮我出5道数学选择题
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-pro-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more info
+      latency: 5717ms
+    [en-tool] ERROR
+      message: Generate 5 math multiple choice quiz questions for my students
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-pro-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more info
+      latency: 5246ms
+    [zh-chat] ERROR
+      message: 你好
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-pro-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more info
+      latency: 3093ms
+    [en-chat] ERROR
+      message: Hello
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-pro-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more info
+      latency: 2589ms
+
+  ── gemini-3-flash ──
+    [zh-tool] ERROR
+      message: 帮我出5道数学选择题
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-flash-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more in
+      latency: 6167ms
+    [en-tool] ERROR
+      message: Generate 5 math multiple choice quiz questions for my students
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-flash-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more in
+      latency: 2618ms
+    [zh-chat] ERROR
+      message: 你好
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-flash-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more in
+      latency: 2509ms
+    [en-chat] ERROR
+      message: Hello
+      error:   ModelHTTPError: status_code: 429, model_name: gemini-3-flash-preview, body: {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more in
+      latency: 2857ms

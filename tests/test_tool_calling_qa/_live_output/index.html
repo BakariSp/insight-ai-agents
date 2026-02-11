@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D9 Live Monitor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',-apple-system,'Microsoft YaHei',sans-serif;background:#0d1117;color:#e6edf3;padding:20px 28px;min-height:100vh}
+
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.header h1{font-size:18px;font-weight:600;letter-spacing:.3px}
+.elapsed{font-size:12px;color:#7d8590;margin-top:2px}
+.badge{display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.badge.running{background:#1f6feb33;color:#58a6ff;animation:pulse-bg 2s infinite}
+.badge.completed{background:#23863533;color:#3fb950}
+.badge.pending{background:#30363d;color:#7d8590}
+.model-tag{font-size:11px;color:#7d8590;margin-left:10px;padding:2px 8px;border:1px solid #30363d;border-radius:4px}
+
+.stats{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.stat{flex:1;min-width:80px;background:#161b22;border:1px solid #21262d;border-radius:8px;padding:10px 16px;text-align:center}
+.stat .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .l{font-size:10px;color:#7d8590;margin-top:2px;text-transform:uppercase;letter-spacing:.8px}
+.stat.s-pass .v{color:#3fb950}
+.stat.s-fail .v{color:#f85149}
+.stat.s-run  .v{color:#58a6ff}
+.stat.s-pend .v{color:#7d8590}
+.stat.s-rate .v{color:#d2a8ff}
+
+.progress{width:100%;height:5px;background:#21262d;border-radius:3px;margin-bottom:20px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width .6s ease;background:linear-gradient(90deg,#3fb950 0%,#58a6ff 100%)}
+
+table{width:100%;border-collapse:collapse;background:#161b22;border-radius:8px;overflow:hidden;border:1px solid #21262d}
+thead{background:#1c2128}
+th{padding:8px 12px;text-align:left;font-size:11px;color:#7d8590;text-transform:uppercase;letter-spacing:.5px;font-weight:600;border-bottom:1px solid #30363d;white-space:nowrap}
+td{padding:7px 12px;border-top:1px solid #21262d;font-size:12px;vertical-align:top}
+tbody tr:hover{background:#1c212844}
+tbody tr.clickable{cursor:pointer}
+
+.dim-row td{background:#1c2128;font-weight:600;color:#c9d1d9;font-size:12px;border-top:2px solid #30363d;letter-spacing:.3px;padding:6px 14px}
+
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.dot.passed{background:#3fb950}
+.dot.failed{background:#f85149}
+.dot.running{background:#58a6ff;animation:pulse 1.2s infinite}
+.dot.pending{background:#484f58}
+
+.cell-pass{color:#3fb950}
+.cell-fail{color:#f85149}
+.cell-run{color:#58a6ff}
+.cell-pend{color:#484f58}
+
+.verdict{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.verdict.pass{color:#3fb950}
+.verdict.fail{color:#f85149}
+
+.tool-tag{display:inline-block;padding:1px 6px;background:#1f6feb1a;color:#58a6ff;border-radius:3px;font-size:10px;margin:1px 1px;font-family:'Cascadia Code','Fira Code',monospace}
+.latency{color:#7d8590;font-variant-numeric:tabular-nums;font-size:11px;text-align:right}
+
+/* Multi-model cell */
+.mcell{text-align:center;min-width:90px;font-size:11px;padding:4px 8px;cursor:pointer}
+.mcell .ms{font-weight:600}
+.mcell .ml{font-size:10px;color:#7d8590;margin-top:1px}
+
+/* Detail panel */
+.detail-row td{padding:0 14px 10px 14px;border-top:none}
+.detail-box{background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:12px 14px;font-size:12px;font-family:'Cascadia Code','Fira Code','Microsoft YaHei',monospace;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow-y:auto;color:#c9d1d9;line-height:1.5}
+
+/* Model summary bar */
+.model-summary{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.model-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:8px 14px;flex:1;min-width:120px}
+.model-card .name{font-size:12px;font-weight:600;color:#c9d1d9}
+.model-card .rate{font-size:20px;font-weight:700;margin-top:2px}
+.model-card .bar{height:3px;background:#21262d;border-radius:2px;margin-top:4px;overflow:hidden}
+.model-card .bar-fill{height:100%;border-radius:2px;transition:width .5s}
+
+.footer{margin-top:14px;text-align:center;font-size:11px;color:#484f58}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes pulse-bg{0%,100%{background:#1f6feb33}50%{background:#1f6feb55}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1 id="title">D9 Execution Fidelity</h1>
+    <div class="elapsed" id="elapsed">waiting for data...</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span class="badge pending" id="badge">PENDING</span>
+    <span class="model-tag" id="model"></span>
+  </div>
+</div>
+
+<div class="stats" id="stats-row">
+  <div class="stat s-pass"><div class="v" id="n-pass">0</div><div class="l">Passed</div></div>
+  <div class="stat s-fail"><div class="v" id="n-fail">0</div><div class="l">Failed</div></div>
+  <div class="stat s-run"><div class="v" id="n-run">0</div><div class="l">Running</div></div>
+  <div class="stat s-pend"><div class="v" id="n-pend">0</div><div class="l">Pending</div></div>
+  <div class="stat s-rate"><div class="v" id="n-rate">-</div><div class="l">Pass Rate</div></div>
+</div>
+
+<div class="progress"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+
+<div class="model-summary" id="model-summary" style="display:none"></div>
+
+<table>
+<thead id="thead"><tr>
+  <th style="width:32px">#</th>
+  <th style="width:76px">Case</th>
+  <th>Description</th>
+  <th style="width:68px">Status</th>
+  <th>Verdict</th>
+  <th style="width:180px">Tools Called</th>
+  <th style="width:70px;text-align:right">Latency</th>
+</tr></thead>
+<tbody id="tbody"></tbody>
+</table>
+
+<div class="footer">
+  Auto-refresh 1.5s &middot; <span id="ts">-</span>
+  &middot; <a href="results.json" target="_blank" style="color:#58a6ff;text-decoration:none">raw JSON</a>
+</div>
+
+<script>
+const DIM = {"D9a":"Promise Without Execution","D9b":"Clarification Loop","D9c":"Intent Lost After Clarify"};
+let expanded = new Set();
+let prevData = null;
+let selectedModel = null; // for multi-model detail view
+
+function el(s) { const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+function elapsed(t0,t1) { const s=Math.floor((t1||Date.now()/1000)-t0); const m=Math.floor(s/60); return m>0?m+"m "+(s%60)+"s":s+"s"; }
+
+function statusClass(s) {
+  if (s==="passed") return "cell-pass";
+  if (s==="failed") return "cell-fail";
+  if (s==="running") return "cell-run";
+  return "cell-pend";
+}
+
+// ── Count helpers ──
+function countSingle(cases) {
+  let p=0,f=0,r=0,w=0;
+  cases.forEach(c=>{if(c.status==="passed")p++;else if(c.status==="failed")f++;else if(c.status==="running")r++;else w++;});
+  return {p,f,r,w};
+}
+function countMulti(cases, models) {
+  let p=0,f=0,r=0,w=0;
+  cases.forEach(c=>{
+    models.forEach(m=>{
+      const e=c.models&&c.models[m];
+      if(!e||e.status==="pending")w++;
+      else if(e.status==="passed")p++;
+      else if(e.status==="failed")f++;
+      else if(e.status==="running")r++;
+      else w++;
+    });
+  });
+  return {p,f,r,w};
+}
+
+// ── Render: Single model ──
+function renderSingle(data) {
+  const cases = data.cases||[];
+  const {p,f,r,w} = countSingle(cases);
+  updateStats(p,f,r,w,cases.length);
+
+  document.getElementById("model-summary").style.display = "none";
+  // Reset header
+  document.getElementById("thead").innerHTML = '<tr><th style="width:32px">#</th><th style="width:76px">Case</th><th>Description</th><th style="width:68px">Status</th><th>Verdict</th><th style="width:180px">Tools Called</th><th style="width:70px;text-align:right">Latency</th></tr>';
+
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+  let curDim="", idx=0;
+
+  cases.forEach(c=>{
+    if(c.sub_dim&&c.sub_dim!==curDim){curDim=c.sub_dim;const dr=document.createElement("tr");dr.className="dim-row";dr.innerHTML='<td colspan="7">'+el(c.sub_dim)+": "+(DIM[c.sub_dim]||"")+"</td>";tbody.appendChild(dr);}
+    idx++;
+    const tr=document.createElement("tr");tr.className="clickable";tr.onclick=()=>toggle(c.case_id);
+    const vc=c.status==="passed"?"pass":(c.status==="failed"?"fail":"");
+    const tools=(c.tool_calls||[]).map(t=>'<span class="tool-tag">'+el(typeof t==="string"?t:(t.name||""))+"</span>").join("");
+    const lat=c.latency_ms?Math.round(c.latency_ms)+"ms":"-";
+    tr.innerHTML='<td>'+idx+'</td><td><strong>'+el(c.case_id)+'</strong></td><td>'+el(c.description||"")+'</td><td><span class="dot '+c.status+'"></span>'+c.status+'</td><td><div class="verdict '+vc+'">'+el(c.verdict||"")+'</div></td><td>'+tools+'</td><td class="latency">'+lat+'</td>';
+    tbody.appendChild(tr);
+
+    if(expanded.has(c.case_id)){appendDetail(tbody,c,7);}
+  });
+}
+
+// ── Render: Multi-model matrix ──
+function renderMulti(data) {
+  const S=data.session;
+  const models=S.models||[];
+  const cases=data.cases||[];
+  const {p,f,r,w}=countMulti(cases,models);
+  const total=cases.length*models.length;
+  updateStats(p,f,r,w,total);
+
+  // Model summary cards
+  const msDiv=document.getElementById("model-summary");
+  msDiv.style.display="flex";
+  msDiv.innerHTML="";
+  models.forEach(m=>{
+    let mp=0,mf=0,mt=0;
+    cases.forEach(c=>{const e=c.models&&c.models[m];if(e){mt++;if(e.status==="passed")mp++;else if(e.status==="failed")mf++;}});
+    const pct=mt?Math.round(mp/Math.max(mp+mf,1)*100):0;
+    const color=pct>=90?"#3fb950":pct>=70?"#d29922":"#f85149";
+    const card=document.createElement("div");card.className="model-card";
+    card.innerHTML='<div class="name">'+el(m)+'</div><div class="rate" style="color:'+color+'">'+(mp+mf>0?pct+"%":"-")+'</div><div style="font-size:10px;color:#7d8590">'+mp+"/"+(mp+mf)+'</div><div class="bar"><div class="bar-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
+    msDiv.appendChild(card);
+  });
+
+  // Matrix header
+  const ncols=4+models.length;
+  let hdr='<tr><th style="width:32px">#</th><th style="width:76px">Case</th><th>Description</th>';
+  models.forEach(m=>{hdr+='<th style="text-align:center;min-width:90px">'+el(m)+'</th>';});
+  hdr+='<th style="width:60px">Sub</th></tr>';
+  document.getElementById("thead").innerHTML=hdr;
+
+  const tbody=document.getElementById("tbody");
+  tbody.innerHTML="";
+  let curDim="",idx=0;
+
+  cases.forEach(c=>{
+    if(c.sub_dim&&c.sub_dim!==curDim){curDim=c.sub_dim;const dr=document.createElement("tr");dr.className="dim-row";dr.innerHTML='<td colspan="'+ncols+'">'+el(c.sub_dim)+": "+(DIM[c.sub_dim]||"")+"</td>";tbody.appendChild(dr);}
+    idx++;
+    const tr=document.createElement("tr");tr.className="clickable";
+    tr.onclick=()=>toggle(c.case_id);
+    let cells='<td>'+idx+'</td><td><strong>'+el(c.case_id)+'</strong></td><td>'+el(c.description||"")+'</td>';
+
+    models.forEach(m=>{
+      const e=(c.models&&c.models[m])||{status:"pending"};
+      const sc=statusClass(e.status);
+      const lat=e.latency_ms?Math.round(e.latency_ms/1000)+"s":"";
+      cells+='<td class="mcell"><span class="dot '+e.status+'"></span><span class="ms '+sc+'">'+e.status+'</span><div class="ml">'+lat+'</div></td>';
+    });
+
+    cells+='<td style="font-size:10px;color:#7d8590">'+el(c.sub_dim||"")+'</td>';
+    tr.innerHTML=cells;
+    tbody.appendChild(tr);
+
+    // Expanded detail: show all model results
+    if(expanded.has(c.case_id)){
+      const dr=document.createElement("tr");dr.className="detail-row";
+      let txt="";
+      models.forEach(m=>{
+        const e=(c.models&&c.models[m]);
+        if(!e||e.status==="pending")return;
+        txt+="=== "+m+" ("+e.status+", "+Math.round(e.latency_ms||0)+"ms) ===\n";
+        txt+="Verdict: "+e.verdict+"\n";
+        if(e.tool_calls&&e.tool_calls.length){txt+="Tools: "+e.tool_calls.map(t=>t.name||t).join(", ")+"\n";}
+        if(e.output_text){txt+="Output: "+e.output_text.substring(0,200)+"\n";}
+        if(e.error){txt+="Error: "+e.error+"\n";}
+        txt+="\n";
+      });
+      if(!txt)txt="(no results yet)";
+      dr.innerHTML='<td colspan="'+ncols+'"><div class="detail-box">'+el(txt)+'</div></td>';
+      tbody.appendChild(dr);
+    }
+  });
+}
+
+// ── Shared helpers ──
+function updateStats(p,f,r,w,total) {
+  document.getElementById("n-pass").textContent=p;
+  document.getElementById("n-fail").textContent=f;
+  document.getElementById("n-run").textContent=r;
+  document.getElementById("n-pend").textContent=w;
+  const done=p+f;
+  document.getElementById("n-rate").textContent=done?Math.round(p/done*100)+"%":"-";
+  document.getElementById("prog").style.width=(total?(done/total*100):0)+"%";
+}
+
+function appendDetail(tbody,c,colspan) {
+  if(!(c.output_text||c.error||(c.tool_calls&&c.tool_calls.length)))return;
+  const dr=document.createElement("tr");dr.className="detail-row";
+  let txt="";
+  if(c.error)txt+="[Error] "+c.error+"\n\n";
+  if(c.output_text)txt+="[LLM Output]\n"+c.output_text+"\n";
+  if(c.flags)txt+="\n[Flags] promise="+c.flags.promise+", reclarify="+c.flags.reclarify;
+  if(c.tool_calls&&c.tool_calls.length){txt+="\n\n[Tool Calls]";c.tool_calls.forEach(t=>{const a=typeof t.args==="object"?JSON.stringify(t.args,null,2):(t.args||"");txt+="\n  "+(t.name||t)+"("+a+")";});}
+  dr.innerHTML='<td colspan="'+colspan+'"><div class="detail-box">'+el(txt)+'</div></td>';
+  tbody.appendChild(dr);
+}
+
+function toggle(id){expanded.has(id)?expanded.delete(id):expanded.add(id);if(prevData)render(prevData);}
+
+function render(data) {
+  prevData=data;
+
+  // Save scroll positions before re-render
+  const savedPageScroll = window.scrollY;
+  const savedDetailScrolls = {};
+  document.querySelectorAll(".detail-row .detail-box").forEach(box => {
+    const row = box.closest(".detail-row");
+    const prev = row && row.previousElementSibling;
+    if (prev) {
+      const caseId = prev.querySelector("td:nth-child(2)")?.textContent?.trim();
+      if (caseId && box.scrollTop > 0) savedDetailScrolls[caseId] = box.scrollTop;
+    }
+  });
+
+  const S=data.session||{};
+  document.getElementById("title").textContent=S.suite||"D9 Execution Fidelity";
+  document.getElementById("model").textContent=S.mode==="multi"?(S.models||[]).length+" models":(S.model||"");
+  const b=document.getElementById("badge");b.textContent=(S.status||"pending").toUpperCase();b.className="badge "+(S.status||"pending");
+  if(S.start_time){document.getElementById("elapsed").textContent="Elapsed: "+elapsed(S.start_time,S.end_time)+"  |  "+S.total_cases+" cases"+(S.mode==="multi"?" x "+(S.models||[]).length+" models":"");}
+
+  if(S.mode==="multi")renderMulti(data);
+  else renderSingle(data);
+
+  document.getElementById("ts").textContent=new Date().toLocaleTimeString();
+
+  // Restore scroll positions after re-render
+  window.scrollTo(0, savedPageScroll);
+  document.querySelectorAll(".detail-row .detail-box").forEach(box => {
+    const row = box.closest(".detail-row");
+    const prev = row && row.previousElementSibling;
+    if (prev) {
+      const caseId = prev.querySelector("td:nth-child(2)")?.textContent?.trim();
+      if (caseId && savedDetailScrolls[caseId]) box.scrollTop = savedDetailScrolls[caseId];
+    }
+  });
+}
+
+async function poll(){try{const r=await fetch("results.json?_="+Date.now());if(r.ok)render(await r.json());}catch(e){}}
+poll();setInterval(poll,1500);
+</script>
+</body>
+</html>

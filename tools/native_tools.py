@@ -686,7 +686,7 @@ async def generate_interactive_html(
     ```
 
     可选声音: Tongtong(温柔女声), Chuichui(童声), Xiaochen(亲切女声),
-    Jam(磁性男声), Kazi(女声), Douji(沉稳男声), Luodo(女声), Kelly(粤语)
+    Jam(磁性男声), Kazi(女声), Douji(沉稳男声), Luodo(女声), Kelly(粤语女声), Rocky(粤语男声)
     返回 Promise，音频播放结束后 resolve。
     `onPlaying` 回调在音频开始播放时触发（生成完成）。
     `InsightAI.stopSpeaking()` — 立即停止当前朗读，无参数。
@@ -719,12 +719,24 @@ async def generate_interactive_html(
     | 英语对话/角色扮演 | Jam(磁性男声) | Tongtong(女声) |
     | 中文对话/讲解 | Tongtong(温柔女声) | Douji(沉稳男声) |
     | 儿童/低龄内容 | Chuichui(童声) | Xiaochen(亲切女声) |
-    | 粤语内容 | Kelly | — |
+    | 粤语内容(女性/旁白) | Kelly(粤语女声) | — |
+    | 粤语内容(男性角色) | Rocky(粤语男声) | — |
 
     ### 不使用语音的场景
     - ❌ 纯数据图表展示（柱状图、饼图）
     - ❌ 物理/化学模拟动画（无文本朗读需求）
     - ❌ 纯数学计算/公式推导
+
+    ## 背景图片 / 装饰图片
+
+    需要背景图或装饰图时，HTML 中可调用平台预置的
+    `InsightAI.generateImage(prompt, options)` 在运行时生成：
+    ```js
+    var result = await InsightAI.generateImage("描述画面内容", { size: "1792x1024" });
+    document.body.style.backgroundImage = "url(" + result.imageUrl + ")";
+    ```
+    返回 `Promise<{imageUrl: string}>`。sizes: 1024x1024, 1792x1024, 1024x1792。
+    生成需几秒，应显示加载状态。禁止编造图片 URL。
     """
     from tools.render_tools import generate_interactive_html as _interactive
 

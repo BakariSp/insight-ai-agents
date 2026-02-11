@@ -1,0 +1,10 @@
+INFO:     127.0.0.1:53868 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65033 - "POST /api/conversation/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62162 - "POST /api/conversation/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49575 - "POST /api/conversation/stream HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:52158 - "POST /api/conversation/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51816 - "GET /api/files/generated/afc827eb4d45445ebd15f6a7d3d9a289_Targeted_Practice_Exercises.docx HTTP/1.1" 200 OK
+         INFO:     127.0.0.1:63752 - "POST /api/conversation/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60914 - "POST /api/conversation/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58366 - "POST /api/conversation/stream HTTP/1.1" 200 OK
+                            

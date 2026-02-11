@@ -1,0 +1,60 @@
+﻿data: {"type": "start", "messageId": "38460714"}
+
+data: {"type": "data-conversation", "data": {"conversationId": "conv-86b26e46ae93"}}
+
+data: {"type": "start-step"}
+
+data: {"type": "reasoning-start", "id": "intent"}
+
+data: {"type": "reasoning-delta", "id": "intent", "delta": "Analyzing your request..."}
+
+data: {"type": "reasoning-delta", "id": "intent", "delta": "\nIdentified as: quiz_generate (confidence 90%)"}
+
+data: {"type": "reasoning-end", "id": "intent"}
+
+data: {"type": "finish-step"}
+
+data: {"type": "reasoning-start", "id": "77188505"}
+
+data: {"type": "reasoning-delta", "id": "77188505", "delta": "Analyzing quiz requirements: 10 questions on '计算机ICT'..."}
+
+data: {"type": "reasoning-delta", "id": "77188505", "delta": "\nSelecting question types and difficulty distribution..."}
+
+data: {"type": "reasoning-delta", "id": "77188505", "delta": "\nPreparing generation with LaTeX math formatting..."}
+
+data: {"type": "reasoning-end", "id": "77188505"}
+
+data: {"type": "data-action", "data": {"action": "quiz_generate"}}
+
+data: {"type": "text-start", "id": "346e6340"}
+
+data: {"type": "text-delta", "id": "346e6340", "delta": "好的，正在为你生成 10 道关于「计算机ICT」的题目（中等难度）..."}
+
+data: {"type": "text-end", "id": "346e6340"}
+
+data: {"type": "data-quiz-question", "data": {"index": 0, "question": {"id": "q-001", "order": 1, "questionType": "SINGLE_CHOICE", "question": "在TCP/IP模型中，哪一层负责数据的格式化和编码？", "options": ["应用层", "传输层", "网络层", "链路层"], "correctAnswer": "A", "explanation": "应用层直接为用户的应用进程提供服务，包括文件传输、电子邮件等。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-网络协议", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 1, "question": {"id": "q-002", "order": 2, "questionType": "SINGLE_CHOICE", "question": "下列哪个协议不是用于网页浏览的？", "options": ["HTTP", "HTTPS", "FTP", "SMTP"], "correctAnswer": "D", "explanation": "SMTP是简单邮件传输协议，主要用于发送邮件。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-网络协议", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 2, "question": {"id": "q-003", "order": 3, "questionType": "SINGLE_CHOICE", "question": "IPv6地址由多少位组成？", "options": ["32位", "64位", "128位", "256位"], "correctAnswer": "C", "explanation": "IPv6使用128位地址长度，以支持更多的设备连接到互联网。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-IP地址", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 3, "question": {"id": "q-004", "order": 4, "questionType": "SINGLE_CHOICE", "question": "以下哪种存储器是非易失性的？", "options": ["RAM", "ROM", "Cache", "Register"], "correctAnswer": "B", "explanation": "ROM（只读存储器）即使断电后也能保持信息不丢失。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-硬件", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 4, "question": {"id": "q-005", "order": 5, "questionType": "SINGLE_CHOICE", "question": "在数据库查询语言SQL中，用于从数据库中检索数据的关键字是什么？", "options": ["INSERT", "UPDATE", "DELETE", "SELECT"], "correctAnswer": "D", "explanation": "SELECT语句用来从一个或多个表中获取记录。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-数据库", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 5, "question": {"id": "q-006", "order": 6, "questionType": "SINGLE_CHOICE", "question": "如果一个程序在运行时需要动态地增加内存空间，它应该使用哪种类型的内存分配方式？", "options": ["静态分配", "栈分配", "堆分配", "寄存器分配"], "correctAnswer": "C", "explanation": "堆内存允许程序在运行时请求和释放任意大小的内存块。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-编程", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 6, "question": {"id": "q-007", "order": 7, "questionType": "SINGLE_CHOICE", "question": "在计算机安全领域，哪种攻击方式涉及通过发送大量请求来耗尽目标系统的资源，使其无法处理合法用户的请求？", "options": ["病毒", "钓鱼", "拒绝服务(DoS)", "恶意软件"], "correctAnswer": "C", "explanation": "拒绝服务攻击旨在使网络服务对正常用户不可用。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-网络安全", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 7, "question": {"id": "q-008", "order": 8, "questionType": "SINGLE_CHOICE", "question": "以下哪个选项不属于云计算的服务模式？", "options": ["IaaS", "PaaS", "SaaS", "DaaS"], "correctAnswer": "D", "explanation": "DaaS (Data as a Service) 并非广泛认可的云计算服务模式之一。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-云计算", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 8, "question": {"id": "q-009", "order": 9, "questionType": "SINGLE_CHOICE", "question": "在操作系统中，进程间通信可以通过什么机制实现？", "options": ["管道", "信号量", "消息队列", "以上都是"], "correctAnswer": "D", "explanation": "这些都属于进程间通信的不同方法。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-操作系统", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-question", "data": {"index": 9, "question": {"id": "q-010", "order": 10, "questionType": "SINGLE_CHOICE", "question": "在计算机科学中，算法的时间复杂度O(n^2)表示什么？", "options": ["线性时间", "对数时间", "平方时间", "常数时间"], "correctAnswer": "C", "explanation": "当一个算法的时间消耗与输入规模的平方成正比时，我们说它具有O(n^2)的时间复杂度。", "difficulty": "medium", "points": 1.0, "knowledgePoint": "计算机ICT-算法", "subQuestions": null}, "status": "generated"}}
+
+data: {"type": "data-quiz-complete", "data": {"total": 10, "message": "10 questions generated"}}
+
+data: {"type": "finish"}
+
+data: [DONE]
+

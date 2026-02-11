@@ -1,0 +1,1918 @@
+INFO:     Will watch for changes in these directories: ['D:\\Insight-AI\\insight-ai-agent']
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+INFO:     Started reloader process [193056] using WatchFiles
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [251260]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+list_classes: expected list, got <class 'NoneType'>
+WARNING:  WatchFiles detected changes in 'tools\quiz_tools.py'. Reloading...
+list_classes: expected list, got <class 'NoneType'>
+Search in workspace 'teacher-3' failed: No module named 'raganything'
+list_classes: expected list, got <class 'NoneType'>
+Search in workspace 'teacher-3' failed: No module named 'raganything'
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [251260]
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 96
+    "Ëøô‰∏™", "ÈÇ£‰∏™", "ÂÆ?, "‰∏ä‰∏Ä‰∏?, "‰∏ä‰∏ÄÁâ?, "ÂàöÊâç", "ÂàöÂàö", "‰πãÂâç", "‰∏äÈù¢",
+                                                                ^
+SyntaxError: unterminated string literal (detected at line 96)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+WARNING:  WatchFiles detected changes in 'tools\__init__.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 19, in <module>
+    from insight_backend.rag_engine import init_rag_engine
+  File "D:\Insight-AI\insight-ai-agent\insight_backend\rag_engine.py", line 19, in <module>
+    import numpy as np
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\__init__.py", line 125, in <module>
+    from numpy.__config__ import show_config
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\__config__.py", line 4, in <module>
+    from numpy._core._multiarray_umath import (
+    ...<3 lines>...
+    )
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\_core\__init__.py", line 24, in <module>
+    from . import multiarray
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\_core\multiarray.py", line 11, in <module>
+    from . import _multiarray_umath, overrides
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 851, in get_code
+  File "<frozen importlib._bootstrap_external>", line 950, in get_data
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 96
+    "Ëøô‰∏™", "ÈÇ£‰∏™", "ÂÆ?, "‰∏ä‰∏Ä‰∏?, "‰∏ä‰∏ÄÁâ?, "ÂàöÊâç", "ÂàöÂàö", "‰πãÂâç", "‰∏äÈù¢",
+                                                                ^
+SyntaxError: unterminated string literal (detected at line 96)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 888
+    yield enc.text_delta(tid, f"Â∑≤Ê†πÊç\ue1bdÇ®ÁöÑË\ue6e6Ê±Ç‰øÆÊîπ‰∫Ü‰∫íÂä®ÂÜÖÂ\ue190„Ä?)
+                              ^
+SyntaxError: unterminated f-string literal (detected at line 888)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 1287
+    f"Â∑≤È\u20acöËøá Unified Agent ÁîüÊàêÈ¢òÁõÆÔºàmodel={chosen_model}Ôºâ„\u20ac?,
+    ^
+SyntaxError: unterminated f-string literal (detected at line 1287)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 1875
+    if "Â∑≤ÁîüÊà? in lower and ("ÊñáÊ°£" in lower or "docx" in lower or "pdf" in lower):
+                               ^
+SyntaxError: invalid character '°£' (U+3002)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 2078
+    f"\n[Â∑≤ÁîüÊàê{file_type}ÊñáÊ°£: {result.get('filename', '')}]"
+                       ^
+SyntaxError: f-string: single '}' is not allowed
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 2094
+    f"\n[Â∑≤ÁîüÊàêPPTÂ§ßÁ∫≤: {result.get('title', '')}Ôº?
+    ^
+SyntaxError: unterminated f-string literal (detected at line 2094)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [102420]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+list_classes: expected list, got <class 'NoneType'>
+list_classes: expected list, got <class 'NoneType'>
+Agent model anthropic/claude-opus-4-6 failed (provider error), will try fallback: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwri7suLg92G8KY8qD7B'}
+Agent fallback: attempt 2 using dashscope/qwen-max (previous failed: anthropic/claude-opus-4-6: ModelHTTPError: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwri7suLg92G8KY8qD7B'})
+Agent model anthropic/claude-opus-4-6 failed (provider error), will try fallback: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwri7ueEMCMFsB4sdsMr'}
+Agent fallback: attempt 2 using dashscope/qwen-max (previous failed: anthropic/claude-opus-4-6: ModelHTTPError: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwri7ueEMCMFsB4sdsMr'})
+list_classes: expected list, got <class 'NoneType'>
+list_classes: expected list, got <class 'NoneType'>
+Agent model anthropic/claude-opus-4-6 failed (provider error), will try fallback: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwrnTN35tYGRsMwE5ZZQ'}
+Agent fallback: attempt 2 using dashscope/qwen-max (previous failed: anthropic/claude-opus-4-6: ModelHTTPError: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwrnTN35tYGRsMwE5ZZQ'})
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Search in workspace 'teacher-5f42c6d9-3b76-4a8d-9d3c-2f3e9b5f4e5d' failed: No module named 'raganything'
+list_classes: expected list, got <class 'NoneType'>
+[UnifiedAgent] Structured output failed, attempting repair pass. raw_body_len=0
+Agent path error (attempt 2/2)
+Traceback (most recent call last):
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_output.py", line 625, in process
+    output = self.validate(data, allow_partial=allow_partial, validation_context=run_context.validation_context)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_output.py", line 648, in validate
+    return self.validator.validate_json(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        data or '{}', allow_partial=pyd_allow_partial, context=validation_context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for FinalResult
+  Invalid JSON: expected ident at line 1 column 2 [type=json_invalid, input_value="It appears that there ar... would like to proceed.", input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/json_invalid
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 721, in _run_stream
+    self._next_node = await self._handle_text_response(ctx, text, text_processor)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 798, in _handle_text_response
+    result_data = await text_processor.process(text, run_context=run_context)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_output.py", line 631, in process
+    raise ToolRetryError(m) from e
+pydantic_ai.exceptions.ToolRetryError: 1 validation error
+__root__
+  Invalid JSON: expected ident at line 1 column 2 [type=json_invalid, input_value="It appears that there are no available rubrics specifically for a Grade 10 Math class based on the information provided. This could mean that either the rubrics have not been set up, or the system does not have any records for a Grade 10 Math class under the given filters.\n\nTo move forward, we need to obtain the correct teacher's UUID or the specific class ID for the Grade 10 Math class. If you can provide this information, I will be able to gather the necessary data and prepare the comprehensive student reports for the parent meeting.\n\nIf you do not have this information, perhaps we can try another approach. Do you have access to any other details such as a list of students in the class, or any document that might reference the class? Let me know how you would like to proceed."]
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 1716, in _stream_agent_mode
+    model_name, e,
+        ^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 1626, in _agent_runner
+        line = enc.data(f"interactive-{phase}-complete", {})
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+            {
+    
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\agent\abstract.py", line 524, in run_stream
+    async with self.iter(
+               ~~~~~~~~~^
+        user_prompt,
+        ^^^^^^^^^^^^
+    ...<12 lines>...
+        builtin_tools=builtin_tools,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as agent_run:
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 235, in __aexit__
+    await self.gen.athrow(value)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\agent\__init__.py", line 722, in iter
+    graph.iter(
+    ~~~~~~~~~~^
+        inputs=user_prompt_node,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        infer_name=False,
+        ^^^^^^^^^^^^^^^^^
+    ) as graph_run,
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 235, in __aexit__
+    await self.gen.athrow(value)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 270, in iter
+    async with GraphRun[StateT, DepsT, OutputT](
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        graph=self,
+        ^^^^^^^^^^^
+    ...<3 lines>...
+        traceparent=traceparent,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as graph_run:
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 423, in __aexit__
+    await self._async_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 768, in __aexit__
+    raise exc
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 749, in __aexit__
+    cb_suppress = cb(*exc_details)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 981, in _unwrap_exception_groups
+    raise exception
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 750, in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 782, in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\step.py", line 253, in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 593, in run
+    async with self.stream(ctx):
+               ~~~~~~~~~~~^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 221, in __aexit__
+    await anext(self.gen)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 607, in stream
+    async for _event in stream:
+        pass
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 744, in _run_stream
+    async for event in self._events_iterator:
+        yield event
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 733, in _run_stream
+    ctx.state.increment_retries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        ctx.deps.max_result_retries, error=e, model_settings=ctx.deps.model_settings
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 122, in increment_retries
+    raise exceptions.UnexpectedModelBehavior(message) from error
+pydantic_ai.exceptions.UnexpectedModelBehavior: Exceeded maximum retries (2) for output validation
+[UnifiedAgent] content unified path failed, fallback to legacy agent path: Exceeded maximum retries (2) for output validation
+list_classes: expected list, got <class 'NoneType'>
+Agent model anthropic/claude-opus-4-6 failed (provider error), will try fallback: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwrsfxiFCLZ7jmDngQPa'}
+Agent fallback: attempt 2 using dashscope/qwen-max (previous failed: anthropic/claude-opus-4-6: ModelHTTPError: status_code: 400, model_name: claude-opus-4-6, body: {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CXwrsfxiFCLZ7jmDngQPa'})
+get_submissions: expected list, got <class 'NoneType'>
+list_classes: expected list, got <class 'NoneType'>
+get_student_submissions: expected list, got <class 'NoneType'>
+list_assignments: unexpected shape <class 'NoneType'>
+list_classes: expected list, got <class 'NoneType'>
+[UnifiedAgent] Structured output failed, attempting repair pass. raw_body_len=0
+Agent path error (attempt 2/2)
+Traceback (most recent call last):
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_output.py", line 625, in process
+    output = self.validate(data, allow_partial=allow_partial, validation_context=run_context.validation_context)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_output.py", line 648, in validate
+    return self.validator.validate_json(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        data or '{}', allow_partial=pyd_allow_partial, context=validation_context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for FinalResult
+  Invalid JSON: expected ident at line 1 column 2 [type=json_invalid, input_value='I see that there\'s a mi...u like to move forward?', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/json_invalid
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 721, in _run_stream
+    self._next_node = await self._handle_text_response(ctx, text, text_processor)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 798, in _handle_text_response
+    result_data = await text_processor.process(text, run_context=run_context)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_output.py", line 631, in process
+    raise ToolRetryError(m) from e
+pydantic_ai.exceptions.ToolRetryError: 1 validation error
+__root__
+  Invalid JSON: expected ident at line 1 column 2 [type=json_invalid, input_value='I see that there\'s a misunderstanding; the previous response was not meant to be JSON. Let me clarify and provide you with a straightforward request for the information we need to proceed.\n\nSince we don\'t have the correct teacher\'s ID, and the placeholder `actual-teacher-id` did not return any classes, could you please provide the following details:\n\n1. The name of the teacher who is in charge of the "∏ﬂ“ª ˝—ß∞‡" (Senior High School First Year Math Class).\n2. The school or institution where this class is being taught.\n3. Any other identifying information that might help us find the right teacher and their classes.\n\nWith this information, I can attempt to locate the correct teacher and then gather the necessary data to prepare the comprehensive student report for the parent meeting. If you have access to a list of teachers, sharing that would also be very helpful. How would you like to move forward?']
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 1716, in _stream_agent_mode
+    model_name, e,
+        ^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 1626, in _agent_runner
+        line = enc.data(f"interactive-{phase}-complete", {})
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+            {
+    
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\agent\abstract.py", line 524, in run_stream
+    async with self.iter(
+               ~~~~~~~~~^
+        user_prompt,
+        ^^^^^^^^^^^^
+    ...<12 lines>...
+        builtin_tools=builtin_tools,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as agent_run:
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 235, in __aexit__
+    await self.gen.athrow(value)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\agent\__init__.py", line 722, in iter
+    graph.iter(
+    ~~~~~~~~~~^
+        inputs=user_prompt_node,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        infer_name=False,
+        ^^^^^^^^^^^^^^^^^
+    ) as graph_run,
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 235, in __aexit__
+    await self.gen.athrow(value)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 270, in iter
+    async with GraphRun[StateT, DepsT, OutputT](
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        graph=self,
+        ^^^^^^^^^^^
+    ...<3 lines>...
+        traceparent=traceparent,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ) as graph_run:
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 423, in __aexit__
+    await self._async_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 768, in __aexit__
+    raise exc
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 749, in __aexit__
+    cb_suppress = cb(*exc_details)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 981, in _unwrap_exception_groups
+    raise exception
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 750, in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\graph.py", line 782, in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_graph\beta\step.py", line 253, in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 593, in run
+    async with self.stream(ctx):
+               ~~~~~~~~~~~^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 221, in __aexit__
+    await anext(self.gen)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 607, in stream
+    async for _event in stream:
+        pass
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 744, in _run_stream
+    async for event in self._events_iterator:
+        yield event
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 733, in _run_stream
+    ctx.state.increment_retries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        ctx.deps.max_result_retries, error=e, model_settings=ctx.deps.model_settings
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic_ai\_agent_graph.py", line 122, in increment_retries
+    raise exceptions.UnexpectedModelBehavior(message) from error
+pydantic_ai.exceptions.UnexpectedModelBehavior: Exceeded maximum retries (2) for output validation
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [102420]
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'services\datastream.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'models\tool_contracts.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'tools\registry.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'config\prompts\native_agent.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'agents\native_agent.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'services\stream_adapter.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'api\conversation_legacy.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 90, in <module>
+    from api.conversation import router as conversation_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 359, in get_code
+    return super().get_code(fullname)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 893, in get_code
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\beartype\claw\_importlib\_clawimpload.py", line 456, in source_to_code
+    return super().source_to_code(  # type: ignore[call-arg]
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        data=data, path=path, _optimize=_optimize)  # pyright: ignore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Insight-AI\insight-ai-agent\api\conversation.py", line 894
+    "You are a quiz refinement orchestrator.
+    ^
+SyntaxError: unterminated string literal (detected at line 894)
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [261048]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [261048]
+WARNING:  WatchFiles detected changes in 'scripts\pydantic_ai_stream_demo.py', 'scripts\native_smoke_test.py', 'tests\test_native_agent.py', 'agents\native_agent.py', 'main.py', 'tests\test_stream_adapter.py', 'config\settings.py', 'tests\test_native_registry.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [231464]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [231464]
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [107092]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'api\conversation.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [107092]
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py', 'api\conversation.py', 'services\stream_adapter.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [178284]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\metrics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [178284]
+WARNING:  WatchFiles detected changes in 'tools\registry.py', 'agents\native_agent.py', 'services\artifact_store.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 19, in <module>
+    from insight_backend.rag_engine import init_rag_engine
+  File "D:\Insight-AI\insight-ai-agent\insight_backend\rag_engine.py", line 19, in <module>
+    import numpy as np
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\__init__.py", line 125, in <module>
+    from numpy.__config__ import show_config
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\__config__.py", line 4, in <module>
+    from numpy._core._multiarray_umath import (
+    ...<3 lines>...
+    )
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\_core\__init__.py", line 24, in <module>
+    from . import multiarray
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\_core\multiarray.py", line 1040, in <module>
+    @array_function_from_c_func_and_dispatcher(_multiarray_umath.unravel_index)
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\_core\overrides.py", line 185, in decorator
+    return array_function_dispatch(
+           ~~~~~~~~~~~~~~~~~~~~~~~~
+        dispatcher, module, verify=verify,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        docs_from_dispatcher=docs_from_dispatcher)(implementation)
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\numpy\_core\overrides.py", line 145, in decorator
+    def decorator(implementation):
+    
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 85, in <module>
+    import tools.native_tools  # noqa: E402, F401  °™ registers tools via @register_tool
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'tools.native_tools'
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py'. Reloading...
+WARNING:  WatchFiles detected changes in 'tools\document_tools.py'. Reloading...
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [263072]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [263072]
+WARNING:  WatchFiles detected changes in 'tools\data_tools.py', 'tools\native_tools.py', 'tools\registry.py', 'tests\test_native_registry.py', 'tests\test_native_step2_guardrails.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [264792]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [264792]
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py', 'services\metrics.py', 'services\artifact_store.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+WARNING:  WatchFiles detected changes in 'tools\native_tools.py'. Reloading...
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [33368]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33368]
+WARNING:  WatchFiles detected changes in 'tools\registry.py', 'tests\test_native_step2_guardrails.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(parent_pid=193056, pipe_handle=1200)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\Insight-AI\insight-ai-agent\main.py", line 7, in <module>
+    import litellm
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\__init__.py", line 29, in <module>
+    from litellm.types.integrations.datadog import DatadogInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\datadog.py", line 6, in <module>
+    from litellm.types.integrations.custom_logger import StandardCustomLoggerInitParams
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\litellm\types\integrations\custom_logger.py", line 6, in <module>
+    class StandardCustomLoggerInitParams(BaseModel):
+    ...<3 lines>...
+        turn_off_message_logging: Optional[bool] = False
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 255, in __new__
+    complete_model_class(
+    ~~~~~~~~~~~~~~~~~~~~^
+        cls,
+        ^^^^
+    ...<3 lines>...
+        create_model_module=_create_model_module,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_model_construction.py", line 671, in complete_model_class
+    cls.__pydantic_validator__ = create_schema_validator(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^
+        schema,
+        ^^^^^^^
+    ...<5 lines>...
+        config_wrapper.plugin_settings,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_schema_validator.py", line 39, in create_schema_validator
+    plugins = get_plugins()
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\plugin\_loader.py", line 48, in get_plugins
+    _plugins[entry_point.value] = entry_point.load()
+                                  ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\metadata\__init__.py", line 179, in load
+    module = import_module(match.group('module'))
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\__init__.py", line 7, in <module>
+    from logfire.propagate import attach_context, get_context
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\propagate.py", line 24, in <module>
+    from logfire._internal.stack_info import warn_at_user_stacklevel
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\__init__.py", line 11, in <module>
+    if platform_is_emscripten():  # pragma: no cover
+       ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\logfire\_internal\utils.py", line 435, in platform_is_emscripten
+    return platform.system().lower() == 'emscripten'
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1090, in system
+    return uname().system
+           ~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 1016, in uname
+    release, version, csd, ptype = win32_ver()
+                                   ~~~~~~~~~^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 467, in win32_ver
+    version, csd, ptype, is_client = _win32_ver(version, csd, ptype)
+                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 408, in _win32_ver
+    (version, product_type, ptype, spmajor, spminor)  = _wmi_query(
+                                                        ~~~~~~~~~~^
+        'OS',
+        ^^^^^
+    ...<4 lines>...
+        'ServicePackMinorVersion',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\platform.py", line 347, in _wmi_query
+    data = _wmi.exec_query("SELECT {} FROM {}".format(
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ",".join(keys),
+        ^^^^^^^^^^^^^^^
+        table,
+        ^^^^^^
+    )).split("\0")
+    ^^
+KeyboardInterrupt
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+C:\Users\a1065\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [270096]
+INFO:     Waiting for application startup.
+RAG engine PostgreSQL not available: No module named 'asyncpg' °™ document parsing will fail until DB is accessible
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts\native_full_regression.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [270096]
+WARNING:  WatchFiles detected changes in 'skills\interactive_skill.py', 'tests\test_golden_conversations.py', 'tools\__init__.py', 'agents\native_agent.py', 'scripts\native_full_regression.py', 'agents\teacher_agent.py', 'services\datastream.py', 'agents\chat.py', 'config\prompts\executor.py', 'config\settings.py', 'tests\test_router.py', 'scripts\benchmark_quiz_fast_path.py', 'agents\resolver.py', 'config\prompts\teacher_agent.py', 'config\prompts\chat.py', 'tests\test_native_e2e_live.py', 'agents\provider.py', 'tools\registry.py', 'main.py', 'api\chat.py', 'services\conversation_store.py', 'agents\chat_agent.py', 'tests\test_live_integration.py', 'tests\test_native_e2e_runtime.py', 'agents\patch_agent.py', 'agents\router.py', 'tests\test_resolver.py', 'scripts\golden_conversation_runner.py', 'tests\test_agent_path.py', 'api\conversation.py', 'tests\test_patch.py', 'models\errors.py', 'tests\integration\test_intent_classification.py', 'tests\test_provider.py', 'config\prompts\page_chat.py', 'agents\toolset_planner.py', 'tests\test_e2e_phase6.py', 'config\prompts\router.py', 'tests\test_native_agent.py', 'scripts\native_smoke_test.py', 'tests\test_toolset_planner.py', 'config\prompts\native_agent.py', 'services\stream_adapter.py', 'tests\test_page_chat.py', 'tests\conftest.py', 'agents\page_chat.py', 'api\models_routes.py', 'skills\interactive_modify_skill.py', 'tests\test_chat_agent.py', 'api\conversation_legacy.py'. Reloading...

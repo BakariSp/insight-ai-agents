@@ -21,6 +21,7 @@ class ContentFormat(str, Enum):
     JSON = "json"
     MARKDOWN = "markdown"
     HTML = "html"
+    URL = "url"
 
 
 # ── Artifact Model (frozen — protocol-freeze-v1) ────────────
@@ -40,7 +41,7 @@ class Artifact(BaseModel):
     """Unified artifact data model.
 
     - ``artifact_type``: business object kind (quiz / ppt / doc / interactive)
-    - ``content_format``: technical format (json / markdown / html)
+    - ``content_format``: technical format (json / markdown / html / url)
     """
 
     artifact_id: str
