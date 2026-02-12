@@ -209,6 +209,13 @@ class TestClassAdapter:
         info = _parse_classroom({"id": 42, "name": "Test"})
         assert info.class_id == "42"
 
+    @pytest.mark.asyncio
+    async def test_parse_classroom_null_description(self):
+        from adapters.class_adapter import _parse_classroom
+
+        info = _parse_classroom({"id": 42, "name": "Test", "description": None})
+        assert info.description == ""
+
 
 # =========================================================================
 # submission_adapter tests

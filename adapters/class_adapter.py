@@ -21,17 +21,32 @@ logger = logging.getLogger(__name__)
 # Response → Internal Model conversions
 # ---------------------------------------------------------------------------
 
+def _string_or_empty(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _int_or_zero(value: Any) -> int:
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _parse_classroom(raw: dict[str, Any]) -> ClassInfo:
     """Convert a single Java ``Classroom`` object to :class:`ClassInfo`."""
     return ClassInfo(
         class_id=str(raw.get("uid") or raw.get("id", "")),
-        name=raw.get("name", ""),
-        grade=raw.get("grade", ""),
-        subject=raw.get("subject", ""),
-        student_count=raw.get("studentCount", 0),
-        assignment_count=raw.get("assignmentCount", 0),
-        description=raw.get("description", ""),
-        semester_label=raw.get("semesterLabel") or "",
+        name=_string_or_empty(raw.get("name")),
+        grade=_string_or_empty(raw.get("grade")),
+        subject=_string_or_empty(raw.get("subject")),
+        student_count=_int_or_zero(raw.get("studentCount")),
+        assignment_count=_int_or_zero(raw.get("assignmentCount")),
+        description=_string_or_empty(raw.get("description")),
+        semester_label=_string_or_empty(raw.get("semesterLabel")),
     )
 
 
