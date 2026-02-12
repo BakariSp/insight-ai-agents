@@ -137,13 +137,6 @@ async def get_class_detail(teacher_id: str, class_id: str) -> dict:
         from adapters.class_adapter import get_detail, list_assignments
         client = _get_client()
         detail = await get_detail(client, teacher_id, class_id)
-        assignments = await list_assignments(client, teacher_id, class_id)
-        detail.assignments = assignments
-        result = detail.model_dump()
-        result["teacher_id"] = teacher_id
-        # Override stale counter with real assignment count
-        result["assignment_count"] = len(assignments)
-        return result
     except ValueError:
         raise  # Null-data transient error — let PydanticAI retry
     except Exception as exc:
@@ -152,6 +145,26 @@ async def get_class_detail(teacher_id: str, class_id: str) -> dict:
             return _mock_class_detail(teacher_id, class_id)
         return {"status": "error", "reason": str(exc), "teacher_id": teacher_id, "class_id": class_id}
 
+    assignments = []
+    assignment_warning = None
+    try:
+        assignments = await list_assignments(client, teacher_id, class_id)
+    except Exception:
+        # Keep class detail available even when assignment listing is temporarily down.
+        logger.warning(
+            "get_class_detail list_assignments failed, degrading to empty assignments",
+            exc_info=True,
+        )
+        assignment_warning = "assignments_unavailable"
+
+    detail.assignments = assignments
+    result = detail.model_dump()
+    result["teacher_id"] = teacher_id
+    # Override stale counter with real assignment count
+    result["assignment_count"] = len(assignments)
+    if assignment_warning:
+        result["warning"] = assignment_warning
+    return result
 
 async def get_assignment_submissions(teacher_id: str, assignment_id: str) -> dict:
     """Get all student submissions for a specific assignment.

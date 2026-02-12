@@ -166,6 +166,28 @@ async def test_get_class_detail_calls_adapter_when_not_mock():
 
 
 @pytest.mark.asyncio
+async def test_get_class_detail_degrades_when_assignment_list_fails():
+    """Class detail should still return when assignment list call fails."""
+    from unittest.mock import AsyncMock, MagicMock
+    from models.data import ClassDetail
+
+    mock_client = MagicMock()
+    fake_detail = ClassDetail(class_id="uuid-1", name="Class A")
+
+    with patch("tools.data_tools._should_use_mock", return_value=False), \
+         patch("tools.data_tools._get_client", return_value=mock_client), \
+         patch("adapters.class_adapter.get_detail", new_callable=AsyncMock, return_value=fake_detail), \
+         patch("adapters.class_adapter.list_assignments", new_callable=AsyncMock, side_effect=RuntimeError("assignments down")):
+        result = await get_class_detail("t-001", "uuid-1")
+
+    assert result["class_id"] == "uuid-1"
+    assert result["name"] == "Class A"
+    assert result["assignments"] == []
+    assert result["assignment_count"] == 0
+    assert result["warning"] == "assignments_unavailable"
+
+
+@pytest.mark.asyncio
 async def test_get_assignment_submissions_calls_adapter_when_not_mock():
     """When USE_MOCK_DATA=False and backend succeeds, should use adapter."""
     from unittest.mock import AsyncMock, MagicMock
